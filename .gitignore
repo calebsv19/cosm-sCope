@@ -1,0 +1,18 @@
+# Build artifacts
+/build/
+/datalab
+*.o
+*.d
+*.a
+*.so
+*.dylib
+
+# Runtime / local scratch
+*.log
+*.tmp
+
+# OS/editor noise
+.DS_Store
+**/.DS_Store
+*.swp
+*.swo
