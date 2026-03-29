@@ -1,7 +1,31 @@
 #include "ui/input.h"
 
+static int datalab_zoom_modifier_active(SDL_Keymod mods) {
+    return ((mods & KMOD_CTRL) != 0) || ((mods & KMOD_GUI) != 0);
+}
+
 void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state, int *quit) {
     if (!key || !state || !quit) return;
+
+    if (datalab_zoom_modifier_active((SDL_Keymod)key->keysym.mod)) {
+        switch (key->keysym.sym) {
+            case SDLK_EQUALS:
+            case SDLK_PLUS:
+            case SDLK_KP_PLUS:
+                state->text_zoom_step = datalab_text_zoom_step_clamp(state->text_zoom_step + 1);
+                return;
+            case SDLK_MINUS:
+            case SDLK_KP_MINUS:
+                state->text_zoom_step = datalab_text_zoom_step_clamp(state->text_zoom_step - 1);
+                return;
+            case SDLK_0:
+            case SDLK_KP_0:
+                state->text_zoom_step = 0;
+                return;
+            default:
+                break;
+        }
+    }
 
     switch (key->keysym.sym) {
         case SDLK_ESCAPE:

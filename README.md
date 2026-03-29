@@ -18,6 +18,7 @@ This project is currently focused on reliability and observability, not feature 
 - Frame summary output to terminal.
 - Physics dataset mapping (`density`, `velocity`) through shared `core_data`.
 - Basic interactive view modes and input controls for visual inspection.
+- Runtime text zoom controls (`Cmd/Ctrl +`, `Cmd/Ctrl -`, `Cmd/Ctrl 0`) with persisted zoom step in `data/runtime/text_zoom_step.txt`.
 
 ## Build and Run
 

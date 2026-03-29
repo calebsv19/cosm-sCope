@@ -14,6 +14,7 @@ Start here for public repository documentation.
 ## Public Runtime Docs
 - `README.md` (repo root): product overview, build/run commands, and baseline behavior.
 - `KNOWN_ISSUES.md`: release-facing caveats and current limitations.
+- `docs/KEYBINDS.md`: keyboard interaction reference (including text zoom shortcuts).
 
 ## Private Planning Docs
 - Private scaffold plans/checklists are kept in the workspace private docs bucket:

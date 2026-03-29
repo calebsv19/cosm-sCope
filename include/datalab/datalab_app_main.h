@@ -9,6 +9,7 @@ typedef struct DatalabAppRuntime {
     const char *pack_path;
     int no_gui;
     int show_help;
+    int text_zoom_step;
     int frame_loaded;
     DatalabFrame frame;
 } DatalabAppRuntime;

@@ -66,6 +66,11 @@ Last updated: 2026-03-29
 ## Post-Scaffold Direction
 - Scaffold migration is complete for `datalab`.
 - Follow-on work should use normal planning docs and keep `test-stable` as the baseline deterministic verification gate.
+- Post-scaffold font-size pass is now implemented in working tree:
+  - runtime zoom step state + clamp bounds
+  - `Cmd/Ctrl +/-/0` input wiring
+  - runtime persistence in `data/runtime/text_zoom_step.txt`
+  - zoom-scaled 5x7 text rendering in viewer overlays
 
 ## Non-Goals During Scaffold Migration
 - No broad feature expansion unrelated to scaffold normalization.

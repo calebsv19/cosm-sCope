@@ -11,6 +11,24 @@
 #include "kit_viz.h"
 #include "ui/input.h"
 
+static float g_datalab_text_zoom_multiplier = 1.0f;
+
+static void datalab_sync_text_zoom(const DatalabAppState *app_state) {
+    int step = 0;
+    if (app_state) {
+        step = app_state->text_zoom_step;
+    }
+    g_datalab_text_zoom_multiplier = datalab_text_zoom_step_multiplier(step);
+}
+
+static int datalab_scaled_px(float px) {
+    float scaled = px * g_datalab_text_zoom_multiplier;
+    if (scaled < 1.0f) {
+        scaled = 1.0f;
+    }
+    return (int)lroundf(scaled);
+}
+
 static const char *daw_view_mode_name(DatalabViewMode mode) {
     switch (mode) {
         case DATALAB_VIEW_DENSITY: return "markers";
@@ -30,11 +48,12 @@ static void make_title(const DatalabFrame *frame, const DatalabAppState *state, 
     if (frame->profile == DATALAB_PROFILE_DAW) {
         snprintf(title,
                  title_cap,
-                 "DataLab | DAW points=%llu markers=%zu sr=%u mode=%s",
+                 "DataLab | DAW points=%llu markers=%zu sr=%u mode=%s text=%+d",
                  (unsigned long long)frame->point_count,
                  frame->marker_count,
                  frame->sample_rate,
-                 daw_view_mode_name(state->view_mode));
+                 daw_view_mode_name(state->view_mode),
+                 state->text_zoom_step);
         return;
     }
 
@@ -43,25 +62,27 @@ static void make_title(const DatalabFrame *frame, const DatalabAppState *state, 
         if (frame->trace_sample_count == 0) cursor = 0;
         snprintf(title,
                  title_cap,
-                 "DataLab | TRACE samples=%zu markers=%zu cursor=%zu zoom_stub=%.2f stats_stub=%s",
+                 "DataLab | TRACE samples=%zu markers=%zu cursor=%zu zoom_stub=%.2f stats_stub=%s text=%+d",
                  frame->trace_sample_count,
                  frame->trace_marker_count,
                  cursor,
                  state->trace_zoom_stub,
-                 state->trace_selection_stub_active ? "on" : "off");
+                 state->trace_selection_stub_active ? "on" : "off",
+                 state->text_zoom_step);
         return;
     }
 
     snprintf(title,
              title_cap,
-             "DataLab | frame=%llu grid=%ux%u t=%.3f dt=%.3f mode=%s stride=%u",
+             "DataLab | frame=%llu grid=%ux%u t=%.3f dt=%.3f mode=%s stride=%u text=%+d",
              (unsigned long long)frame->frame_index,
              frame->width,
              frame->height,
              frame->time_seconds,
              frame->dt_seconds,
              datalab_view_mode_name(state->view_mode),
-             state->vector_stride);
+             state->vector_stride,
+             state->text_zoom_step);
 }
 
 static void calc_fit_rect(int ww, int wh, uint32_t fw, uint32_t fh, SDL_Rect *out_rect) {
@@ -167,18 +188,38 @@ static void draw_text_5x7(SDL_Renderer *renderer,
                           uint8_t g,
                           uint8_t b,
                           uint8_t a) {
+    float draw_scale;
+    float glyph_advance;
     if (!renderer || !text || scale < 1) {
         return;
+    }
+    draw_scale = ((float)scale) * g_datalab_text_zoom_multiplier;
+    if (draw_scale < 0.35f) {
+        draw_scale = 0.35f;
+    }
+    glyph_advance = 6.0f * draw_scale;
+    if (glyph_advance < 1.0f) {
+        glyph_advance = 1.0f;
     }
     SDL_SetRenderDrawColor(renderer, r, g, b, a);
     for (int i = 0; text[i] != '\0'; ++i) {
         const char *bits = glyph5x7(text[i]);
-        int gx = x + i * (6 * scale);
+        float base_x = (float)x + ((float)i * glyph_advance);
         for (int row = 0; row < 7; ++row) {
             for (int col = 0; col < 5; ++col) {
                 char bit = bits[row * 5 + col];
                 if (bit == '1') {
-                    SDL_Rect px = { gx + col * scale, y + row * scale, scale, scale };
+                    int x0 = (int)floorf(base_x + ((float)col * draw_scale));
+                    int x1 = (int)floorf(base_x + ((float)(col + 1) * draw_scale));
+                    int y0 = (int)floorf((float)y + ((float)row * draw_scale));
+                    int y1 = (int)floorf((float)y + ((float)(row + 1) * draw_scale));
+                    if (x1 <= x0) {
+                        x1 = x0 + 1;
+                    }
+                    if (y1 <= y0) {
+                        y1 = y0 + 1;
+                    }
+                    SDL_Rect px = { x0, y0, x1 - x0, y1 - y0 };
                     SDL_RenderFillRect(renderer, &px);
                 }
             }
@@ -192,29 +233,42 @@ static void draw_daw_legend(SDL_Renderer *renderer, const DatalabAppState *app_s
     }
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_Rect panel = { plot_rect->x + 8, plot_rect->y + 8, 258, 64 };
+    SDL_Rect panel = {
+        plot_rect->x + datalab_scaled_px(8.0f),
+        plot_rect->y + datalab_scaled_px(8.0f),
+        datalab_scaled_px(258.0f),
+        datalab_scaled_px(64.0f)
+    };
     SDL_SetRenderDrawColor(renderer, 8, 10, 16, 180);
     SDL_RenderFillRect(renderer, &panel);
     SDL_SetRenderDrawColor(renderer, 90, 95, 110, 210);
     SDL_RenderDrawRect(renderer, &panel);
 
-    draw_text_5x7(renderer, panel.x + 8, panel.y + 6, "MODE:", 2, 215, 220, 235, 255);
+    draw_text_5x7(renderer,
+                  panel.x + datalab_scaled_px(8.0f),
+                  panel.y + datalab_scaled_px(6.0f),
+                  "MODE:",
+                  2,
+                  215,
+                  220,
+                  235,
+                  255);
 
     const uint8_t active_r = 180, active_g = 240, active_b = 220;
     const uint8_t idle_r = 150, idle_g = 155, idle_b = 165;
 
     const int m = (int)app_state->view_mode;
-    draw_text_5x7(renderer, panel.x + 8, panel.y + 22, "1 WAVEFORM", 2,
+    draw_text_5x7(renderer, panel.x + datalab_scaled_px(8.0f), panel.y + datalab_scaled_px(22.0f), "1 WAVEFORM", 2,
                   (m == DATALAB_VIEW_SPEED) ? active_r : idle_r,
                   (m == DATALAB_VIEW_SPEED) ? active_g : idle_g,
                   (m == DATALAB_VIEW_SPEED) ? active_b : idle_b,
                   255);
-    draw_text_5x7(renderer, panel.x + 8, panel.y + 38, "2 WAVEFORM+MARKERS", 1,
+    draw_text_5x7(renderer, panel.x + datalab_scaled_px(8.0f), panel.y + datalab_scaled_px(38.0f), "2 WAVEFORM+MARKERS", 1,
                   (m == DATALAB_VIEW_DENSITY_VECTOR) ? active_r : idle_r,
                   (m == DATALAB_VIEW_DENSITY_VECTOR) ? active_g : idle_g,
                   (m == DATALAB_VIEW_DENSITY_VECTOR) ? active_b : idle_b,
                   255);
-    draw_text_5x7(renderer, panel.x + 8, panel.y + 50, "3 MARKERS", 1,
+    draw_text_5x7(renderer, panel.x + datalab_scaled_px(8.0f), panel.y + datalab_scaled_px(50.0f), "3 MARKERS", 1,
                   (m == DATALAB_VIEW_DENSITY) ? active_r : idle_r,
                   (m == DATALAB_VIEW_DENSITY) ? active_g : idle_g,
                   (m == DATALAB_VIEW_DENSITY) ? active_b : idle_b,
@@ -256,12 +310,18 @@ static void render_daw_frame(SDL_Renderer *renderer, const DatalabFrame *frame, 
     if (!renderer || !frame || !app_state || !frame->wave_min || !frame->wave_max || frame->point_count == 0) {
         return;
     }
+    datalab_sync_text_zoom(app_state);
 
     int ww = 0;
     int wh = 0;
     SDL_GetRendererOutputSize(renderer, &ww, &wh);
 
-    SDL_Rect plot = { 30, 40, ww - 60, wh - 80 };
+    SDL_Rect plot = {
+        datalab_scaled_px(30.0f),
+        datalab_scaled_px(40.0f),
+        ww - datalab_scaled_px(60.0f),
+        wh - datalab_scaled_px(80.0f)
+    };
     if (plot.w < 10 || plot.h < 10) {
         return;
     }
@@ -366,7 +426,7 @@ static void draw_trace_time_grid(SDL_Renderer *renderer,
         SDL_RenderDrawLine(renderer, x, plot->y, x, plot->y + plot->h - 1);
 
         snprintf(label, sizeof(label), "%.2f", t_scaled);
-        draw_text_5x7(renderer, x - 14, label_y, label, 1, 120, 130, 150, 255);
+        draw_text_5x7(renderer, x - datalab_scaled_px(14.0f), label_y, label, 1, 120, 130, 150, 255);
     }
 }
 
@@ -391,8 +451,18 @@ static void draw_trace_value_grid(SDL_Renderer *renderer,
         if (i == 0 || i == grid->value_divisions || i == grid->value_divisions / 2) {
             int label_y;
             snprintf(label, sizeof(label), "%.2f", v_scaled);
-            label_y = clamp_int(y - 4, band->y + 1, band->y + band->h - 8);
-            draw_text_5x7(renderer, band->x + band->w - 34, label_y, label, 1, 120, 130, 150, 255);
+            label_y = clamp_int(y - datalab_scaled_px(4.0f),
+                                band->y + 1,
+                                band->y + band->h - datalab_scaled_px(8.0f));
+            draw_text_5x7(renderer,
+                          band->x + band->w - datalab_scaled_px(34.0f),
+                          label_y,
+                          label,
+                          1,
+                          120,
+                          130,
+                          150,
+                          255);
         }
     }
 }
@@ -401,10 +471,10 @@ static void draw_trace_legend(SDL_Renderer *renderer, const TraceLaneMeta *lanes
     if (!renderer || !lanes || !header_rect) return;
 
     SDL_Rect panel = {
-        header_rect->x + 8,
-        header_rect->y + 6,
-        270,
-        header_rect->h - 12
+        header_rect->x + datalab_scaled_px(8.0f),
+        header_rect->y + datalab_scaled_px(6.0f),
+        datalab_scaled_px(270.0f),
+        header_rect->h - datalab_scaled_px(12.0f)
     };
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 8, 10, 16, 182);
@@ -412,15 +482,36 @@ static void draw_trace_legend(SDL_Renderer *renderer, const TraceLaneMeta *lanes
     SDL_SetRenderDrawColor(renderer, 90, 95, 110, 220);
     SDL_RenderDrawRect(renderer, &panel);
 
-    draw_text_5x7(renderer, panel.x + 8, panel.y + 4, "TRACE LANES", 1, 215, 220, 235, 255);
+    draw_text_5x7(renderer,
+                  panel.x + datalab_scaled_px(8.0f),
+                  panel.y + datalab_scaled_px(4.0f),
+                  "TRACE LANES",
+                  1,
+                  215,
+                  220,
+                  235,
+                  255);
     for (size_t i = 0; i < lane_count; ++i) {
         SDL_Color c = trace_lane_color(i);
-        int y = panel.y + 14 + (int)i * 10;
-        if (y > panel.y + panel.h - 10) break;
-        SDL_Rect swatch = { panel.x + 8, y + 1, 10, 6 };
+        int y = panel.y + datalab_scaled_px(14.0f) + (int)i * datalab_scaled_px(10.0f);
+        if (y > panel.y + panel.h - datalab_scaled_px(10.0f)) break;
+        SDL_Rect swatch = {
+            panel.x + datalab_scaled_px(8.0f),
+            y + datalab_scaled_px(1.0f),
+            datalab_scaled_px(10.0f),
+            datalab_scaled_px(6.0f)
+        };
         SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, 255);
         SDL_RenderFillRect(renderer, &swatch);
-        draw_text_5x7(renderer, panel.x + 24, y, lanes[i].lane, 1, 205, 210, 220, 255);
+        draw_text_5x7(renderer,
+                      panel.x + datalab_scaled_px(24.0f),
+                      y,
+                      lanes[i].lane,
+                      1,
+                      205,
+                      210,
+                      220,
+                      255);
     }
 }
 
@@ -442,10 +533,10 @@ static void draw_trace_readout(SDL_Renderer *renderer,
         char summary[96];
         char marker_line[112];
         SDL_Rect panel = {
-            header_rect->x + header_rect->w - 388,
-            header_rect->y + 6,
-            380,
-            header_rect->h - 12
+            header_rect->x + header_rect->w - datalab_scaled_px(388.0f),
+            header_rect->y + datalab_scaled_px(6.0f),
+            datalab_scaled_px(380.0f),
+            header_rect->h - datalab_scaled_px(12.0f)
         };
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 8, 10, 16, 182);
@@ -454,27 +545,56 @@ static void draw_trace_readout(SDL_Renderer *renderer,
         SDL_RenderDrawRect(renderer, &panel);
 
         snprintf(line, sizeof(line), "T %.4f", play_t);
-        draw_text_5x7(renderer, panel.x + 8, panel.y + 4, line, 1, 230, 230, 235, 255);
+        draw_text_5x7(renderer,
+                      panel.x + datalab_scaled_px(8.0f),
+                      panel.y + datalab_scaled_px(4.0f),
+                      line,
+                      1,
+                      230,
+                      230,
+                      235,
+                      255);
         snprintf(summary,
                  sizeof(summary),
                  "S:%zu M:%zu DUR:%.4f",
                  total_samples,
                  total_markers,
                  (max_t > min_t) ? (max_t - min_t) : 0.0);
-        draw_text_5x7(renderer, panel.x + 112, panel.y + 4, summary, 1, 180, 190, 205, 255);
+        draw_text_5x7(renderer,
+                      panel.x + datalab_scaled_px(112.0f),
+                      panel.y + datalab_scaled_px(4.0f),
+                      summary,
+                      1,
+                      180,
+                      190,
+                      205,
+                      255);
 
         if (nearest_marker_label && nearest_marker_label[0] != '\0') {
             snprintf(marker_line, sizeof(marker_line), "MKR %.4f %s", nearest_marker_t, nearest_marker_label);
         } else {
             snprintf(marker_line, sizeof(marker_line), "MKR N/A");
         }
-        draw_text_5x7(renderer, panel.x + 8, panel.y + 14, marker_line, 1, 250, 180, 120, 255);
+        draw_text_5x7(renderer,
+                      panel.x + datalab_scaled_px(8.0f),
+                      panel.y + datalab_scaled_px(14.0f),
+                      marker_line,
+                      1,
+                      250,
+                      180,
+                      120,
+                      255);
 
         for (size_t i = 0; i < lane_count; ++i) {
             SDL_Color c = trace_lane_color(i);
-            int y = panel.y + 24 + (int)i * 10;
-            if (y > panel.y + panel.h - 10) break;
-            SDL_Rect swatch = { panel.x + 8, y + 1, 10, 6 };
+            int y = panel.y + datalab_scaled_px(24.0f) + (int)i * datalab_scaled_px(10.0f);
+            if (y > panel.y + panel.h - datalab_scaled_px(10.0f)) break;
+            SDL_Rect swatch = {
+                panel.x + datalab_scaled_px(8.0f),
+                y + datalab_scaled_px(1.0f),
+                datalab_scaled_px(10.0f),
+                datalab_scaled_px(6.0f)
+            };
             char value_line[96];
             SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, 255);
             SDL_RenderFillRect(renderer, &swatch);
@@ -483,7 +603,15 @@ static void draw_trace_readout(SDL_Renderer *renderer,
             } else {
                 snprintf(value_line, sizeof(value_line), "%s: N/A", lanes[i].lane);
             }
-            draw_text_5x7(renderer, panel.x + 24, y, value_line, 1, 215, 220, 235, 255);
+            draw_text_5x7(renderer,
+                          panel.x + datalab_scaled_px(24.0f),
+                          y,
+                          value_line,
+                          1,
+                          215,
+                          220,
+                          235,
+                          255);
         }
     }
 }
@@ -507,6 +635,7 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
     if (!renderer || !frame || !app_state || !frame->trace_samples || frame->trace_sample_count == 0) {
         return;
     }
+    datalab_sync_text_zoom(app_state);
 
     memset(lanes, 0, sizeof(lanes));
 
@@ -586,14 +715,14 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
     }
 
     SDL_GetRendererOutputSize(renderer, &ww, &wh);
-    header.x = 32;
-    header.y = 8;
-    header.w = ww - 64;
-    header.h = 64;
-    plot.x = 32;
-    plot.y = header.y + header.h + 6;
-    plot.w = ww - 64;
-    plot.h = wh - plot.y - 42;
+    header.x = datalab_scaled_px(32.0f);
+    header.y = datalab_scaled_px(8.0f);
+    header.w = ww - datalab_scaled_px(64.0f);
+    header.h = datalab_scaled_px(64.0f);
+    plot.x = datalab_scaled_px(32.0f);
+    plot.y = header.y + header.h + datalab_scaled_px(6.0f);
+    plot.w = ww - datalab_scaled_px(64.0f);
+    plot.h = wh - plot.y - datalab_scaled_px(42.0f);
     if (plot.w < 40 || plot.h < 40) {
         core_free(time_points);
         return;
@@ -629,7 +758,12 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
         }
             int by = plot.y + (int)((double)visible_lane_cursor * (double)plot.h / (double)visible_lane_count);
             int bh = (int)((double)plot.h / (double)visible_lane_count);
-        SDL_Rect band = { plot.x + 8, by + 4, plot.w - 16, bh - 8 };
+        SDL_Rect band = {
+            plot.x + datalab_scaled_px(8.0f),
+            by + datalab_scaled_px(4.0f),
+            plot.w - datalab_scaled_px(16.0f),
+            bh - datalab_scaled_px(8.0f)
+        };
         if (band.h < 12) continue;
 
         SDL_SetRenderDrawColor(renderer, 31, 35, 46, 255);
@@ -638,7 +772,15 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
         SDL_RenderDrawRect(renderer, &band);
         draw_trace_value_grid(renderer, &band, lanes[l].min_v, lanes[l].max_v, &grid);
 
-        draw_text_5x7(renderer, band.x + 6, band.y + 6, lanes[l].lane, 1, 170, 220, 240, 255);
+        draw_text_5x7(renderer,
+                      band.x + datalab_scaled_px(6.0f),
+                      band.y + datalab_scaled_px(6.0f),
+                      lanes[l].lane,
+                      1,
+                      170,
+                      220,
+                      240,
+                      255);
 
         float span = lanes[l].max_v - lanes[l].min_v;
         int is_flat_lane = fabsf(span) < 1e-8f;
@@ -724,14 +866,62 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
                            nearest_marker ? nearest_marker->time_seconds : 0.0,
                            &header);
     }
-    draw_text_5x7(renderer, plot.x + 10, trace_time_label_y + 10, "TIME SECONDS", 1, 120, 130, 150, 255);
-    draw_text_5x7(renderer, plot.x + 120, trace_time_label_y + 10, "GRID T=SECONDS V=VALUE", 1, 120, 130, 150, 255);
+    draw_text_5x7(renderer,
+                  plot.x + datalab_scaled_px(10.0f),
+                  trace_time_label_y + datalab_scaled_px(10.0f),
+                  "TIME SECONDS",
+                  1,
+                  120,
+                  130,
+                  150,
+                  255);
+    draw_text_5x7(renderer,
+                  plot.x + datalab_scaled_px(120.0f),
+                  trace_time_label_y + datalab_scaled_px(10.0f),
+                  "GRID T=SECONDS V=VALUE",
+                  1,
+                  120,
+                  130,
+                  150,
+                  255);
 
-    footer_y = wh - 14;
-    draw_text_5x7(renderer, plot.x + 10, footer_y, "LEFT RIGHT SCRUB", 1, 205, 210, 220, 255);
-    draw_text_5x7(renderer, plot.x + 180, footer_y, "Z ZOOM-STUB", 1, 160, 175, 190, 255);
-    draw_text_5x7(renderer, plot.x + 286, footer_y, "X STATS-STUB", 1, 160, 175, 190, 255);
-    draw_text_5x7(renderer, plot.x + 392, footer_y, "C LANE-CYCLE", 1, 160, 175, 190, 255);
+    footer_y = wh - datalab_scaled_px(14.0f);
+    draw_text_5x7(renderer,
+                  plot.x + datalab_scaled_px(10.0f),
+                  footer_y,
+                  "LEFT RIGHT SCRUB",
+                  1,
+                  205,
+                  210,
+                  220,
+                  255);
+    draw_text_5x7(renderer,
+                  plot.x + datalab_scaled_px(180.0f),
+                  footer_y,
+                  "Z ZOOM-STUB",
+                  1,
+                  160,
+                  175,
+                  190,
+                  255);
+    draw_text_5x7(renderer,
+                  plot.x + datalab_scaled_px(286.0f),
+                  footer_y,
+                  "X STATS-STUB",
+                  1,
+                  160,
+                  175,
+                  190,
+                  255);
+    draw_text_5x7(renderer,
+                  plot.x + datalab_scaled_px(392.0f),
+                  footer_y,
+                  "C LANE-CYCLE",
+                  1,
+                  160,
+                  175,
+                  190,
+                  255);
 
     core_free(time_points);
 }

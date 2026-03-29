@@ -1,14 +1,67 @@
 #include "datalab/datalab_app_main.h"
 
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "core_data.h"
 #include "data/dataset_builders.h"
 #include "render/render_view.h"
 
+static const char *k_datalab_text_zoom_step_path = "data/runtime/text_zoom_step.txt";
+
 static void datalab_print_usage(const char *argv0) {
     printf("usage: %s --pack /path/to/frame.pack [--no-gui]\n", argv0);
+}
+
+static int datalab_ensure_runtime_dirs(void) {
+    if (mkdir("data", 0777) != 0 && errno != EEXIST) {
+        return 0;
+    }
+    if (mkdir("data/runtime", 0777) != 0 && errno != EEXIST) {
+        return 0;
+    }
+    return 1;
+}
+
+static int datalab_load_text_zoom_step(int *out_step) {
+    FILE *fp;
+    char line[64];
+    long parsed;
+    char *end = NULL;
+    if (!out_step) {
+        return 0;
+    }
+    fp = fopen(k_datalab_text_zoom_step_path, "rb");
+    if (!fp) {
+        return 0;
+    }
+    if (!fgets(line, sizeof(line), fp)) {
+        fclose(fp);
+        return 0;
+    }
+    fclose(fp);
+    parsed = strtol(line, &end, 10);
+    if (end == line) {
+        return 0;
+    }
+    *out_step = datalab_text_zoom_step_clamp((int)parsed);
+    return 1;
+}
+
+static void datalab_save_text_zoom_step(int step) {
+    FILE *fp;
+    if (!datalab_ensure_runtime_dirs()) {
+        return;
+    }
+    fp = fopen(k_datalab_text_zoom_step_path, "wb");
+    if (!fp) {
+        return;
+    }
+    (void)fprintf(fp, "%d\n", datalab_text_zoom_step_clamp(step));
+    fclose(fp);
 }
 
 void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
@@ -45,7 +98,14 @@ int datalab_app_bootstrap(int argc, char **argv, DatalabAppRuntime *runtime) {
 }
 
 int datalab_app_config_load(DatalabAppRuntime *runtime) {
-    (void)runtime;
+    int loaded_step = 0;
+    if (!runtime) {
+        return 1;
+    }
+    runtime->text_zoom_step = 0;
+    if (datalab_load_text_zoom_step(&loaded_step)) {
+        runtime->text_zoom_step = loaded_step;
+    }
     return 0;
 }
 
@@ -93,6 +153,7 @@ int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app
     }
 
     datalab_app_state_init(app_state, runtime->pack_path, runtime->frame.profile);
+    app_state->text_zoom_step = runtime->text_zoom_step;
     return 0;
 }
 
@@ -105,6 +166,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
     }
 
     CoreResult run_r = datalab_render_run(&runtime->frame, app_state);
+    datalab_save_text_zoom_step(app_state ? app_state->text_zoom_step : runtime->text_zoom_step);
     if (run_r.code != CORE_OK) {
         fprintf(stderr, "datalab: render failed: %s\n", run_r.message);
         return 4;

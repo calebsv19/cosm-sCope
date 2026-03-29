@@ -12,10 +12,14 @@ typedef enum DatalabViewMode {
     DATALAB_VIEW_DENSITY_VECTOR = 3
 } DatalabViewMode;
 
+#define DATALAB_TEXT_ZOOM_STEP_MIN (-4)
+#define DATALAB_TEXT_ZOOM_STEP_MAX 5
+
 typedef struct DatalabAppState {
     const char *pack_path;
     DatalabProfile profile;
     DatalabViewMode view_mode;
+    int text_zoom_step;
     uint32_t vector_stride;
     float vector_scale;
     size_t trace_cursor_index;
@@ -27,5 +31,7 @@ typedef struct DatalabAppState {
 
 void datalab_app_state_init(DatalabAppState *state, const char *pack_path, DatalabProfile profile);
 const char *datalab_view_mode_name(DatalabViewMode mode);
+int datalab_text_zoom_step_clamp(int step);
+float datalab_text_zoom_step_multiplier(int step);
 
 #endif

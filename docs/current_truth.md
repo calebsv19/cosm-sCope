@@ -39,6 +39,18 @@ Legacy test lane:
 - current composition:
   - no legacy-only tests are defined yet
 
+## Text Zoom Contract
+- keyboard text zoom is implemented:
+  - `Cmd/Ctrl +` => zoom in
+  - `Cmd/Ctrl -` => zoom out
+  - `Cmd/Ctrl 0` => reset zoom
+- zoom step is clamped in app state:
+  - min `-4`
+  - max `+5`
+- zoom state is persisted in runtime lane:
+  - `data/runtime/text_zoom_step.txt`
+- the built-in 5x7 text renderer applies runtime zoom scaling to all text draw paths (DAW + TRACE overlays/readouts).
+
 ## Shared Dependency Snapshot
 - Shared libs actively consumed by current `Makefile`:
   - `core_base`, `core_io`, `core_data`, `core_pack`, `core_theme`, `core_font`

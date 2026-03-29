@@ -1,10 +1,34 @@
 #include "app/app_state.h"
 
+int datalab_text_zoom_step_clamp(int step) {
+    if (step < DATALAB_TEXT_ZOOM_STEP_MIN) {
+        return DATALAB_TEXT_ZOOM_STEP_MIN;
+    }
+    if (step > DATALAB_TEXT_ZOOM_STEP_MAX) {
+        return DATALAB_TEXT_ZOOM_STEP_MAX;
+    }
+    return step;
+}
+
+float datalab_text_zoom_step_multiplier(int step) {
+    float multiplier;
+    step = datalab_text_zoom_step_clamp(step);
+    multiplier = 1.0f + ((float)step * 0.15f);
+    if (multiplier < 0.55f) {
+        multiplier = 0.55f;
+    }
+    if (multiplier > 2.0f) {
+        multiplier = 2.0f;
+    }
+    return multiplier;
+}
+
 void datalab_app_state_init(DatalabAppState *state, const char *pack_path, DatalabProfile profile) {
     if (!state) return;
     state->pack_path = pack_path;
     state->profile = profile;
     state->view_mode = (profile == DATALAB_PROFILE_DAW) ? DATALAB_VIEW_SPEED : DATALAB_VIEW_DENSITY;
+    state->text_zoom_step = 0;
     state->vector_stride = 8;
     state->vector_scale = 0.15f;
     state->trace_cursor_index = 0u;
