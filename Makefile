@@ -7,16 +7,17 @@ SRC_DIR := src
 INC_DIR := include
 BUILD_DIR := build
 TARGET := datalab
+SHARED_ROOT ?= third_party/codework_shared
 
-CORE_BASE_DIR := ../shared/core/core_base
-CORE_IO_DIR := ../shared/core/core_io
-CORE_DATA_DIR := ../shared/core/core_data
-CORE_PACK_DIR := ../shared/core/core_pack
-KIT_VIZ_DIR := ../shared/kit/kit_viz
-KIT_GRAPH_TS_DIR := ../shared/kit/kit_graph_timeseries
-KIT_RENDER_DIR := ../shared/kit/kit_render
-CORE_THEME_DIR := ../shared/core/core_theme
-CORE_FONT_DIR := ../shared/core/core_font
+CORE_BASE_DIR := $(SHARED_ROOT)/core/core_base
+CORE_IO_DIR := $(SHARED_ROOT)/core/core_io
+CORE_DATA_DIR := $(SHARED_ROOT)/core/core_data
+CORE_PACK_DIR := $(SHARED_ROOT)/core/core_pack
+KIT_VIZ_DIR := $(SHARED_ROOT)/kit/kit_viz
+KIT_GRAPH_TS_DIR := $(SHARED_ROOT)/kit/kit_graph_timeseries
+KIT_RENDER_DIR := $(SHARED_ROOT)/kit/kit_render
+CORE_THEME_DIR := $(SHARED_ROOT)/core/core_theme
+CORE_FONT_DIR := $(SHARED_ROOT)/core/core_font
 
 SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
 SDL_LIBS := $(shell sdl2-config --libs 2>/dev/null)
@@ -63,7 +64,7 @@ DEPS += $(CORE_OBJS:.o=.d)
 TEST_BIN := $(BUILD_DIR)/datalab_smoke_test
 PACK_LOADER_TEST_BIN := $(BUILD_DIR)/datalab_pack_loader_test
 KIT_GRAPH_TS_LIB := $(KIT_GRAPH_TS_DIR)/build/libkit_graph_timeseries.a
-DEFAULT_PACK_SRC := ../shared/core/core_pack/tests/fixtures/physics_v1_sample.pack
+DEFAULT_PACK_SRC := $(SHARED_ROOT)/core/core_pack/tests/fixtures/physics_v1_sample.pack
 DEFAULT_PACK := $(BUILD_DIR)/default_preview.pack
 
 .PHONY: all clean test run run-headless

@@ -34,6 +34,12 @@ make -C datalab run
 make -C datalab run-headless
 ```
 
+Compile verification command (after shared subtree updates):
+
+```bash
+make -C datalab clean && make -C datalab && make -C datalab test
+```
+
 With an explicit pack path:
 
 ```bash
@@ -59,6 +65,25 @@ Current tests:
 - Support depth depends on emitted `.pack` profile content from upstream programs.
 
 See `KNOWN_ISSUES.md` for release-facing caveats.
+
+## Shared Subtree Workflow
+
+DataLab vendors the shared ecosystem under:
+
+- `third_party/codework_shared`
+
+Configured subtree remote:
+
+```bash
+git -C datalab remote get-url shared-upstream
+```
+
+Update vendored shared snapshot:
+
+```bash
+git -C datalab fetch shared-upstream main
+git -C datalab subtree pull --prefix=third_party/codework_shared shared-upstream main --squash
+```
 
 ## Security and Data Hygiene
 
