@@ -37,7 +37,10 @@ make -C datalab run-headless
 Compile verification command (after shared subtree updates):
 
 ```bash
-make -C datalab clean && make -C datalab && make -C datalab test
+make -C datalab clean && make -C datalab
+make -C datalab run-headless-smoke
+make -C datalab visual-harness
+make -C datalab test-stable
 ```
 
 With an explicit pack path:
@@ -57,6 +60,11 @@ Current tests:
 
 - `datalab_smoke_test`
 - `datalab_pack_loader_test`
+
+Scaffold test lanes:
+
+- `make -C datalab test-stable`
+- `make -C datalab test-legacy`
 
 ## Known Limitations
 
@@ -85,6 +93,11 @@ git -C datalab fetch shared-upstream main
 git -C datalab subtree pull --prefix=third_party/codework_shared shared-upstream main --squash
 ```
 
+Scaffold path policy:
+
+- keep `third_party/` as the explicit vendored shared-library lane for this repo
+- keep runtime/temp artifacts in ignored lanes (`tmp/`, `data/runtime/`, `data/snapshots/`)
+
 ## Security and Data Hygiene
 
 - Treat DataLab as trusted-local tooling.
@@ -92,3 +105,9 @@ git -C datalab subtree pull --prefix=third_party/codework_shared shared-upstream
 - Runtime/build outputs are excluded from source control.
 
 See `SECURITY.md` for details.
+
+## Docs Index
+
+Public docs are organized under:
+
+- `datalab/docs/README.md`

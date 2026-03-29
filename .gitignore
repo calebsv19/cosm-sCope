@@ -10,6 +10,11 @@
 # Runtime / local scratch
 *.log
 *.tmp
+/tmp/
+/data/runtime/
+/data/snapshots/
+*.dSYM/
+compile_commands.json
 
 # OS/editor noise
 .DS_Store

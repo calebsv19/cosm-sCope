@@ -67,7 +67,7 @@ KIT_GRAPH_TS_LIB := $(KIT_GRAPH_TS_DIR)/build/libkit_graph_timeseries.a
 DEFAULT_PACK_SRC := $(SHARED_ROOT)/core/core_pack/tests/fixtures/physics_v1_sample.pack
 DEFAULT_PACK := $(BUILD_DIR)/default_preview.pack
 
-.PHONY: all clean test run run-headless
+.PHONY: all clean test run run-headless run-headless-smoke visual-harness test-stable test-legacy
 
 all: $(TARGET)
 
@@ -119,11 +119,23 @@ test: $(TEST_BIN) $(PACK_LOADER_TEST_BIN)
 	./$(TEST_BIN)
 	./$(PACK_LOADER_TEST_BIN)
 
+test-stable: test
+
+test-legacy:
+	@echo "No legacy test lane defined for datalab."
+
 run: $(TARGET) $(DEFAULT_PACK)
 	./$(TARGET) --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))"
 
 run-headless: $(TARGET) $(DEFAULT_PACK)
 	./$(TARGET) --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
+
+run-headless-smoke: all test-stable $(DEFAULT_PACK)
+	./$(TARGET) --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
+
+visual-harness: $(TARGET)
+	@echo "visual harness build gate ready: $(TARGET)"
+	@echo "launch manual UI validation with: make -C datalab run"
 
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET)
