@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-03-29
+Last updated: 2026-04-01
 
 ## Scaffold Alignment Intent
 1. Keep DataLab stable as a pack viewer while scaffold lanes are normalized.
@@ -66,11 +66,18 @@ Last updated: 2026-03-29
 ## Post-Scaffold Direction
 - Scaffold migration is complete for `datalab`.
 - Follow-on work should use normal planning docs and keep `test-stable` as the baseline deterministic verification gate.
-- Post-scaffold font-size pass is now implemented in working tree:
+- Post-scaffold font-size pass is now implemented and committed (`5c77573`, `Post-Scaffold Font Size Standardization`):
   - runtime zoom step state + clamp bounds
   - `Cmd/Ctrl +/-/0` input wiring
   - runtime persistence in `data/runtime/text_zoom_step.txt`
   - zoom-scaled 5x7 text rendering in viewer overlays
+
+## Desktop Packaging Follow-Up
+- keep `.app` packaging lane aligned with scaffold packaging contract (`package-desktop*` targets + launcher diagnostics + resource smoke checks).
+- keep launcher default pack injection stable so Finder launch always resolves a valid `--pack` argument.
+- maintain writable runtime-state cwd policy (`~/.local/share/datalab`) for packaged runs.
+- naming sweep follow-up:
+  - keep current package name `DataLab.app` until canonical naming pass is assigned.
 
 ## Non-Goals During Scaffold Migration
 - No broad feature expansion unrelated to scaffold normalization.

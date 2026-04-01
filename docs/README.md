@@ -10,11 +10,13 @@ Start here for public repository documentation.
   - `make -C datalab visual-harness`
   - `make -C datalab test-stable`
   - `make -C datalab test-legacy`
+  - `make -C datalab package-desktop-self-test`
 
 ## Public Runtime Docs
 - `README.md` (repo root): product overview, build/run commands, and baseline behavior.
 - `KNOWN_ISSUES.md`: release-facing caveats and current limitations.
 - `docs/KEYBINDS.md`: keyboard interaction reference (including text zoom shortcuts).
+- `docs/desktop_packaging.md`: `.app` packaging targets, launcher contract, and Desktop validation flow.
 
 ## Private Planning Docs
 - Private scaffold plans/checklists are kept in the workspace private docs bucket:

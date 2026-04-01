@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-03-29
+Last updated: 2026-04-01
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -27,6 +27,11 @@ Last updated: 2026-03-29
   - `make -C datalab run-headless-smoke`
 - Visual harness build gate:
   - `make -C datalab visual-harness`
+- desktop packaging verification:
+  - `make -C datalab package-desktop`
+  - `make -C datalab package-desktop-smoke`
+  - `make -C datalab package-desktop-self-test`
+  - `make -C datalab package-desktop-refresh`
 
 Stable test lane:
 - `make -C datalab test-stable`
@@ -51,6 +56,29 @@ Legacy test lane:
   - `data/runtime/text_zoom_step.txt`
 - the built-in 5x7 text renderer applies runtime zoom scaling to all text draw paths (DAW + TRACE overlays/readouts).
 
+## Desktop Packaging Contract (Current)
+- standardized package target lane is implemented:
+  - `package-desktop`
+  - `package-desktop-smoke`
+  - `package-desktop-self-test`
+  - `package-desktop-copy-desktop`
+  - `package-desktop-sync`
+  - `package-desktop-open`
+  - `package-desktop-remove`
+  - `package-desktop-refresh`
+- launcher entrypoint: `tools/packaging/macos/datalab-launcher`
+- launcher diagnostics:
+  - `--print-config`
+  - `--self-test`
+  - startup logfile: `~/Library/Logs/DataLab/launcher.log`
+- packaged runtime resource lanes:
+  - `Contents/Resources/data/default_preview.pack`
+  - `Contents/Resources/data/runtime/`
+  - `Contents/Resources/shared/assets/fonts/*`
+- launcher default boot contract:
+  - if no args are passed, launcher injects `--pack <bundle default_preview.pack>`
+  - launcher runs with cwd `~/.local/share/datalab` for writable runtime state lane.
+
 ## Shared Dependency Snapshot
 - Shared libs actively consumed by current `Makefile`:
   - `core_base`, `core_io`, `core_data`, `core_pack`, `core_theme`, `core_font`
@@ -69,7 +97,10 @@ Legacy test lane:
 - Private/local-only headers remain allowed in `src/<subsystem>/` when locality is clearer.
 
 ## Runtime State Persistence Policy
-- No tracked app config file or runtime-persisted mutable app state is currently implemented in `datalab`.
+- No tracked app config file is currently implemented in `datalab`.
+- Runtime-persisted mutable app state is currently implemented for text zoom:
+  - `data/runtime/text_zoom_step.txt`
+  - loaded at startup and saved on runtime exit
 - Policy lock for future persistence work:
   - committed defaults go under `config/`
   - mutable runtime state goes under ignored `data/runtime/`
@@ -94,7 +125,7 @@ Legacy test lane:
 - Completed phases:
   - `DL-S0`, `DL-S1`, `DL-S2`, `DL-S3`, `DL-S4`, `DL-S5`
 - Next phase:
-  - scaffold migration complete; next work returns to normal feature/fix planning flow
+  - scaffold migration complete; post-scaffold font-size pass also complete (`5c77573`, `Post-Scaffold Font Size Standardization`)
 
 ## Lifecycle Stage Symbol Lock
 - `datalab_app_bootstrap`

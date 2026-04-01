@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+APP_CONTENTS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+RES_DIR="$APP_CONTENTS_DIR/Resources"
+DEFAULT_PACK="$RES_DIR/data/default_preview.pack"
+APP_DATA_HOME="${HOME}/.local/share/datalab"
+LOG_DIR="${HOME}/Library/Logs/DataLab"
+LOG_FILE="$LOG_DIR/launcher.log"
+
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+if ! touch "$LOG_FILE" 2>/dev/null; then
+    LOG_FILE="${TMPDIR:-/tmp}/datalab-launcher.log"
+    touch "$LOG_FILE" 2>/dev/null || true
+fi
+
+mkdir -p "$APP_DATA_HOME" 2>/dev/null || true
+
+if [ "${1:-}" = "--print-config" ]; then
+    echo "APP_CONTENTS_DIR=$APP_CONTENTS_DIR"
+    echo "RES_DIR=$RES_DIR"
+    echo "LOG_FILE=$LOG_FILE"
+    echo "APP_DATA_HOME=$APP_DATA_HOME"
+    echo "DEFAULT_PACK=$DEFAULT_PACK"
+    exit 0
+fi
+
+if [ "${1:-}" = "--self-test" ]; then
+    [ -x "$SCRIPT_DIR/datalab-bin" ] || { echo "missing: datalab-bin" >&2; exit 1; }
+    [ -f "$APP_CONTENTS_DIR/Info.plist" ] || { echo "missing: Info.plist" >&2; exit 1; }
+    [ -f "$DEFAULT_PACK" ] || { echo "missing: default preview pack" >&2; exit 1; }
+    [ -d "$RES_DIR/data/runtime" ] || { echo "missing: runtime dir" >&2; exit 1; }
+    [ -f "$RES_DIR/shared/assets/fonts/Montserrat-Regular.ttf" ] || { echo "missing: shared font" >&2; exit 1; }
+    echo "self-test: ok"
+    echo "LOG_FILE=$LOG_FILE"
+    echo "APP_DATA_HOME=$APP_DATA_HOME"
+    echo "DEFAULT_PACK=$DEFAULT_PACK"
+    exit 0
+fi
+
+cd "$APP_DATA_HOME"
+printf '%s launch begin pid=%s cwd=%s default_pack=%s args=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$$" "$APP_DATA_HOME" "$DEFAULT_PACK" "$*" >>"$LOG_FILE" 2>/dev/null || true
+
+if [ $# -eq 0 ]; then
+    exec "$SCRIPT_DIR/datalab-bin" --pack "$DEFAULT_PACK" >>"$LOG_FILE" 2>&1
+fi
+
+exec "$SCRIPT_DIR/datalab-bin" "$@" >>"$LOG_FILE" 2>&1

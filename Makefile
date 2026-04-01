@@ -8,6 +8,15 @@ INC_DIR := include
 BUILD_DIR := build
 TARGET := datalab
 SHARED_ROOT ?= third_party/codework_shared
+DIST_DIR := dist
+PACKAGE_APP_NAME := DataLab.app
+PACKAGE_APP_DIR := $(DIST_DIR)/$(PACKAGE_APP_NAME)
+PACKAGE_CONTENTS_DIR := $(PACKAGE_APP_DIR)/Contents
+PACKAGE_MACOS_DIR := $(PACKAGE_CONTENTS_DIR)/MacOS
+PACKAGE_RESOURCES_DIR := $(PACKAGE_CONTENTS_DIR)/Resources
+PACKAGE_INFO_PLIST_SRC := tools/packaging/macos/Info.plist
+PACKAGE_LAUNCHER_SRC := tools/packaging/macos/datalab-launcher
+DESKTOP_APP_DIR ?= $(HOME)/Desktop/$(PACKAGE_APP_NAME)
 
 CORE_BASE_DIR := $(SHARED_ROOT)/core/core_base
 CORE_IO_DIR := $(SHARED_ROOT)/core/core_io
@@ -67,7 +76,7 @@ KIT_GRAPH_TS_LIB := $(KIT_GRAPH_TS_DIR)/build/libkit_graph_timeseries.a
 DEFAULT_PACK_SRC := $(SHARED_ROOT)/core/core_pack/tests/fixtures/physics_v1_sample.pack
 DEFAULT_PACK := $(BUILD_DIR)/default_preview.pack
 
-.PHONY: all clean test run run-headless run-headless-smoke visual-harness test-stable test-legacy
+.PHONY: all clean test run run-headless run-headless-smoke visual-harness test-stable test-legacy package-desktop package-desktop-smoke package-desktop-self-test package-desktop-copy-desktop package-desktop-sync package-desktop-open package-desktop-remove package-desktop-refresh
 
 all: $(TARGET)
 
@@ -136,6 +145,55 @@ run-headless-smoke: all test-stable $(DEFAULT_PACK)
 visual-harness: $(TARGET)
 	@echo "visual harness build gate ready: $(TARGET)"
 	@echo "launch manual UI validation with: make -C datalab run"
+
+package-desktop: $(TARGET) $(DEFAULT_PACK)
+	@echo "Preparing desktop package..."
+	@rm -rf "$(PACKAGE_APP_DIR)"
+	@mkdir -p "$(PACKAGE_MACOS_DIR)" "$(PACKAGE_RESOURCES_DIR)"
+	@cp "$(PACKAGE_INFO_PLIST_SRC)" "$(PACKAGE_CONTENTS_DIR)/Info.plist"
+	@cp "$(TARGET)" "$(PACKAGE_MACOS_DIR)/datalab-bin"
+	@cp "$(PACKAGE_LAUNCHER_SRC)" "$(PACKAGE_MACOS_DIR)/datalab-launcher"
+	@chmod +x "$(PACKAGE_MACOS_DIR)/datalab-bin" "$(PACKAGE_MACOS_DIR)/datalab-launcher"
+	@mkdir -p "$(PACKAGE_RESOURCES_DIR)/data" "$(PACKAGE_RESOURCES_DIR)/shared/assets/fonts"
+	@cp "$(DEFAULT_PACK)" "$(PACKAGE_RESOURCES_DIR)/data/default_preview.pack"
+	@if [ -d "data/runtime" ]; then cp -R data/runtime "$(PACKAGE_RESOURCES_DIR)/data/"; else mkdir -p "$(PACKAGE_RESOURCES_DIR)/data/runtime"; fi
+	@cp -R "$(SHARED_ROOT)/assets/fonts/." "$(PACKAGE_RESOURCES_DIR)/shared/assets/fonts/"
+	@echo "Desktop package ready: $(PACKAGE_APP_DIR)"
+
+package-desktop-smoke: package-desktop
+	@test -x "$(PACKAGE_MACOS_DIR)/datalab-launcher" || (echo "Missing launcher"; exit 1)
+	@test -x "$(PACKAGE_MACOS_DIR)/datalab-bin" || (echo "Missing app binary"; exit 1)
+	@test -f "$(PACKAGE_CONTENTS_DIR)/Info.plist" || (echo "Missing Info.plist"; exit 1)
+	@test -f "$(PACKAGE_RESOURCES_DIR)/data/default_preview.pack" || (echo "Missing bundled default preview pack"; exit 1)
+	@test -d "$(PACKAGE_RESOURCES_DIR)/data/runtime" || (echo "Missing runtime data dir"; exit 1)
+	@test -f "$(PACKAGE_RESOURCES_DIR)/shared/assets/fonts/Montserrat-Regular.ttf" || (echo "Missing shared font"; exit 1)
+	@echo "package-desktop-smoke passed."
+
+package-desktop-self-test: package-desktop-smoke
+	@"$(PACKAGE_MACOS_DIR)/datalab-launcher" --self-test || (echo "package-desktop self-test failed."; exit 1)
+	@echo "package-desktop-self-test passed."
+
+package-desktop-copy-desktop: package-desktop
+	@mkdir -p "$(dir $(DESKTOP_APP_DIR))"
+	@rm -rf "$(DESKTOP_APP_DIR)"
+	@cp -R "$(PACKAGE_APP_DIR)" "$(DESKTOP_APP_DIR)"
+	@echo "Copied $(PACKAGE_APP_NAME) to $(DESKTOP_APP_DIR)"
+
+package-desktop-sync: package-desktop-copy-desktop
+	@echo "Desktop package synchronized: $(DESKTOP_APP_DIR)"
+
+package-desktop-open: package-desktop
+	@open "$(PACKAGE_APP_DIR)"
+
+package-desktop-remove:
+	@rm -rf "$(DESKTOP_APP_DIR)"
+	@echo "Removed desktop app copy: $(DESKTOP_APP_DIR)"
+
+package-desktop-refresh: package-desktop
+	@mkdir -p "$(dir $(DESKTOP_APP_DIR))"
+	@rm -rf "$(DESKTOP_APP_DIR)"
+	@cp -R "$(PACKAGE_APP_DIR)" "$(DESKTOP_APP_DIR)"
+	@echo "Refreshed $(PACKAGE_APP_NAME) at $(DESKTOP_APP_DIR)"
 
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET)
