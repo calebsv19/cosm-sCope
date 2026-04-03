@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-04-01
+Last updated: 2026-04-02
 
 ## Scaffold Alignment Intent
 1. Keep DataLab stable as a pack viewer while scaffold lanes are normalized.
@@ -78,6 +78,25 @@ Last updated: 2026-04-01
 - maintain writable runtime-state cwd policy (`~/.local/share/datalab`) for packaged runs.
 - naming sweep follow-up:
   - keep current package name `DataLab.app` until canonical naming pass is assigned.
+
+## Connection Pass Intent
+- completed:
+  - `DL-CP0`: top-level routing/ownership baseline map captured
+  - `DL-CP1`: context/stage ownership lock landed in wrapper stage flow
+  - `DL-CP2`: explicit runtime dispatch seam extraction landed with typed request/outcome contract and behavior parity
+  - execution doc:
+    - `../docs/private_program_docs/datalab/2026-04-01_datalab_connection_pass_cp0_cp2_execution.md`
+- next:
+  - optional `DL-CP3+`: deeper wrapper ownership extraction for runtime/render responsibilities
+
+## Cross-Program Wrapper Initiative
+- `W0` complete (canonical wrapper contract frozen)
+- `W1` complete for `datalab` (typed context/stage/dispatch wrapper shape aligned)
+- `W2` complete for `datalab` (structured wrapper diagnostics normalization + wrapper exit summary logging)
+- `W3` complete for `datalab` (typed runtime-loop adapter + run-loop handoff seam extraction with ownership/diagnostics hardening)
+- execution note:
+  - `../docs/private_program_docs/datalab/2026-04-02_datalab_w1_w2_wrapper_hardening.md`
+  - `../docs/private_program_docs/datalab/2026-04-02_datalab_w3_s0_s4_execution.md`
 
 ## Non-Goals During Scaffold Migration
 - No broad feature expansion unrelated to scaffold normalization.

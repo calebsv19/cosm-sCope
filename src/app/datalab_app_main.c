@@ -12,6 +12,126 @@
 
 static const char *k_datalab_text_zoom_step_path = "data/runtime/text_zoom_step.txt";
 
+typedef enum DatalabAppStage {
+    DATALAB_APP_STAGE_INIT = 0,
+    DATALAB_APP_STAGE_BOOTSTRAPPED,
+    DATALAB_APP_STAGE_CONFIG_LOADED,
+    DATALAB_APP_STAGE_STATE_SEEDED,
+    DATALAB_APP_STAGE_RUNTIME_STARTED,
+    DATALAB_APP_STAGE_LOOP_COMPLETED,
+    DATALAB_APP_STAGE_SHUTDOWN_COMPLETED
+} DatalabAppStage;
+
+typedef enum DatalabWrapperError {
+    DATALAB_WRAPPER_ERROR_NONE = 0,
+    DATALAB_WRAPPER_ERROR_BOOTSTRAP_FAILED = 1,
+    DATALAB_WRAPPER_ERROR_CONFIG_LOAD_FAILED = 2,
+    DATALAB_WRAPPER_ERROR_STATE_SEED_FAILED = 3,
+    DATALAB_WRAPPER_ERROR_DISPATCH_PREPARE_FAILED = 4,
+    DATALAB_WRAPPER_ERROR_DISPATCH_EXECUTE_FAILED = 5,
+    DATALAB_WRAPPER_ERROR_DISPATCH_FINALIZE_FAILED = 6,
+    DATALAB_WRAPPER_ERROR_STAGE_TRANSITION_FAILED = 7,
+    DATALAB_WRAPPER_ERROR_RUN_LOOP_HANDOFF_FAILED = 8
+} DatalabWrapperError;
+
+typedef struct DatalabDispatchRequest {
+    DatalabAppRuntime *runtime;
+} DatalabDispatchRequest;
+
+typedef struct DatalabDispatchOutcome {
+    int exit_code;
+    int dispatched;
+    int runtime_started;
+} DatalabDispatchOutcome;
+
+typedef struct DatalabRuntimeLoopRequest {
+    const DatalabDispatchRequest *dispatch_request;
+    int (*runtime_dispatch)(const DatalabDispatchRequest *request, DatalabDispatchOutcome *outcome);
+} DatalabRuntimeLoopRequest;
+
+typedef struct DatalabRuntimeLoopOutcome {
+    int exit_code;
+    int dispatched;
+    int runtime_started;
+} DatalabRuntimeLoopOutcome;
+
+typedef struct DatalabAppContext DatalabAppContext;
+
+typedef struct DatalabRunLoopHandoffRequest {
+    DatalabAppContext *ctx;
+    DatalabDispatchRequest dispatch_request;
+} DatalabRunLoopHandoffRequest;
+
+typedef struct DatalabRunLoopHandoffOutcome {
+    int dispatch_exit_code;
+    int wrapper_exit_code;
+} DatalabRunLoopHandoffOutcome;
+
+typedef struct DatalabDispatchSummary {
+    unsigned int dispatch_count;
+    int dispatch_succeeded;
+    int last_dispatch_exit_code;
+} DatalabDispatchSummary;
+
+typedef struct DatalabLifecycleOwnership {
+    int bootstrap_owned;
+    int config_owned;
+    int state_seed_owned;
+    int runtime_owned;
+    int dispatch_owned;
+    int run_loop_handoff_owned;
+    int shutdown_owned;
+} DatalabLifecycleOwnership;
+
+struct DatalabAppContext {
+    DatalabAppRuntime *runtime;
+    DatalabAppStage stage;
+    int (*runtime_dispatch)(const DatalabDispatchRequest *request, DatalabDispatchOutcome *outcome);
+    DatalabDispatchSummary dispatch_summary;
+    DatalabLifecycleOwnership ownership;
+    DatalabWrapperError wrapper_error;
+    int exit_code;
+};
+
+static int datalab_default_runtime_dispatch(const DatalabDispatchRequest *request,
+                                            DatalabDispatchOutcome *outcome);
+
+static void datalab_log_wrapper_error(const char *fn_name,
+                                      DatalabWrapperError wrapper_error,
+                                      DatalabAppStage stage,
+                                      int exit_code,
+                                      const char *detail) {
+    fprintf(stderr,
+            "datalab: wrapper error fn=%s code=%d stage=%d exit_code=%d detail=%s\n",
+            fn_name ? fn_name : "unknown",
+            (int)wrapper_error,
+            (int)stage,
+            exit_code,
+            detail ? detail : "n/a");
+}
+
+static int datalab_app_transition_stage(DatalabAppContext *ctx,
+                                        DatalabAppStage expected,
+                                        DatalabAppStage next,
+                                        const char *stage_name,
+                                        const char *fn_name) {
+    if (!ctx) {
+        return 0;
+    }
+    if (ctx->stage != expected) {
+        fprintf(stderr,
+                "datalab: stage transition violation fn=%s stage=%s expected=%d actual=%d next=%d\n",
+                fn_name ? fn_name : "unknown",
+                stage_name ? stage_name : "unknown",
+                (int)expected,
+                (int)ctx->stage,
+                (int)next);
+        return 0;
+    }
+    ctx->stage = next;
+    return 1;
+}
+
 static void datalab_print_usage(const char *argv0) {
     printf("usage: %s --pack /path/to/frame.pack [--no-gui]\n", argv0);
 }
@@ -72,7 +192,12 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
     datalab_frame_init(&runtime->frame);
 }
 
-int datalab_app_bootstrap(int argc, char **argv, DatalabAppRuntime *runtime) {
+static int datalab_app_bootstrap_ctx(DatalabAppContext *ctx, int argc, char **argv) {
+    DatalabAppRuntime *runtime = NULL;
+    if (!ctx) {
+        return 1;
+    }
+    runtime = ctx->runtime;
     if (!runtime) {
         return 1;
     }
@@ -94,23 +219,71 @@ int datalab_app_bootstrap(int argc, char **argv, DatalabAppRuntime *runtime) {
         }
     }
 
+    if (!datalab_app_transition_stage(ctx,
+                                      DATALAB_APP_STAGE_INIT,
+                                      DATALAB_APP_STAGE_BOOTSTRAPPED,
+                                      "datalab_app_bootstrap",
+                                      __func__)) {
+        return 1;
+    }
+    ctx->ownership.bootstrap_owned = 1;
     return 0;
 }
 
-int datalab_app_config_load(DatalabAppRuntime *runtime) {
+int datalab_app_bootstrap(int argc, char **argv, DatalabAppRuntime *runtime) {
+    DatalabAppContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.runtime = runtime;
+    ctx.stage = DATALAB_APP_STAGE_INIT;
+    return datalab_app_bootstrap_ctx(&ctx, argc, argv);
+}
+
+static int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
     int loaded_step = 0;
+    DatalabAppRuntime *runtime = NULL;
+    if (!ctx) {
+        return 1;
+    }
+    runtime = ctx->runtime;
     if (!runtime) {
+        return 1;
+    }
+    if (ctx->stage != DATALAB_APP_STAGE_BOOTSTRAPPED) {
         return 1;
     }
     runtime->text_zoom_step = 0;
     if (datalab_load_text_zoom_step(&loaded_step)) {
         runtime->text_zoom_step = loaded_step;
     }
+    if (!datalab_app_transition_stage(ctx,
+                                      DATALAB_APP_STAGE_BOOTSTRAPPED,
+                                      DATALAB_APP_STAGE_CONFIG_LOADED,
+                                      "datalab_app_config_load",
+                                      __func__)) {
+        return 1;
+    }
+    ctx->ownership.config_owned = 1;
     return 0;
 }
 
-int datalab_app_state_seed(DatalabAppRuntime *runtime) {
+int datalab_app_config_load(DatalabAppRuntime *runtime) {
+    DatalabAppContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.runtime = runtime;
+    ctx.stage = DATALAB_APP_STAGE_BOOTSTRAPPED;
+    return datalab_app_config_load_ctx(&ctx);
+}
+
+static int datalab_app_state_seed_ctx(DatalabAppContext *ctx) {
+    DatalabAppRuntime *runtime = NULL;
+    if (!ctx) {
+        return 1;
+    }
+    runtime = ctx->runtime;
     if (!runtime) {
+        return 1;
+    }
+    if (ctx->stage != DATALAB_APP_STAGE_CONFIG_LOADED) {
         return 1;
     }
 
@@ -138,7 +311,23 @@ int datalab_app_state_seed(DatalabAppRuntime *runtime) {
         core_dataset_free(&dataset);
     }
 
+    if (!datalab_app_transition_stage(ctx,
+                                      DATALAB_APP_STAGE_CONFIG_LOADED,
+                                      DATALAB_APP_STAGE_STATE_SEEDED,
+                                      "datalab_app_state_seed",
+                                      __func__)) {
+        return 1;
+    }
+    ctx->ownership.state_seed_owned = 1;
     return 0;
+}
+
+int datalab_app_state_seed(DatalabAppRuntime *runtime) {
+    DatalabAppContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.runtime = runtime;
+    ctx.stage = DATALAB_APP_STAGE_CONFIG_LOADED;
+    return datalab_app_state_seed_ctx(&ctx);
 }
 
 int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app_state) {
@@ -175,33 +364,245 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
     return 0;
 }
 
-int datalab_app_run_loop(DatalabAppRuntime *runtime) {
+static int datalab_default_runtime_dispatch(const DatalabDispatchRequest *request,
+                                            DatalabDispatchOutcome *outcome) {
     DatalabAppState app_state;
-    int rc = datalab_app_subsystems_init(runtime, &app_state);
+    int rc = 0;
+    if (!request || !request->runtime || !outcome) {
+        return 1;
+    }
+    memset(outcome, 0, sizeof(*outcome));
+    rc = datalab_app_subsystems_init(request->runtime, &app_state);
+    if (rc != 0) {
+        outcome->exit_code = rc;
+        return 0;
+    }
+    outcome->runtime_started = 1;
+    rc = datalab_runtime_start(request->runtime, &app_state);
+    outcome->exit_code = rc;
+    outcome->dispatched = 1;
+    return 0;
+}
+
+static int datalab_app_dispatch_prepare_ctx(DatalabAppContext *ctx, DatalabDispatchRequest *request) {
+    if (!ctx || !request || !ctx->runtime || !ctx->runtime_dispatch) {
+        return 1;
+    }
+    if (ctx->stage != DATALAB_APP_STAGE_STATE_SEEDED) {
+        return 1;
+    }
+    memset(request, 0, sizeof(*request));
+    request->runtime = ctx->runtime;
+    ctx->dispatch_summary.dispatch_count = 1u;
+    ctx->ownership.dispatch_owned = 1;
+    return 0;
+}
+
+static int datalab_app_runtime_loop_adapter(const DatalabRuntimeLoopRequest *request,
+                                            DatalabRuntimeLoopOutcome *outcome) {
+    DatalabDispatchOutcome dispatch_outcome;
+    int rc = 0;
+    if (!request || !outcome || !request->dispatch_request || !request->runtime_dispatch) {
+        return 1;
+    }
+    memset(outcome, 0, sizeof(*outcome));
+    memset(&dispatch_outcome, 0, sizeof(dispatch_outcome));
+    rc = request->runtime_dispatch(request->dispatch_request, &dispatch_outcome);
     if (rc != 0) {
         return rc;
     }
-    return datalab_runtime_start(runtime, &app_state);
+    outcome->exit_code = dispatch_outcome.exit_code;
+    outcome->dispatched = dispatch_outcome.dispatched;
+    outcome->runtime_started = dispatch_outcome.runtime_started;
+    return 0;
 }
 
-void datalab_app_shutdown(DatalabAppRuntime *runtime) {
-    if (!runtime) {
+static int datalab_app_dispatch_execute_ctx(DatalabAppContext *ctx,
+                                            const DatalabDispatchRequest *request,
+                                            DatalabDispatchOutcome *outcome) {
+    DatalabRuntimeLoopRequest loop_request;
+    DatalabRuntimeLoopOutcome loop_outcome;
+    int rc = 0;
+    if (!ctx || !request || !outcome || !ctx->runtime_dispatch) {
+        return 1;
+    }
+    memset(outcome, 0, sizeof(*outcome));
+    memset(&loop_request, 0, sizeof(loop_request));
+    memset(&loop_outcome, 0, sizeof(loop_outcome));
+    loop_request.dispatch_request = request;
+    loop_request.runtime_dispatch = ctx->runtime_dispatch;
+    rc = datalab_app_runtime_loop_adapter(&loop_request, &loop_outcome);
+    if (rc != 0) {
+        return rc;
+    }
+    outcome->exit_code = loop_outcome.exit_code;
+    outcome->dispatched = loop_outcome.dispatched;
+    outcome->runtime_started = loop_outcome.runtime_started;
+    return 0;
+}
+
+static int datalab_app_dispatch_finalize_ctx(DatalabAppContext *ctx, const DatalabDispatchOutcome *outcome) {
+    if (!ctx || !outcome) {
+        return 1;
+    }
+    ctx->dispatch_summary.dispatch_succeeded = outcome->dispatched ? 1 : 0;
+    ctx->dispatch_summary.last_dispatch_exit_code = outcome->exit_code;
+    if (outcome->runtime_started) {
+        ctx->ownership.runtime_owned = 1;
+        if (!datalab_app_transition_stage(ctx,
+                                          DATALAB_APP_STAGE_STATE_SEEDED,
+                                          DATALAB_APP_STAGE_RUNTIME_STARTED,
+                                          "datalab_runtime_start",
+                                          __func__)) {
+            return 1;
+        }
+    }
+    if (!datalab_app_transition_stage(ctx,
+                                      DATALAB_APP_STAGE_RUNTIME_STARTED,
+                                      DATALAB_APP_STAGE_LOOP_COMPLETED,
+                                      "datalab_app_run_loop",
+                                      __func__)) {
+        return 1;
+    }
+    return outcome->exit_code;
+}
+
+static int datalab_app_run_loop_handoff_ctx(const DatalabRunLoopHandoffRequest *request,
+                                            DatalabRunLoopHandoffOutcome *outcome) {
+    DatalabDispatchOutcome dispatch_outcome;
+    int rc = 0;
+    if (!request || !outcome || !request->ctx || !request->dispatch_request.runtime) {
+        if (outcome) {
+            memset(outcome, 0, sizeof(*outcome));
+            outcome->wrapper_exit_code = DATALAB_WRAPPER_ERROR_RUN_LOOP_HANDOFF_FAILED;
+        }
+        if (request && request->ctx) {
+            request->ctx->wrapper_error = DATALAB_WRAPPER_ERROR_RUN_LOOP_HANDOFF_FAILED;
+            datalab_log_wrapper_error(__func__,
+                                      request->ctx->wrapper_error,
+                                      request->ctx->stage,
+                                      DATALAB_WRAPPER_ERROR_RUN_LOOP_HANDOFF_FAILED,
+                                      "invalid handoff request");
+        }
+        return 1;
+    }
+    memset(outcome, 0, sizeof(*outcome));
+    memset(&dispatch_outcome, 0, sizeof(dispatch_outcome));
+    request->ctx->ownership.run_loop_handoff_owned = 1;
+    rc = datalab_app_dispatch_execute_ctx(request->ctx, &request->dispatch_request, &dispatch_outcome);
+    if (rc != 0) {
+        request->ctx->dispatch_summary.dispatch_succeeded = 0;
+        request->ctx->dispatch_summary.last_dispatch_exit_code = rc;
+        request->ctx->wrapper_error = DATALAB_WRAPPER_ERROR_DISPATCH_EXECUTE_FAILED;
+        datalab_log_wrapper_error(__func__,
+                                  request->ctx->wrapper_error,
+                                  request->ctx->stage,
+                                  rc,
+                                  "dispatch execute failed");
+        outcome->wrapper_exit_code = rc;
+        return 1;
+    }
+    outcome->dispatch_exit_code = dispatch_outcome.exit_code;
+    outcome->wrapper_exit_code = datalab_app_dispatch_finalize_ctx(request->ctx, &dispatch_outcome);
+    return 0;
+}
+
+static int datalab_app_run_loop_ctx(DatalabAppContext *ctx) {
+    DatalabDispatchRequest dispatch_request;
+    DatalabRunLoopHandoffRequest handoff_request;
+    DatalabRunLoopHandoffOutcome handoff_outcome;
+    int rc = datalab_app_dispatch_prepare_ctx(ctx, &dispatch_request);
+    if (rc != 0) {
+        ctx->wrapper_error = DATALAB_WRAPPER_ERROR_DISPATCH_PREPARE_FAILED;
+        datalab_log_wrapper_error(__func__,
+                                  ctx->wrapper_error,
+                                  ctx->stage,
+                                  rc,
+                                  "dispatch prepare failed");
+        return rc;
+    }
+    memset(&handoff_request, 0, sizeof(handoff_request));
+    memset(&handoff_outcome, 0, sizeof(handoff_outcome));
+    handoff_request.ctx = ctx;
+    handoff_request.dispatch_request = dispatch_request;
+    if (datalab_app_run_loop_handoff_ctx(&handoff_request, &handoff_outcome) != 0) {
+        if (handoff_outcome.wrapper_exit_code == 0) {
+            return DATALAB_WRAPPER_ERROR_RUN_LOOP_HANDOFF_FAILED;
+        }
+        return handoff_outcome.wrapper_exit_code;
+    }
+    if (handoff_outcome.wrapper_exit_code != 0) {
+        ctx->wrapper_error = DATALAB_WRAPPER_ERROR_DISPATCH_FINALIZE_FAILED;
+        datalab_log_wrapper_error(__func__,
+                                  ctx->wrapper_error,
+                                  ctx->stage,
+                                  handoff_outcome.wrapper_exit_code,
+                                  "dispatch finalize returned non-zero");
+    }
+    return handoff_outcome.wrapper_exit_code;
+}
+
+static void datalab_app_release_ownership_ctx(DatalabAppContext *ctx) {
+    if (!ctx) {
         return;
     }
+    ctx->ownership.run_loop_handoff_owned = 0;
+    ctx->ownership.runtime_owned = 0;
+    ctx->ownership.dispatch_owned = 0;
+    ctx->ownership.state_seed_owned = 0;
+    ctx->ownership.config_owned = 0;
+    ctx->ownership.bootstrap_owned = 0;
+}
+
+int datalab_app_run_loop(DatalabAppRuntime *runtime) {
+    DatalabAppContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.runtime = runtime;
+    ctx.stage = DATALAB_APP_STAGE_STATE_SEEDED;
+    ctx.runtime_dispatch = datalab_default_runtime_dispatch;
+    return datalab_app_run_loop_ctx(&ctx);
+}
+
+static void datalab_app_shutdown_ctx(DatalabAppContext *ctx) {
+    DatalabAppRuntime *runtime = NULL;
+    if (!ctx || !ctx->runtime) {
+        return;
+    }
+    runtime = ctx->runtime;
     if (runtime->frame_loaded) {
         datalab_frame_free(&runtime->frame);
         runtime->frame_loaded = 0;
     }
+    datalab_app_release_ownership_ctx(ctx);
+    ctx->ownership.shutdown_owned = 1;
+    ctx->stage = DATALAB_APP_STAGE_SHUTDOWN_COMPLETED;
+}
+
+void datalab_app_shutdown(DatalabAppRuntime *runtime) {
+    DatalabAppContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.runtime = runtime;
+    ctx.stage = DATALAB_APP_STAGE_LOOP_COMPLETED;
+    datalab_app_shutdown_ctx(&ctx);
 }
 
 int datalab_app_main(int argc, char **argv) {
     DatalabAppRuntime runtime;
+    DatalabAppContext ctx;
     int rc = 0;
 
     datalab_app_runtime_init(&runtime);
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.runtime = &runtime;
+    ctx.stage = DATALAB_APP_STAGE_INIT;
+    ctx.runtime_dispatch = datalab_default_runtime_dispatch;
+    ctx.wrapper_error = DATALAB_WRAPPER_ERROR_NONE;
+    ctx.exit_code = 1;
 
-    rc = datalab_app_bootstrap(argc, argv, &runtime);
+    rc = datalab_app_bootstrap_ctx(&ctx, argc, argv);
     if (rc != 0) {
+        ctx.wrapper_error = DATALAB_WRAPPER_ERROR_BOOTSTRAP_FAILED;
+        datalab_log_wrapper_error(__func__, ctx.wrapper_error, ctx.stage, rc, "bootstrap failed");
         goto done;
     }
 
@@ -210,21 +611,39 @@ int datalab_app_main(int argc, char **argv) {
         goto done;
     }
 
-    rc = datalab_app_config_load(&runtime);
+    rc = datalab_app_config_load_ctx(&ctx);
     if (rc != 0) {
+        ctx.wrapper_error = DATALAB_WRAPPER_ERROR_CONFIG_LOAD_FAILED;
+        datalab_log_wrapper_error(__func__, ctx.wrapper_error, ctx.stage, rc, "config load failed");
         goto done;
     }
 
-    rc = datalab_app_state_seed(&runtime);
+    rc = datalab_app_state_seed_ctx(&ctx);
     if (rc != 0) {
+        ctx.wrapper_error = DATALAB_WRAPPER_ERROR_STATE_SEED_FAILED;
+        datalab_log_wrapper_error(__func__, ctx.wrapper_error, ctx.stage, rc, "state seed failed");
         goto done;
     }
 
-    rc = datalab_app_run_loop(&runtime);
+    rc = datalab_app_run_loop_ctx(&ctx);
+    if (rc != 0 &&
+        ctx.wrapper_error == DATALAB_WRAPPER_ERROR_NONE) {
+        ctx.wrapper_error = DATALAB_WRAPPER_ERROR_STAGE_TRANSITION_FAILED;
+        datalab_log_wrapper_error(__func__, ctx.wrapper_error, ctx.stage, rc, "run loop stage failure");
+    }
 
 done:
-    datalab_app_shutdown(&runtime);
-    return rc;
+    datalab_app_shutdown_ctx(&ctx);
+    ctx.exit_code = rc;
+    fprintf(stderr,
+            "datalab: wrapper exit stage=%d exit_code=%d dispatch_count=%u dispatch_ok=%d last_dispatch_exit=%d wrapper_error=%d\n",
+            (int)ctx.stage,
+            ctx.exit_code,
+            ctx.dispatch_summary.dispatch_count,
+            ctx.dispatch_summary.dispatch_succeeded,
+            ctx.dispatch_summary.last_dispatch_exit_code,
+            (int)ctx.wrapper_error);
+    return ctx.exit_code;
 }
 
 int datalab_app_main_legacy(int argc, char **argv) {

@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-04-01
+Last updated: 2026-04-02
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -135,3 +135,32 @@ Legacy test lane:
 - `datalab_runtime_start`
 - `datalab_app_run_loop`
 - `datalab_app_shutdown`
+
+## Connection Pass State
+- `DL-CP0` through `DL-CP2` are complete:
+  - `../docs/private_program_docs/datalab/2026-04-01_datalab_connection_pass_cp0_cp2_execution.md`
+- wrapper ownership summary (`src/app/datalab_app_main.c`):
+  - explicit stage enum + guarded top-level transitions
+  - typed app context with lifecycle ownership ledger
+  - explicit runtime dispatch seam with typed request/outcome contract
+- next slices:
+  - optional `DL-CP3+`: deeper extraction of runtime/render ownership into wrapper-owned services as needed
+
+## Wrapper Contract State
+- cross-program wrapper initiative status:
+  - `W0` complete
+  - `W1` complete for `datalab`
+  - `W2` complete for `datalab`
+  - `W3` complete for `datalab`
+- wrapper diagnostics normalization (`W2`) now includes:
+  - function-context stage transition violation logging (`expected/actual/next`)
+  - structured wrapper error logging for bootstrap/config/state/dispatch boundary failures
+  - dispatch summary `last_dispatch_exit_code` tracking at wrapper boundary
+  - final wrapper exit summary line (`stage`, `exit_code`, dispatch summary, wrapper error code)
+- runtime-loop seam extraction (`W3`) now includes:
+  - typed runtime-loop adapter (`datalab_app_runtime_loop_adapter(...)`)
+  - typed run-loop handoff seam (`datalab_app_run_loop_handoff_ctx(...)`)
+  - explicit handoff ownership tracking (`run_loop_handoff_owned`) and centralized ownership release (`datalab_app_release_ownership_ctx(...)`)
+- execution note:
+  - `../docs/private_program_docs/datalab/2026-04-02_datalab_w1_w2_wrapper_hardening.md`
+  - `../docs/private_program_docs/datalab/2026-04-02_datalab_w3_s0_s4_execution.md`
