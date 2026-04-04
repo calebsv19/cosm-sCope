@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-04-02
+Last updated: 2026-04-03
 
 ## Scaffold Alignment Intent
 1. Keep DataLab stable as a pack viewer while scaffold lanes are normalized.
@@ -97,6 +97,17 @@ Last updated: 2026-04-02
 - execution note:
   - `../docs/private_program_docs/datalab/2026-04-02_datalab_w1_w2_wrapper_hardening.md`
   - `../docs/private_program_docs/datalab/2026-04-02_datalab_w3_s0_s4_execution.md`
+
+## IR1 Input-Routing Lane
+- completed:
+  - `IR1-S0` baseline input ownership map captured in render loops
+  - `IR1-S1` typed input frame contracts landed
+  - `IR1-S2` explicit `intake -> normalize -> route -> invalidate` seams landed with behavior parity
+  - `IR1-S3` diagnostics + tracker synchronization closeout completed
+  - execution note:
+    - `../docs/private_program_docs/datalab/2026-04-03_datalab_ir1_s0_s3_execution.md`
+- next:
+  - optional deeper action-command seam extraction only if editor/pane routing expansion requires it.
 
 ## Non-Goals During Scaffold Migration
 - No broad feature expansion unrelated to scaffold normalization.

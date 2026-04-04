@@ -13,6 +13,195 @@
 
 static float g_datalab_text_zoom_multiplier = 1.0f;
 
+typedef enum DatalabInputRouteTargetPolicy {
+    DATALAB_INPUT_ROUTE_TARGET_FALLBACK = 0,
+    DATALAB_INPUT_ROUTE_TARGET_GLOBAL = 1
+} DatalabInputRouteTargetPolicy;
+
+typedef enum DatalabInputInvalidateReasonBits {
+    DATALAB_INPUT_INVALIDATE_REASON_QUIT = 1u << 0,
+    DATALAB_INPUT_INVALIDATE_REASON_KEYBOARD = 1u << 1,
+    DATALAB_INPUT_INVALIDATE_REASON_OTHER = 1u << 2
+} DatalabInputInvalidateReasonBits;
+
+typedef struct DatalabInputEventRaw {
+    uint32_t sdl_event_count;
+    uint32_t quit_event_count;
+    uint32_t key_event_count;
+    uint32_t other_event_count;
+    uint8_t quit_requested;
+} DatalabInputEventRaw;
+
+typedef struct DatalabInputEventNormalized {
+    uint8_t has_quit_action;
+    uint8_t has_keyboard_action;
+    uint8_t has_other_action;
+    uint32_t action_count;
+} DatalabInputEventNormalized;
+
+typedef struct DatalabInputRouteResult {
+    uint8_t consumed;
+    DatalabInputRouteTargetPolicy target_policy;
+    uint32_t routed_global_count;
+    uint32_t routed_fallback_count;
+} DatalabInputRouteResult;
+
+typedef struct DatalabInputInvalidationResult {
+    uint8_t full_invalidate;
+    uint32_t invalidation_reason_bits;
+    uint32_t target_invalidation_count;
+    uint32_t full_invalidation_count;
+} DatalabInputInvalidationResult;
+
+typedef struct DatalabInputFrame {
+    DatalabInputEventRaw raw;
+    DatalabInputRouteResult route;
+    DatalabInputInvalidationResult invalidation;
+} DatalabInputFrame;
+
+typedef struct DatalabInputDiagTotals {
+    uint64_t frame_count;
+    uint64_t event_count_total;
+    uint64_t routed_global_total;
+    uint64_t routed_fallback_total;
+    uint64_t invalidation_reason_bits_total;
+} DatalabInputDiagTotals;
+
+static int datalab_env_flag_enabled(const char *name) {
+    const char *value = NULL;
+    if (!name) {
+        return 0;
+    }
+    value = getenv(name);
+    if (!value || !value[0]) {
+        return 0;
+    }
+    return strcmp(value, "1") == 0 ||
+           strcmp(value, "true") == 0 ||
+           strcmp(value, "TRUE") == 0 ||
+           strcmp(value, "yes") == 0 ||
+           strcmp(value, "on") == 0;
+}
+
+static int datalab_ir1_diag_enabled(void) {
+    return datalab_env_flag_enabled("DATALAB_IR1_DIAG");
+}
+
+static void datalab_input_frame_begin(DatalabInputFrame *frame) {
+    if (!frame) {
+        return;
+    }
+    memset(frame, 0, sizeof(*frame));
+}
+
+static void datalab_input_intake(const SDL_Event *event, DatalabInputEventRaw *out_raw) {
+    if (!event || !out_raw) {
+        return;
+    }
+    out_raw->sdl_event_count += 1u;
+    switch (event->type) {
+        case SDL_QUIT:
+            out_raw->quit_event_count += 1u;
+            out_raw->quit_requested = 1u;
+            break;
+        case SDL_KEYDOWN:
+        case SDL_KEYUP:
+            out_raw->key_event_count += 1u;
+            break;
+        default:
+            out_raw->other_event_count += 1u;
+            break;
+    }
+}
+
+static void datalab_input_normalize(const SDL_Event *event,
+                                    DatalabInputEventNormalized *out_normalized) {
+    if (!event || !out_normalized) {
+        return;
+    }
+    memset(out_normalized, 0, sizeof(*out_normalized));
+    switch (event->type) {
+        case SDL_QUIT:
+            out_normalized->has_quit_action = 1u;
+            out_normalized->action_count = 1u;
+            break;
+        case SDL_KEYDOWN:
+        case SDL_KEYUP:
+            out_normalized->has_keyboard_action = 1u;
+            out_normalized->action_count = 1u;
+            break;
+        default:
+            out_normalized->has_other_action = 1u;
+            out_normalized->action_count = 1u;
+            break;
+    }
+}
+
+static void datalab_input_route(const DatalabInputEventNormalized *normalized,
+                                DatalabInputRouteResult *out_route) {
+    if (!normalized || !out_route) {
+        return;
+    }
+    memset(out_route, 0, sizeof(*out_route));
+    out_route->target_policy = DATALAB_INPUT_ROUTE_TARGET_FALLBACK;
+    if (normalized->has_quit_action || normalized->has_keyboard_action) {
+        out_route->target_policy = DATALAB_INPUT_ROUTE_TARGET_GLOBAL;
+        out_route->routed_global_count = normalized->action_count;
+        out_route->consumed = normalized->action_count > 0u;
+        return;
+    }
+    out_route->routed_fallback_count = normalized->action_count;
+    out_route->consumed = normalized->action_count > 0u;
+}
+
+static void datalab_input_invalidate(const DatalabInputEventNormalized *normalized,
+                                     const DatalabInputRouteResult *route,
+                                     DatalabInputInvalidationResult *out_invalidation) {
+    if (!normalized || !route || !out_invalidation) {
+        return;
+    }
+    memset(out_invalidation, 0, sizeof(*out_invalidation));
+    if (normalized->has_quit_action) {
+        out_invalidation->invalidation_reason_bits |= DATALAB_INPUT_INVALIDATE_REASON_QUIT;
+        out_invalidation->full_invalidation_count += 1u;
+        out_invalidation->full_invalidate = 1u;
+    }
+    if (normalized->has_keyboard_action) {
+        out_invalidation->invalidation_reason_bits |= DATALAB_INPUT_INVALIDATE_REASON_KEYBOARD;
+    }
+    if (normalized->has_other_action) {
+        out_invalidation->invalidation_reason_bits |= DATALAB_INPUT_INVALIDATE_REASON_OTHER;
+    }
+    out_invalidation->target_invalidation_count += route->routed_global_count;
+    out_invalidation->target_invalidation_count += route->routed_fallback_count;
+}
+
+static void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event) {
+    DatalabInputEventNormalized normalized;
+    DatalabInputRouteResult route;
+    DatalabInputInvalidationResult invalidation;
+    if (!frame || !event) {
+        return;
+    }
+    datalab_input_intake(event, &frame->raw);
+    datalab_input_normalize(event, &normalized);
+    datalab_input_route(&normalized, &route);
+    datalab_input_invalidate(&normalized, &route, &invalidation);
+
+    frame->route.routed_global_count += route.routed_global_count;
+    frame->route.routed_fallback_count += route.routed_fallback_count;
+    if (route.consumed) {
+        frame->route.consumed = 1u;
+        frame->route.target_policy = route.target_policy;
+    }
+    frame->invalidation.invalidation_reason_bits |= invalidation.invalidation_reason_bits;
+    frame->invalidation.target_invalidation_count += invalidation.target_invalidation_count;
+    frame->invalidation.full_invalidation_count += invalidation.full_invalidation_count;
+    if (invalidation.full_invalidate) {
+        frame->invalidation.full_invalidate = 1u;
+    }
+}
+
 static void datalab_sync_text_zoom(const DatalabAppState *app_state) {
     int step = 0;
     if (app_state) {
@@ -1020,11 +1209,37 @@ static CoreResult render_physics_loop(SDL_Window *window,
     }
 
     int quit = 0;
+    DatalabInputDiagTotals ir1_diag_totals = {0};
     while (!quit) {
         SDL_Event e;
+        DatalabInputFrame input_frame;
+        datalab_input_frame_begin(&input_frame);
         while (SDL_PollEvent(&e)) {
+            datalab_input_apply_event(&input_frame, &e);
             if (e.type == SDL_QUIT) quit = 1;
             if (e.type == SDL_KEYDOWN) datalab_handle_keydown(&e.key, app_state, &quit);
+        }
+        ir1_diag_totals.frame_count += 1u;
+        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
+        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
+        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
+        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
+        if (datalab_ir1_diag_enabled()) {
+            printf("[ir1] datalab-physics frame=%llu events=%u route(global=%u fallback=%u target=%d) "
+                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
+                   (unsigned long long)ir1_diag_totals.frame_count,
+                   (unsigned int)input_frame.raw.sdl_event_count,
+                   (unsigned int)input_frame.route.routed_global_count,
+                   (unsigned int)input_frame.route.routed_fallback_count,
+                   (int)input_frame.route.target_policy,
+                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
+                   (unsigned int)input_frame.invalidation.target_invalidation_count,
+                   (unsigned int)input_frame.invalidation.full_invalidation_count,
+                   (unsigned long long)ir1_diag_totals.frame_count,
+                   (unsigned long long)ir1_diag_totals.event_count_total,
+                   (unsigned long long)ir1_diag_totals.routed_global_total,
+                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
+                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
         }
 
         const uint8_t *pixels = density_rgba;
@@ -1088,15 +1303,41 @@ static CoreResult render_daw_loop(SDL_Window *window,
                                   const DatalabFrame *frame,
                                   DatalabAppState *app_state) {
     int quit = 0;
+    DatalabInputDiagTotals ir1_diag_totals = {0};
     while (!quit) {
         SDL_Event e;
+        DatalabInputFrame input_frame;
+        datalab_input_frame_begin(&input_frame);
         while (SDL_PollEvent(&e)) {
+            datalab_input_apply_event(&input_frame, &e);
             if (e.type == SDL_QUIT) {
                 quit = 1;
             }
             if (e.type == SDL_KEYDOWN) {
                 datalab_handle_keydown(&e.key, app_state, &quit);
             }
+        }
+        ir1_diag_totals.frame_count += 1u;
+        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
+        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
+        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
+        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
+        if (datalab_ir1_diag_enabled()) {
+            printf("[ir1] datalab-daw frame=%llu events=%u route(global=%u fallback=%u target=%d) "
+                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
+                   (unsigned long long)ir1_diag_totals.frame_count,
+                   (unsigned int)input_frame.raw.sdl_event_count,
+                   (unsigned int)input_frame.route.routed_global_count,
+                   (unsigned int)input_frame.route.routed_fallback_count,
+                   (int)input_frame.route.target_policy,
+                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
+                   (unsigned int)input_frame.invalidation.target_invalidation_count,
+                   (unsigned int)input_frame.invalidation.full_invalidation_count,
+                   (unsigned long long)ir1_diag_totals.frame_count,
+                   (unsigned long long)ir1_diag_totals.event_count_total,
+                   (unsigned long long)ir1_diag_totals.routed_global_total,
+                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
+                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
         }
 
         render_daw_frame(renderer, frame, app_state);
@@ -1116,15 +1357,41 @@ static CoreResult render_trace_loop(SDL_Window *window,
                                     const DatalabFrame *frame,
                                     DatalabAppState *app_state) {
     int quit = 0;
+    DatalabInputDiagTotals ir1_diag_totals = {0};
     while (!quit) {
         SDL_Event e;
+        DatalabInputFrame input_frame;
+        datalab_input_frame_begin(&input_frame);
         while (SDL_PollEvent(&e)) {
+            datalab_input_apply_event(&input_frame, &e);
             if (e.type == SDL_QUIT) {
                 quit = 1;
             }
             if (e.type == SDL_KEYDOWN) {
                 datalab_handle_keydown(&e.key, app_state, &quit);
             }
+        }
+        ir1_diag_totals.frame_count += 1u;
+        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
+        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
+        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
+        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
+        if (datalab_ir1_diag_enabled()) {
+            printf("[ir1] datalab-trace frame=%llu events=%u route(global=%u fallback=%u target=%d) "
+                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
+                   (unsigned long long)ir1_diag_totals.frame_count,
+                   (unsigned int)input_frame.raw.sdl_event_count,
+                   (unsigned int)input_frame.route.routed_global_count,
+                   (unsigned int)input_frame.route.routed_fallback_count,
+                   (int)input_frame.route.target_policy,
+                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
+                   (unsigned int)input_frame.invalidation.target_invalidation_count,
+                   (unsigned int)input_frame.invalidation.full_invalidation_count,
+                   (unsigned long long)ir1_diag_totals.frame_count,
+                   (unsigned long long)ir1_diag_totals.event_count_total,
+                   (unsigned long long)ir1_diag_totals.routed_global_total,
+                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
+                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
         }
 
         render_trace_frame(renderer, frame, app_state);

@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-04-02
+Last updated: 2026-04-03
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -164,3 +164,31 @@ Legacy test lane:
 - execution note:
   - `../docs/private_program_docs/datalab/2026-04-02_datalab_w1_w2_wrapper_hardening.md`
   - `../docs/private_program_docs/datalab/2026-04-02_datalab_w3_s0_s4_execution.md`
+
+## IR1 Input Routing State
+- private execution note:
+  - `../docs/private_program_docs/datalab/2026-04-03_datalab_ir1_s0_s3_execution.md`
+- `IR1-S0` through `IR1-S3` complete:
+  - input ownership baseline captured in `src/render/render_view.c` across:
+    - `render_physics_loop(...)`
+    - `render_daw_loop(...)`
+    - `render_trace_loop(...)`
+  - typed IR1 input contracts landed in `render_view.c`:
+    - `DatalabInputEventRaw`
+    - `DatalabInputEventNormalized`
+    - `DatalabInputRouteResult`
+    - `DatalabInputInvalidationResult`
+    - `DatalabInputFrame`
+  - explicit input seams landed:
+    - `datalab_input_intake(...)`
+    - `datalab_input_normalize(...)`
+    - `datalab_input_route(...)`
+    - `datalab_input_invalidate(...)`
+    - `datalab_input_apply_event(...)`
+  - optional diagnostics gate landed:
+    - env: `DATALAB_IR1_DIAG=1`
+- verification snapshot (2026-04-03):
+  - `make -C datalab clean && make -C datalab` pass
+  - `make -C datalab test-stable` pass
+  - `make -C datalab run-headless-smoke` pass
+  - `make -C datalab visual-harness` pass
