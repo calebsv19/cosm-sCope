@@ -67,6 +67,21 @@ typedef struct DatalabInputDiagTotals {
     uint64_t invalidation_reason_bits_total;
 } DatalabInputDiagTotals;
 
+typedef struct DatalabRenderDeriveFrame {
+    char title[256];
+} DatalabRenderDeriveFrame;
+
+typedef struct DatalabRenderSubmitOutcome {
+    CoreResult result;
+    uint8_t presented;
+} DatalabRenderSubmitOutcome;
+
+typedef struct DatalabRenderDiagTotals {
+    uint64_t frame_count;
+    uint64_t submit_count;
+    uint64_t present_count;
+} DatalabRenderDiagTotals;
+
 static int datalab_env_flag_enabled(const char *name) {
     const char *value = NULL;
     if (!name) {
@@ -85,6 +100,10 @@ static int datalab_env_flag_enabled(const char *name) {
 
 static int datalab_ir1_diag_enabled(void) {
     return datalab_env_flag_enabled("DATALAB_IR1_DIAG");
+}
+
+static int datalab_rs1_diag_enabled(void) {
+    return datalab_env_flag_enabled("DATALAB_RS1_DIAG");
 }
 
 static void datalab_input_frame_begin(DatalabInputFrame *frame) {
@@ -1115,6 +1134,165 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
     core_free(time_points);
 }
 
+typedef struct DatalabPhysicsRenderDeriveFrame {
+    DatalabRenderDeriveFrame common;
+    const uint8_t *pixels;
+    SDL_Rect dst;
+    uint8_t draw_vectors;
+} DatalabPhysicsRenderDeriveFrame;
+
+static void datalab_render_derive_frame(const DatalabFrame *frame,
+                                        const DatalabAppState *app_state,
+                                        DatalabRenderDeriveFrame *out_derive) {
+    if (!frame || !app_state || !out_derive) {
+        return;
+    }
+    memset(out_derive, 0, sizeof(*out_derive));
+    make_title(frame, app_state, out_derive->title, sizeof(out_derive->title));
+}
+
+static void datalab_physics_render_derive_frame(SDL_Renderer *renderer,
+                                                const DatalabFrame *frame,
+                                                const DatalabAppState *app_state,
+                                                const uint8_t *density_rgba,
+                                                const uint8_t *speed_rgba,
+                                                DatalabPhysicsRenderDeriveFrame *out_derive) {
+    int ww = 0;
+    int wh = 0;
+    if (!renderer || !frame || !app_state || !density_rgba || !speed_rgba || !out_derive) {
+        return;
+    }
+    memset(out_derive, 0, sizeof(*out_derive));
+    datalab_render_derive_frame(frame, app_state, &out_derive->common);
+    out_derive->pixels = density_rgba;
+    if (app_state->view_mode == DATALAB_VIEW_SPEED) {
+        out_derive->pixels = speed_rgba;
+    }
+    out_derive->draw_vectors = (uint8_t)(app_state->view_mode == DATALAB_VIEW_DENSITY_VECTOR);
+    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    calc_fit_rect(ww, wh, frame->width, frame->height, &out_derive->dst);
+}
+
+static void datalab_physics_render_submit_frame(SDL_Window *window,
+                                                SDL_Renderer *renderer,
+                                                SDL_Texture *texture,
+                                                const DatalabFrame *frame,
+                                                const DatalabAppState *app_state,
+                                                KitVizVecSegment *segments,
+                                                size_t sample_count,
+                                                const DatalabPhysicsRenderDeriveFrame *derive,
+                                                DatalabRenderSubmitOutcome *outcome) {
+    if (!outcome) {
+        return;
+    }
+    memset(outcome, 0, sizeof(*outcome));
+    if (!window || !renderer || !texture || !frame || !app_state || !segments || !derive || !derive->pixels) {
+        outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid physics render submit request" };
+        return;
+    }
+
+    SDL_UpdateTexture(texture, NULL, derive->pixels, (int)frame->width * 4);
+    SDL_SetRenderDrawColor(renderer, 10, 10, 14, 255);
+    SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer, texture, NULL, &derive->dst);
+
+    if (derive->draw_vectors) {
+        size_t seg_count = 0;
+        CoreResult rv = kit_viz_build_vector_segments(frame->velx,
+                                                      frame->vely,
+                                                      frame->width,
+                                                      frame->height,
+                                                      app_state->vector_stride,
+                                                      app_state->vector_scale,
+                                                      segments,
+                                                      sample_count,
+                                                      &seg_count);
+        if (rv.code == CORE_OK) {
+            size_t i = 0u;
+            SDL_SetRenderDrawColor(renderer, 230, 255, 230, 255);
+            for (i = 0u; i < seg_count; ++i) {
+                const float x0 = (float)derive->dst.x + (segments[i].x0 / (float)frame->width) * (float)derive->dst.w;
+                const float y0 = (float)derive->dst.y + (segments[i].y0 / (float)frame->height) * (float)derive->dst.h;
+                const float x1 = (float)derive->dst.x + (segments[i].x1 / (float)frame->width) * (float)derive->dst.w;
+                const float y1 = (float)derive->dst.y + (segments[i].y1 / (float)frame->height) * (float)derive->dst.h;
+                SDL_RenderDrawLine(renderer, (int)x0, (int)y0, (int)x1, (int)y1);
+            }
+        }
+    }
+
+    SDL_SetWindowTitle(window, derive->common.title);
+    SDL_RenderPresent(renderer);
+    outcome->presented = 1u;
+    outcome->result = core_result_ok();
+}
+
+static void datalab_daw_render_submit_frame(SDL_Window *window,
+                                            SDL_Renderer *renderer,
+                                            const DatalabFrame *frame,
+                                            const DatalabAppState *app_state,
+                                            const DatalabRenderDeriveFrame *derive,
+                                            DatalabRenderSubmitOutcome *outcome) {
+    if (!outcome) {
+        return;
+    }
+    memset(outcome, 0, sizeof(*outcome));
+    if (!window || !renderer || !frame || !app_state || !derive) {
+        outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid daw render submit request" };
+        return;
+    }
+    render_daw_frame(renderer, frame, app_state);
+    SDL_SetWindowTitle(window, derive->title);
+    SDL_RenderPresent(renderer);
+    outcome->presented = 1u;
+    outcome->result = core_result_ok();
+}
+
+static void datalab_trace_render_submit_frame(SDL_Window *window,
+                                              SDL_Renderer *renderer,
+                                              const DatalabFrame *frame,
+                                              DatalabAppState *app_state,
+                                              const DatalabRenderDeriveFrame *derive,
+                                              DatalabRenderSubmitOutcome *outcome) {
+    if (!outcome) {
+        return;
+    }
+    memset(outcome, 0, sizeof(*outcome));
+    if (!window || !renderer || !frame || !app_state || !derive) {
+        outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid trace render submit request" };
+        return;
+    }
+    render_trace_frame(renderer, frame, app_state);
+    SDL_SetWindowTitle(window, derive->title);
+    SDL_RenderPresent(renderer);
+    outcome->presented = 1u;
+    outcome->result = core_result_ok();
+}
+
+static void datalab_rs1_diag_note(const char *lane,
+                                  DatalabRenderDiagTotals *totals,
+                                  const DatalabRenderSubmitOutcome *submit) {
+    if (!totals || !submit) {
+        return;
+    }
+    totals->frame_count += 1u;
+    if (submit->result.code == CORE_OK) {
+        totals->submit_count += 1u;
+    }
+    if (submit->presented) {
+        totals->present_count += 1u;
+    }
+    if (datalab_rs1_diag_enabled()) {
+        printf("[rs1] datalab-%s frame=%llu submit_ok=%d presented=%u totals(frames=%llu submit_ok=%llu present=%llu)\n",
+               lane ? lane : "unknown",
+               (unsigned long long)totals->frame_count,
+               submit->result.code == CORE_OK ? 1 : 0,
+               (unsigned int)submit->presented,
+               (unsigned long long)totals->frame_count,
+               (unsigned long long)totals->submit_count,
+               (unsigned long long)totals->present_count);
+    }
+}
+
 static CoreResult render_physics_loop(SDL_Window *window,
                                       SDL_Renderer *renderer,
                                       const DatalabFrame *frame,
@@ -1210,9 +1388,12 @@ static CoreResult render_physics_loop(SDL_Window *window,
 
     int quit = 0;
     DatalabInputDiagTotals ir1_diag_totals = {0};
+    DatalabRenderDiagTotals rs1_diag_totals = {0};
     while (!quit) {
         SDL_Event e;
         DatalabInputFrame input_frame;
+        DatalabPhysicsRenderDeriveFrame render_derive;
+        DatalabRenderSubmitOutcome render_submit;
         datalab_input_frame_begin(&input_frame);
         while (SDL_PollEvent(&e)) {
             datalab_input_apply_event(&input_frame, &e);
@@ -1241,53 +1422,30 @@ static CoreResult render_physics_loop(SDL_Window *window,
                    (unsigned long long)ir1_diag_totals.routed_fallback_total,
                    (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
         }
-
-        const uint8_t *pixels = density_rgba;
-        if (app_state->view_mode == DATALAB_VIEW_SPEED) {
-            pixels = speed_rgba;
+        datalab_physics_render_derive_frame(renderer,
+                                            frame,
+                                            app_state,
+                                            density_rgba,
+                                            speed_rgba,
+                                            &render_derive);
+        datalab_physics_render_submit_frame(window,
+                                            renderer,
+                                            texture,
+                                            frame,
+                                            app_state,
+                                            segments,
+                                            sample_count,
+                                            &render_derive,
+                                            &render_submit);
+        datalab_rs1_diag_note("physics", &rs1_diag_totals, &render_submit);
+        if (render_submit.result.code != CORE_OK) {
+            core_free(density_rgba);
+            core_free(speed_rgba);
+            core_free(speed);
+            core_free(segments);
+            SDL_DestroyTexture(texture);
+            return render_submit.result;
         }
-
-        SDL_UpdateTexture(texture, NULL, pixels, (int)frame->width * 4);
-
-        int ww = 0;
-        int wh = 0;
-        SDL_GetRendererOutputSize(renderer, &ww, &wh);
-
-        SDL_Rect dst;
-        calc_fit_rect(ww, wh, frame->width, frame->height, &dst);
-
-        SDL_SetRenderDrawColor(renderer, 10, 10, 14, 255);
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, &dst);
-
-        if (app_state->view_mode == DATALAB_VIEW_DENSITY_VECTOR) {
-            size_t seg_count = 0;
-            CoreResult rv = kit_viz_build_vector_segments(frame->velx,
-                                                          frame->vely,
-                                                          frame->width,
-                                                          frame->height,
-                                                          app_state->vector_stride,
-                                                          app_state->vector_scale,
-                                                          segments,
-                                                          sample_count,
-                                                          &seg_count);
-            if (rv.code == CORE_OK) {
-                SDL_SetRenderDrawColor(renderer, 230, 255, 230, 255);
-                for (size_t i = 0; i < seg_count; ++i) {
-                    const float x0 = (float)dst.x + (segments[i].x0 / (float)frame->width) * (float)dst.w;
-                    const float y0 = (float)dst.y + (segments[i].y0 / (float)frame->height) * (float)dst.h;
-                    const float x1 = (float)dst.x + (segments[i].x1 / (float)frame->width) * (float)dst.w;
-                    const float y1 = (float)dst.y + (segments[i].y1 / (float)frame->height) * (float)dst.h;
-                    SDL_RenderDrawLine(renderer, (int)x0, (int)y0, (int)x1, (int)y1);
-                }
-            }
-        }
-
-        char title[256];
-        make_title(frame, app_state, title, sizeof(title));
-        SDL_SetWindowTitle(window, title);
-
-        SDL_RenderPresent(renderer);
     }
 
     core_free(density_rgba);
@@ -1304,9 +1462,12 @@ static CoreResult render_daw_loop(SDL_Window *window,
                                   DatalabAppState *app_state) {
     int quit = 0;
     DatalabInputDiagTotals ir1_diag_totals = {0};
+    DatalabRenderDiagTotals rs1_diag_totals = {0};
     while (!quit) {
         SDL_Event e;
         DatalabInputFrame input_frame;
+        DatalabRenderDeriveFrame render_derive;
+        DatalabRenderSubmitOutcome render_submit;
         datalab_input_frame_begin(&input_frame);
         while (SDL_PollEvent(&e)) {
             datalab_input_apply_event(&input_frame, &e);
@@ -1339,14 +1500,12 @@ static CoreResult render_daw_loop(SDL_Window *window,
                    (unsigned long long)ir1_diag_totals.routed_fallback_total,
                    (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
         }
-
-        render_daw_frame(renderer, frame, app_state);
-
-        char title[256];
-        make_title(frame, app_state, title, sizeof(title));
-        SDL_SetWindowTitle(window, title);
-
-        SDL_RenderPresent(renderer);
+        datalab_render_derive_frame(frame, app_state, &render_derive);
+        datalab_daw_render_submit_frame(window, renderer, frame, app_state, &render_derive, &render_submit);
+        datalab_rs1_diag_note("daw", &rs1_diag_totals, &render_submit);
+        if (render_submit.result.code != CORE_OK) {
+            return render_submit.result;
+        }
     }
 
     return core_result_ok();
@@ -1358,9 +1517,12 @@ static CoreResult render_trace_loop(SDL_Window *window,
                                     DatalabAppState *app_state) {
     int quit = 0;
     DatalabInputDiagTotals ir1_diag_totals = {0};
+    DatalabRenderDiagTotals rs1_diag_totals = {0};
     while (!quit) {
         SDL_Event e;
         DatalabInputFrame input_frame;
+        DatalabRenderDeriveFrame render_derive;
+        DatalabRenderSubmitOutcome render_submit;
         datalab_input_frame_begin(&input_frame);
         while (SDL_PollEvent(&e)) {
             datalab_input_apply_event(&input_frame, &e);
@@ -1393,14 +1555,12 @@ static CoreResult render_trace_loop(SDL_Window *window,
                    (unsigned long long)ir1_diag_totals.routed_fallback_total,
                    (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
         }
-
-        render_trace_frame(renderer, frame, app_state);
-        {
-            char title[256];
-            make_title(frame, app_state, title, sizeof(title));
-            SDL_SetWindowTitle(window, title);
+        datalab_render_derive_frame(frame, app_state, &render_derive);
+        datalab_trace_render_submit_frame(window, renderer, frame, app_state, &render_derive, &render_submit);
+        datalab_rs1_diag_note("trace", &rs1_diag_totals, &render_submit);
+        if (render_submit.result.code != CORE_OK) {
+            return render_submit.result;
         }
-        SDL_RenderPresent(renderer);
     }
     return core_result_ok();
 }
