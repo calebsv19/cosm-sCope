@@ -5,7 +5,14 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 APP_CONTENTS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 RES_DIR="$APP_CONTENTS_DIR/Resources"
 DEFAULT_PACK="$RES_DIR/data/default_preview.pack"
-APP_DATA_HOME="${HOME}/.local/share/datalab"
+RUNTIME_DIR_DEFAULT="${HOME}/Library/Application Support/DataLab/runtime"
+RUNTIME_DIR="${DATALAB_RUNTIME_DIR:-$RUNTIME_DIR_DEFAULT}"
+if ! mkdir -p "$RUNTIME_DIR" 2>/dev/null; then
+    RUNTIME_DIR="${TMPDIR:-/tmp}/DataLab/runtime"
+    mkdir -p "$RUNTIME_DIR" 2>/dev/null || true
+fi
+mkdir -p "$RUNTIME_DIR/vk" "$RUNTIME_DIR/config/shared/shaders" "$RUNTIME_DIR/data/runtime" 2>/dev/null || true
+APP_DATA_HOME="$RUNTIME_DIR"
 LOG_DIR="${HOME}/Library/Logs/DataLab"
 LOG_FILE="$LOG_DIR/launcher.log"
 
@@ -16,13 +23,40 @@ if ! touch "$LOG_FILE" 2>/dev/null; then
 fi
 
 mkdir -p "$APP_DATA_HOME" 2>/dev/null || true
+if [ -L "$RUNTIME_DIR/vk_renderer" ] || [ ! -e "$RUNTIME_DIR/vk_renderer" ]; then
+    ln -sfn "$RES_DIR/vk_renderer" "$RUNTIME_DIR/vk_renderer"
+fi
+if [ -L "$RUNTIME_DIR/config/shared/shaders/vk_renderer" ] || [ ! -e "$RUNTIME_DIR/config/shared/shaders/vk_renderer" ]; then
+    ln -sfn "$RES_DIR/vk_renderer" "$RUNTIME_DIR/config/shared/shaders/vk_renderer"
+fi
+MOLTENVK_DYLIB="$APP_CONTENTS_DIR/Frameworks/libMoltenVK.dylib"
+ICD_FILE="$RUNTIME_DIR/vk/MoltenVK_icd.json"
+cat >"$ICD_FILE" <<EOF
+{
+  "file_format_version": "1.0.0",
+  "ICD": {
+    "library_path": "$MOLTENVK_DYLIB",
+    "api_version": "1.3.0"
+  }
+}
+EOF
+export DATALAB_RUNTIME_DIR="$RUNTIME_DIR"
+export VK_RENDERER_SHADER_ROOT="${VK_RENDERER_SHADER_ROOT:-$RUNTIME_DIR/vk_renderer}"
+export VK_ICD_FILENAMES="${VK_ICD_FILENAMES:-$ICD_FILE}"
+export VK_DRIVER_FILES="${VK_DRIVER_FILES:-$ICD_FILE}"
+export MOLTENVK_DYLIB
 
 if [ "${1:-}" = "--print-config" ]; then
     echo "APP_CONTENTS_DIR=$APP_CONTENTS_DIR"
     echo "RES_DIR=$RES_DIR"
     echo "LOG_FILE=$LOG_FILE"
+    echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
     echo "APP_DATA_HOME=$APP_DATA_HOME"
     echo "DEFAULT_PACK=$DEFAULT_PACK"
+    echo "VK_RENDERER_SHADER_ROOT=$VK_RENDERER_SHADER_ROOT"
+    echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
+    echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
+    echo "MOLTENVK_DYLIB=$MOLTENVK_DYLIB"
     exit 0
 fi
 
@@ -32,15 +66,24 @@ if [ "${1:-}" = "--self-test" ]; then
     [ -f "$DEFAULT_PACK" ] || { echo "missing: default preview pack" >&2; exit 1; }
     [ -d "$RES_DIR/data/runtime" ] || { echo "missing: runtime dir" >&2; exit 1; }
     [ -f "$RES_DIR/shared/assets/fonts/Montserrat-Regular.ttf" ] || { echo "missing: shared font" >&2; exit 1; }
+    [ -f "$RES_DIR/vk_renderer/shaders/textured.vert.spv" ] || { echo "missing: bundled vk shader" >&2; exit 1; }
+    [ -f "$RES_DIR/shaders/textured.vert.spv" ] || { echo "missing: bundled runtime shader" >&2; exit 1; }
+    [ -f "$MOLTENVK_DYLIB" ] || { echo "missing: bundled MoltenVK dylib" >&2; exit 1; }
+    [ -f "$ICD_FILE" ] || { echo "missing: runtime MoltenVK ICD file" >&2; exit 1; }
     echo "self-test: ok"
     echo "LOG_FILE=$LOG_FILE"
+    echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
     echo "APP_DATA_HOME=$APP_DATA_HOME"
     echo "DEFAULT_PACK=$DEFAULT_PACK"
+    echo "VK_RENDERER_SHADER_ROOT=$VK_RENDERER_SHADER_ROOT"
+    echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
+    echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
+    echo "MOLTENVK_DYLIB=$MOLTENVK_DYLIB"
     exit 0
 fi
 
 cd "$APP_DATA_HOME"
-printf '%s launch begin pid=%s cwd=%s default_pack=%s args=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$$" "$APP_DATA_HOME" "$DEFAULT_PACK" "$*" >>"$LOG_FILE" 2>/dev/null || true
+printf '%s launch begin pid=%s cwd=%s runtime=%s default_pack=%s shader_root=%s args=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$$" "$APP_DATA_HOME" "$DATALAB_RUNTIME_DIR" "$DEFAULT_PACK" "$VK_RENDERER_SHADER_ROOT" "$*" >>"$LOG_FILE" 2>/dev/null || true
 
 if [ $# -eq 0 ]; then
     exec "$SCRIPT_DIR/datalab-bin" --pack "$DEFAULT_PACK" >>"$LOG_FILE" 2>&1

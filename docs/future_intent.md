@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-04-03
+Last updated: 2026-04-04
 
 ## Scaffold Alignment Intent
 1. Keep DataLab stable as a pack viewer while scaffold lanes are normalized.
@@ -73,11 +73,13 @@ Last updated: 2026-04-03
   - zoom-scaled 5x7 text rendering in viewer overlays
 
 ## Desktop Packaging Follow-Up
-- keep `.app` packaging lane aligned with scaffold packaging contract (`package-desktop*` targets + launcher diagnostics + resource smoke checks).
-- keep launcher default pack injection stable so Finder launch always resolves a valid `--pack` argument.
-- maintain writable runtime-state cwd policy (`~/.local/share/datalab`) for packaged runs.
-- naming sweep follow-up:
-  - keep current package name `DataLab.app` until canonical naming pass is assigned.
+- release-readiness lane is now active for `datalab` (`DL-RL0`/`DL-RL1` implemented):
+  - standardized `package-desktop*` + `release-*` targets are landed.
+  - launcher runtime model is hardened for writable runtime root + Vulkan ICD exports.
+  - bundle id and product naming are locked for release (`sCope`, `com.cosm.scope`).
+- next packaging posture:
+  - complete `DL-RL2` through `DL-RL5` signing/notary/artifact closeout.
+  - maintain Desktop/Finder launch + `release-verify-notarized` evidence in packaging-affecting closeout gates.
 
 ## Connection Pass Intent
 - completed:

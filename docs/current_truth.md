@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-04-03
+Last updated: 2026-04-04
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -32,6 +32,11 @@ Last updated: 2026-04-03
   - `make -C datalab package-desktop-smoke`
   - `make -C datalab package-desktop-self-test`
   - `make -C datalab package-desktop-refresh`
+- release readiness verification:
+  - `make -C datalab release-contract`
+  - `make -C datalab release-bundle-audit`
+  - `make -C datalab release-verify APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)"`
+  - `make -C datalab release-distribute APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="cosm-notary"`
 
 Stable test lane:
 - `make -C datalab test-stable`
@@ -57,7 +62,7 @@ Legacy test lane:
 - the built-in 5x7 text renderer applies runtime zoom scaling to all text draw paths (DAW + TRACE overlays/readouts).
 
 ## Desktop Packaging Contract (Current)
-- standardized package target lane is implemented:
+- standardized package + release-readiness lane is implemented:
   - `package-desktop`
   - `package-desktop-smoke`
   - `package-desktop-self-test`
@@ -66,7 +71,21 @@ Legacy test lane:
   - `package-desktop-open`
   - `package-desktop-remove`
   - `package-desktop-refresh`
+  - `release-contract`
+  - `release-clean`
+  - `release-build`
+  - `release-bundle-audit`
+  - `release-sign`
+  - `release-verify`
+  - `release-verify-signed`
+  - `release-notarize`
+  - `release-staple`
+  - `release-verify-notarized`
+  - `release-artifact`
+  - `release-distribute`
+  - `release-desktop-refresh`
 - launcher entrypoint: `tools/packaging/macos/datalab-launcher`
+- dylib bundler entrypoint: `tools/packaging/macos/bundle-dylibs.sh`
 - launcher diagnostics:
   - `--print-config`
   - `--self-test`
@@ -75,9 +94,20 @@ Legacy test lane:
   - `Contents/Resources/data/default_preview.pack`
   - `Contents/Resources/data/runtime/`
   - `Contents/Resources/shared/assets/fonts/*`
+  - `Contents/Resources/vk_renderer/shaders/*`
+  - `Contents/Resources/shaders/*`
 - launcher default boot contract:
   - if no args are passed, launcher injects `--pack <bundle default_preview.pack>`
-  - launcher runs with cwd `~/.local/share/datalab` for writable runtime state lane.
+  - launcher runtime root is `~/Library/Application Support/DataLab/runtime` (tmp fallback), with:
+    - `VK_RENDERER_SHADER_ROOT=<runtime>/vk_renderer`
+    - `VK_ICD_FILENAMES=<runtime>/vk/MoltenVK_icd.json`
+    - `VK_DRIVER_FILES=<runtime>/vk/MoltenVK_icd.json`
+    - `MOLTENVK_DYLIB=<App>/Contents/Frameworks/libMoltenVK.dylib`
+  - launcher runs with cwd `<runtime>` for writable runtime state lane.
+- release identity:
+  - product app name: `sCope.app`
+  - bundle id: `com.cosm.scope`
+  - notarized artifact lane: `build/release/sCope-<version>-macOS-stable.zip`
 
 ## Shared Dependency Snapshot
 - Shared libs actively consumed by current `Makefile`:
