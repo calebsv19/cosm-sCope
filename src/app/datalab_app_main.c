@@ -1,16 +1,16 @@
 #include "datalab/datalab_app_main.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
+#include "app/datalab_runtime_pack.h"
+#include "app/datalab_runtime_prefs.h"
 #include "core_data.h"
 #include "data/dataset_builders.h"
 #include "render/render_view.h"
 
-static const char *k_datalab_text_zoom_step_path = "data/runtime/text_zoom_step.txt";
+static const char *k_datalab_default_input_root = "data/import";
 
 typedef enum DatalabAppStage {
     DATALAB_APP_STAGE_INIT = 0,
@@ -133,55 +133,7 @@ static int datalab_app_transition_stage(DatalabAppContext *ctx,
 }
 
 static void datalab_print_usage(const char *argv0) {
-    printf("usage: %s --pack /path/to/frame.pack [--no-gui]\n", argv0);
-}
-
-static int datalab_ensure_runtime_dirs(void) {
-    if (mkdir("data", 0777) != 0 && errno != EEXIST) {
-        return 0;
-    }
-    if (mkdir("data/runtime", 0777) != 0 && errno != EEXIST) {
-        return 0;
-    }
-    return 1;
-}
-
-static int datalab_load_text_zoom_step(int *out_step) {
-    FILE *fp;
-    char line[64];
-    long parsed;
-    char *end = NULL;
-    if (!out_step) {
-        return 0;
-    }
-    fp = fopen(k_datalab_text_zoom_step_path, "rb");
-    if (!fp) {
-        return 0;
-    }
-    if (!fgets(line, sizeof(line), fp)) {
-        fclose(fp);
-        return 0;
-    }
-    fclose(fp);
-    parsed = strtol(line, &end, 10);
-    if (end == line) {
-        return 0;
-    }
-    *out_step = datalab_text_zoom_step_clamp((int)parsed);
-    return 1;
-}
-
-static void datalab_save_text_zoom_step(int step) {
-    FILE *fp;
-    if (!datalab_ensure_runtime_dirs()) {
-        return;
-    }
-    fp = fopen(k_datalab_text_zoom_step_path, "wb");
-    if (!fp) {
-        return;
-    }
-    (void)fprintf(fp, "%d\n", datalab_text_zoom_step_clamp(step));
-    fclose(fp);
+    printf("usage: %s [--pack /path/to/frame.pack] [--input-root /path/to/folder] [--no-gui]\n", argv0);
 }
 
 void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
@@ -190,6 +142,9 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
     }
     memset(runtime, 0, sizeof(*runtime));
     datalab_frame_init(&runtime->frame);
+    snprintf(runtime->input_root, sizeof(runtime->input_root), "%s", k_datalab_default_input_root);
+    runtime->input_root_from_cli = 0;
+    runtime->selected_pack_path[0] = '\0';
 }
 
 static int datalab_app_bootstrap_ctx(DatalabAppContext *ctx, int argc, char **argv) {
@@ -206,10 +161,15 @@ static int datalab_app_bootstrap_ctx(DatalabAppContext *ctx, int argc, char **ar
     runtime->pack_path = NULL;
     runtime->no_gui = 0;
     runtime->show_help = 0;
+    runtime->input_root_from_cli = 0;
+    runtime->selected_pack_path[0] = '\0';
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--pack") == 0 && (i + 1) < argc) {
             runtime->pack_path = argv[++i];
+        } else if (strcmp(argv[i], "--input-root") == 0 && (i + 1) < argc) {
+            snprintf(runtime->input_root, sizeof(runtime->input_root), "%s", argv[++i]);
+            runtime->input_root_from_cli = 1;
         } else if (strcmp(argv[i], "--no-gui") == 0) {
             runtime->no_gui = 1;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -240,6 +200,7 @@ int datalab_app_bootstrap(int argc, char **argv, DatalabAppRuntime *runtime) {
 
 static int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
     int loaded_step = 0;
+    char loaded_input_root[DATALAB_APP_PATH_CAP];
     DatalabAppRuntime *runtime = NULL;
     if (!ctx) {
         return 1;
@@ -252,8 +213,17 @@ static int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
         return 1;
     }
     runtime->text_zoom_step = 0;
-    if (datalab_load_text_zoom_step(&loaded_step)) {
+    if (datalab_runtime_prefs_load_text_zoom_step(&loaded_step)) {
         runtime->text_zoom_step = loaded_step;
+    }
+    if (runtime->input_root[0] == '\0') {
+        snprintf(runtime->input_root, sizeof(runtime->input_root), "%s", k_datalab_default_input_root);
+    }
+    loaded_input_root[0] = '\0';
+    if (!runtime->input_root_from_cli &&
+        datalab_runtime_prefs_load_input_root(loaded_input_root, sizeof(loaded_input_root)) &&
+        loaded_input_root[0] != '\0') {
+        snprintf(runtime->input_root, sizeof(runtime->input_root), "%s", loaded_input_root);
     }
     if (!datalab_app_transition_stage(ctx,
                                       DATALAB_APP_STAGE_BOOTSTRAPPED,
@@ -287,28 +257,37 @@ static int datalab_app_state_seed_ctx(DatalabAppContext *ctx) {
         return 1;
     }
 
-    if (!runtime->pack_path) {
+    if (!runtime->pack_path && runtime->selected_pack_path[0] != '\0') {
+        runtime->pack_path = runtime->selected_pack_path;
+    }
+
+    if (!runtime->pack_path && runtime->no_gui) {
         datalab_print_usage(runtime->argv0 ? runtime->argv0 : "datalab");
         return 1;
     }
 
-    CoreResult load_r = datalab_load_pack(runtime->pack_path, &runtime->frame);
-    if (load_r.code != CORE_OK) {
-        fprintf(stderr, "datalab: failed to load pack: %s\n", load_r.message);
-        return 2;
-    }
-    runtime->frame_loaded = 1;
-
-    datalab_print_frame_summary(runtime->pack_path, &runtime->frame);
-
-    if (runtime->frame.profile == DATALAB_PROFILE_PHYSICS) {
-        CoreDataset dataset;
-        CoreResult ds_r = datalab_build_dataset_from_frame(&runtime->frame, &dataset);
-        if (ds_r.code != CORE_OK) {
-            fprintf(stderr, "datalab: dataset build failed: %s\n", ds_r.message);
-            return 3;
+    if (!runtime->pack_path) {
+        if (!datalab_app_transition_stage(ctx,
+                                          DATALAB_APP_STAGE_CONFIG_LOADED,
+                                          DATALAB_APP_STAGE_STATE_SEEDED,
+                                          "datalab_app_state_seed",
+                                          __func__)) {
+            return 1;
         }
-        core_dataset_free(&dataset);
+        ctx->ownership.state_seed_owned = 1;
+        return 0;
+    }
+
+    {
+        int load_rc = datalab_runtime_load_frame(runtime);
+        if (load_rc != 0) {
+            return load_rc;
+        }
+        datalab_runtime_print_loaded_frame_summary(runtime);
+        load_rc = datalab_runtime_validate_loaded_physics_dataset(runtime);
+        if (load_rc != 0) {
+            return load_rc;
+        }
     }
 
     if (!datalab_app_transition_stage(ctx,
@@ -343,25 +322,82 @@ int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app
 
     datalab_app_state_init(app_state, runtime->pack_path, runtime->frame.profile);
     app_state->text_zoom_step = runtime->text_zoom_step;
+    snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", runtime->input_root);
+    app_state->open_picker_requested = 0;
     return 0;
 }
 
 int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state) {
+    CoreResult run_r;
     if (!runtime) {
         return 1;
     }
     if (runtime->no_gui) {
         return 0;
     }
+    for (;;) {
+        if (!runtime->frame_loaded) {
+            if (!runtime->pack_path || runtime->pack_path[0] == '\0') {
+                run_r = datalab_render_pick_pack_path(runtime->input_root,
+                                                      runtime->input_root,
+                                                      sizeof(runtime->input_root),
+                                                      &runtime->text_zoom_step,
+                                                      runtime->selected_pack_path,
+                                                      sizeof(runtime->selected_pack_path));
+                if (run_r.code != CORE_OK) {
+                    fprintf(stderr, "datalab: pack picker failed: %s\n", run_r.message);
+                    return 4;
+                }
+                runtime->pack_path = runtime->selected_pack_path;
+            }
+            if (!runtime->pack_path || runtime->pack_path[0] == '\0') {
+                datalab_runtime_prefs_save_input_root(runtime->input_root);
+                return 0;
+            }
+            {
+                int load_rc = datalab_runtime_load_frame(runtime);
+                if (load_rc != 0) {
+                    return 2;
+                }
+            }
+            if (!runtime->frame_loaded) {
+                return 2;
+            }
+            if (app_state) {
+                datalab_app_state_init(app_state, runtime->pack_path, runtime->frame.profile);
+                app_state->text_zoom_step = runtime->text_zoom_step;
+                snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", runtime->input_root);
+                app_state->open_picker_requested = 0;
+                app_state->panel_rescan_requested = 1;
+            }
+        }
 
-    CoreResult run_r = datalab_render_run(&runtime->frame, app_state);
-    datalab_save_text_zoom_step(app_state ? app_state->text_zoom_step : runtime->text_zoom_step);
-    if (run_r.code != CORE_OK) {
-        fprintf(stderr, "datalab: render failed: %s\n", run_r.message);
-        return 4;
+        run_r = datalab_render_run(&runtime->frame, app_state);
+        datalab_runtime_prefs_save_text_zoom_step(app_state ? app_state->text_zoom_step : runtime->text_zoom_step);
+        datalab_runtime_prefs_save_input_root(runtime->input_root);
+        if (run_r.code != CORE_OK) {
+            fprintf(stderr, "datalab: render failed: %s\n", run_r.message);
+            return 4;
+        }
+        if (app_state && app_state->panel_requested_pack_path[0] != '\0') {
+            snprintf(runtime->selected_pack_path,
+                     sizeof(runtime->selected_pack_path),
+                     "%s",
+                     app_state->panel_requested_pack_path);
+            runtime->pack_path = runtime->selected_pack_path;
+            app_state->panel_requested_pack_path[0] = '\0';
+        } else if (app_state && app_state->open_picker_requested) {
+            runtime->pack_path = NULL;
+            app_state->open_picker_requested = 0;
+        } else {
+            return 0;
+        }
+        if (runtime->frame_loaded) {
+            datalab_frame_free(&runtime->frame);
+            datalab_frame_init(&runtime->frame);
+            runtime->frame_loaded = 0;
+        }
     }
-
-    return 0;
 }
 
 static int datalab_default_runtime_dispatch(const DatalabDispatchRequest *request,

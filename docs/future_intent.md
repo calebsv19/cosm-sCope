@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-04-04
+Last updated: 2026-04-09
 
 ## Scaffold Alignment Intent
 1. Keep DataLab stable as a pack viewer while scaffold lanes are normalized.
@@ -70,16 +70,31 @@ Last updated: 2026-04-04
   - runtime zoom step state + clamp bounds
   - `Cmd/Ctrl +/-/0` input wiring
   - runtime persistence in `data/runtime/text_zoom_step.txt`
-  - zoom-scaled 5x7 text rendering in viewer overlays
+  - zoom-scaled shared-font (`core_font` + SDL_ttf) rendering in viewer overlays
 
 ## Desktop Packaging Follow-Up
-- release-readiness lane is now active for `datalab` (`DL-RL0`/`DL-RL1` implemented):
+- release-readiness lane is complete for `datalab` (`DL-RL0` through `DL-RL5`):
   - standardized `package-desktop*` + `release-*` targets are landed.
   - launcher runtime model is hardened for writable runtime root + Vulkan ICD exports.
   - bundle id and product naming are locked for release (`sCope`, `com.cosm.scope`).
 - next packaging posture:
-  - complete `DL-RL2` through `DL-RL5` signing/notary/artifact closeout.
   - maintain Desktop/Finder launch + `release-verify-notarized` evidence in packaging-affecting closeout gates.
+  - keep release lane in maintenance mode unless versioning/distribution requirements expand.
+
+## Data Path Contract State
+- `P1` data-root pilot is complete (`2026-04-07`):
+  - no-arg startup picker flow
+  - runtime input-root selection and pack discovery
+  - in-session picker reopen (`O`)
+- `P5` refinement follow-up is complete (`2026-04-09`):
+  - clipped panel/picker list rendering
+  - selection-window scrolling for large directories
+  - explicit empty/unavailable root status messaging
+  - `--input-root` precedence over persisted runtime input-root
+  - execution note:
+    - `../../docs/private_program_docs/datalab/2026-04-09_datalab_data_path_refinement_followup_plan.md`
+- next:
+  - maintain behavior parity and rerun doc-sync pass whenever picker/panel/data-path code changes.
 
 ## Connection Pass Intent
 - completed:
@@ -87,7 +102,7 @@ Last updated: 2026-04-04
   - `DL-CP1`: context/stage ownership lock landed in wrapper stage flow
   - `DL-CP2`: explicit runtime dispatch seam extraction landed with typed request/outcome contract and behavior parity
   - execution doc:
-    - `../docs/private_program_docs/datalab/2026-04-01_datalab_connection_pass_cp0_cp2_execution.md`
+    - `../../docs/private_program_docs/datalab/2026-04-01_datalab_connection_pass_cp0_cp2_execution.md`
 - next:
   - optional `DL-CP3+`: deeper wrapper ownership extraction for runtime/render responsibilities
 
@@ -97,8 +112,8 @@ Last updated: 2026-04-04
 - `W2` complete for `datalab` (structured wrapper diagnostics normalization + wrapper exit summary logging)
 - `W3` complete for `datalab` (typed runtime-loop adapter + run-loop handoff seam extraction with ownership/diagnostics hardening)
 - execution note:
-  - `../docs/private_program_docs/datalab/2026-04-02_datalab_w1_w2_wrapper_hardening.md`
-  - `../docs/private_program_docs/datalab/2026-04-02_datalab_w3_s0_s4_execution.md`
+  - `../../docs/private_program_docs/datalab/2026-04-02_datalab_w1_w2_wrapper_hardening.md`
+  - `../../docs/private_program_docs/datalab/2026-04-02_datalab_w3_s0_s4_execution.md`
 
 ## IR1 Input-Routing Lane
 - completed:
@@ -107,7 +122,7 @@ Last updated: 2026-04-04
   - `IR1-S2` explicit `intake -> normalize -> route -> invalidate` seams landed with behavior parity
   - `IR1-S3` diagnostics + tracker synchronization closeout completed
   - execution note:
-    - `../docs/private_program_docs/datalab/2026-04-03_datalab_ir1_s0_s3_execution.md`
+    - `../../docs/private_program_docs/datalab/2026-04-03_datalab_ir1_s0_s3_execution.md`
 - next:
   - optional deeper action-command seam extraction only if editor/pane routing expansion requires it.
 

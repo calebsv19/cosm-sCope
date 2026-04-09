@@ -53,6 +53,9 @@ CORE_FONT_DIR := $(SHARED_ROOT)/core/core_font
 
 SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
 SDL_LIBS := $(shell sdl2-config --libs 2>/dev/null)
+PKG_CONFIG ?= pkg-config
+SDL_TTF_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2_ttf 2>/dev/null)
+SDL_TTF_LIBS := $(shell $(PKG_CONFIG) --libs sdl2_ttf 2>/dev/null)
 
 UNAME_S := $(shell uname -s)
 
@@ -66,6 +69,14 @@ ifeq ($(UNAME_S),Darwin)
 	CFLAGS += -I/opt/homebrew/include -D_THREAD_SAFE
 	LDFLAGS += -L/opt/homebrew/lib
 	LIBS += -lSDL2
+	ifeq ($(strip $(SDL_TTF_CFLAGS)),)
+		SDL_TTF_CFLAGS := -I/opt/homebrew/include/SDL2
+	endif
+	ifeq ($(strip $(SDL_TTF_LIBS)),)
+		SDL_TTF_LIBS := -L/opt/homebrew/lib -lSDL2_ttf
+	endif
+	CFLAGS += $(SDL_TTF_CFLAGS)
+	LIBS += $(SDL_TTF_LIBS)
 else
 	ifneq ($(SDL_CFLAGS),)
 		CFLAGS += $(SDL_CFLAGS)
@@ -74,6 +85,14 @@ else
 		CFLAGS += -I/usr/include/SDL2
 		LIBS += -lSDL2
 	endif
+	ifeq ($(strip $(SDL_TTF_CFLAGS)),)
+		SDL_TTF_CFLAGS := -I/usr/include/SDL2
+	endif
+	ifeq ($(strip $(SDL_TTF_LIBS)),)
+		SDL_TTF_LIBS := -lSDL2_ttf
+	endif
+	CFLAGS += $(SDL_TTF_CFLAGS)
+	LIBS += $(SDL_TTF_LIBS)
 endif
 
 SRCS := $(shell find $(SRC_DIR) -name '*.c')
@@ -82,14 +101,16 @@ CORE_PACK_SRCS := $(CORE_PACK_DIR)/src/core_pack.c
 CORE_IO_SRCS := $(CORE_IO_DIR)/src/core_io.c
 CORE_BASE_SRCS := $(CORE_BASE_DIR)/src/core_base.c
 CORE_DATA_SRCS := $(CORE_DATA_DIR)/src/core_data.c
+CORE_FONT_SRCS := $(CORE_FONT_DIR)/src/core_font.c
 KIT_VIZ_SRCS := $(KIT_VIZ_DIR)/src/kit_viz.c
 
 CORE_PACK_OBJS := $(patsubst $(CORE_PACK_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_pack/%.o,$(CORE_PACK_SRCS))
 CORE_IO_OBJS := $(patsubst $(CORE_IO_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_io/%.o,$(CORE_IO_SRCS))
 CORE_BASE_OBJS := $(patsubst $(CORE_BASE_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_base/%.o,$(CORE_BASE_SRCS))
 CORE_DATA_OBJS := $(patsubst $(CORE_DATA_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_data/%.o,$(CORE_DATA_SRCS))
+CORE_FONT_OBJS := $(patsubst $(CORE_FONT_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_font/%.o,$(CORE_FONT_SRCS))
 KIT_VIZ_OBJS := $(patsubst $(KIT_VIZ_DIR)/src/%.c,$(BUILD_DIR)/shared/kit/kit_viz/%.o,$(KIT_VIZ_SRCS))
-CORE_OBJS := $(CORE_PACK_OBJS) $(CORE_IO_OBJS) $(CORE_BASE_OBJS) $(CORE_DATA_OBJS) $(KIT_VIZ_OBJS)
+CORE_OBJS := $(CORE_PACK_OBJS) $(CORE_IO_OBJS) $(CORE_BASE_OBJS) $(CORE_DATA_OBJS) $(CORE_FONT_OBJS) $(KIT_VIZ_OBJS)
 DEPS := $(OBJS:.o=.d)
 DEPS += $(CORE_OBJS:.o=.d)
 
@@ -129,6 +150,10 @@ $(BUILD_DIR)/shared/core/core_data/%.o: $(CORE_DATA_DIR)/src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
+$(BUILD_DIR)/shared/core/core_font/%.o: $(CORE_FONT_DIR)/src/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
 $(BUILD_DIR)/shared/kit/kit_viz/%.o: $(KIT_VIZ_DIR)/src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
@@ -156,8 +181,12 @@ test-stable: test
 test-legacy:
 	@echo "No legacy test lane defined for datalab."
 
-run: $(TARGET) $(DEFAULT_PACK)
-	./$(TARGET) --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))"
+run: $(TARGET)
+	@if [ -n "$(PACK)" ]; then \
+		./$(TARGET) --pack "$(PACK)"; \
+	else \
+		./$(TARGET); \
+	fi
 
 run-headless: $(TARGET) $(DEFAULT_PACK)
 	./$(TARGET) --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
@@ -169,7 +198,7 @@ visual-harness: $(TARGET)
 	@echo "visual harness build gate ready: $(TARGET)"
 	@echo "launch manual UI validation with: make -C datalab run"
 
-package-desktop: $(TARGET) $(DEFAULT_PACK)
+package-desktop: $(TARGET)
 	@echo "Preparing desktop package..."
 	@rm -rf "$(PACKAGE_APP_DIR)"
 	@mkdir -p "$(PACKAGE_MACOS_DIR)" "$(PACKAGE_RESOURCES_DIR)" "$(PACKAGE_FRAMEWORKS_DIR)"
@@ -179,7 +208,6 @@ package-desktop: $(TARGET) $(DEFAULT_PACK)
 	@chmod +x "$(PACKAGE_MACOS_DIR)/datalab-bin" "$(PACKAGE_MACOS_DIR)/datalab-launcher"
 	@"$(PACKAGE_DYLIB_BUNDLER)" "$(PACKAGE_MACOS_DIR)/datalab-bin" "$(PACKAGE_FRAMEWORKS_DIR)"
 	@mkdir -p "$(PACKAGE_RESOURCES_DIR)/data" "$(PACKAGE_RESOURCES_DIR)/shared/assets/fonts"
-	@cp "$(DEFAULT_PACK)" "$(PACKAGE_RESOURCES_DIR)/data/default_preview.pack"
 	@if [ -d "data/runtime" ]; then cp -R data/runtime "$(PACKAGE_RESOURCES_DIR)/data/"; else mkdir -p "$(PACKAGE_RESOURCES_DIR)/data/runtime"; fi
 	@cp -R "$(SHARED_ROOT)/assets/fonts/." "$(PACKAGE_RESOURCES_DIR)/shared/assets/fonts/"
 	@mkdir -p "$(PACKAGE_RESOURCES_DIR)/vk_renderer" "$(PACKAGE_RESOURCES_DIR)/shaders"
@@ -200,7 +228,6 @@ package-desktop-smoke: package-desktop
 	@test -f "$(PACKAGE_CONTENTS_DIR)/Info.plist" || (echo "Missing Info.plist"; exit 1)
 	@test -f "$(PACKAGE_FRAMEWORKS_DIR)/libvulkan.1.dylib" || (echo "Missing bundled libvulkan"; exit 1)
 	@test -f "$(PACKAGE_FRAMEWORKS_DIR)/libMoltenVK.dylib" || (echo "Missing bundled libMoltenVK"; exit 1)
-	@test -f "$(PACKAGE_RESOURCES_DIR)/data/default_preview.pack" || (echo "Missing bundled default preview pack"; exit 1)
 	@test -d "$(PACKAGE_RESOURCES_DIR)/data/runtime" || (echo "Missing runtime data dir"; exit 1)
 	@test -f "$(PACKAGE_RESOURCES_DIR)/shared/assets/fonts/Montserrat-Regular.ttf" || (echo "Missing shared font"; exit 1)
 	@test -f "$(PACKAGE_RESOURCES_DIR)/vk_renderer/shaders/textured.vert.spv" || (echo "Missing bundled vk shader"; exit 1)

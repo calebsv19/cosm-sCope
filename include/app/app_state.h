@@ -6,6 +6,8 @@
 
 #include "data/pack_loader.h"
 
+#define DATALAB_APP_PATH_CAP 1024
+
 typedef enum DatalabViewMode {
     DATALAB_VIEW_DENSITY = 1,
     DATALAB_VIEW_SPEED = 2,
@@ -18,6 +20,7 @@ typedef enum DatalabViewMode {
 typedef struct DatalabAppState {
     const char *pack_path;
     DatalabProfile profile;
+    char input_root[DATALAB_APP_PATH_CAP];
     DatalabViewMode view_mode;
     int text_zoom_step;
     uint32_t vector_stride;
@@ -27,6 +30,12 @@ typedef struct DatalabAppState {
     int trace_selection_stub_active;
     size_t trace_lane_visibility_index; /* 0 = all, 1..N = one lane by index */
     int trace_lane_cycle_requested;
+    int open_picker_requested;
+    int panel_rescan_requested;
+    int panel_selection_delta;
+    size_t panel_selected_index;
+    int panel_open_selected_requested;
+    char panel_requested_pack_path[DATALAB_APP_PATH_CAP];
 } DatalabAppState;
 
 void datalab_app_state_init(DatalabAppState *state, const char *pack_path, DatalabProfile profile);

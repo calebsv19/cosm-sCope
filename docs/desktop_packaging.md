@@ -1,6 +1,6 @@
 # DataLab Desktop Packaging
 
-Last updated: 2026-04-04
+Last updated: 2026-04-09
 
 ## Bundle Contract
 - output app: `dist/sCope.app`
@@ -10,7 +10,6 @@ Last updated: 2026-04-04
   - `Contents/Frameworks/libvulkan.1.dylib`
   - `Contents/Frameworks/libMoltenVK.dylib`
 - bundled resources:
-  - `Contents/Resources/data/default_preview.pack`
   - `Contents/Resources/data/runtime/`
   - `Contents/Resources/shared/assets/fonts/*`
   - `Contents/Resources/vk_renderer/shaders/*`
@@ -31,13 +30,16 @@ Last updated: 2026-04-04
 
 ## Launcher Runtime Contract
 - `--print-config` dumps active paths and runtime roots.
-- `--self-test` verifies app binary, plist, default pack, runtime dir, shared font bundle, Vulkan shader bundle, runtime ICD, and bundled MoltenVK.
+- `--self-test` verifies app binary, plist, runtime dir, runtime input-root dir, shared font bundle, Vulkan shader bundle, runtime ICD, and bundled MoltenVK.
 - startup logs go to `~/Library/Logs/DataLab/launcher.log` (tmp fallback).
 - default launch behavior:
-  - if no args are provided, launcher executes:
-    - `datalab-bin --pack <bundle default_preview.pack>`
+  - launcher starts DataLab without forcing a bundled default pack.
+  - DataLab opens startup picker UI for input-root + `.pack` selection when no `--pack` is provided.
+  - during active visualization, `O` reopens picker to switch packs without relaunch.
 - launcher runtime root:
   - `DATALAB_RUNTIME_DIR=~/Library/Application Support/DataLab/runtime` (tmp fallback)
+- launcher input-root default:
+  - `DATALAB_INPUT_ROOT=<runtime>/data/import`
 - Vulkan runtime env:
   - `VK_RENDERER_SHADER_ROOT=<runtime>/vk_renderer`
   - `VK_ICD_FILENAMES=<runtime>/vk/MoltenVK_icd.json`

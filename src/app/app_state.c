@@ -27,6 +27,7 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     if (!state) return;
     state->pack_path = pack_path;
     state->profile = profile;
+    state->input_root[0] = '\0';
     state->view_mode = (profile == DATALAB_PROFILE_DAW) ? DATALAB_VIEW_SPEED : DATALAB_VIEW_DENSITY;
     state->text_zoom_step = 0;
     state->vector_stride = 8;
@@ -36,6 +37,12 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->trace_selection_stub_active = 0;
     state->trace_lane_visibility_index = 0u;
     state->trace_lane_cycle_requested = 0;
+    state->open_picker_requested = 0;
+    state->panel_rescan_requested = 0;
+    state->panel_selection_delta = 0;
+    state->panel_selected_index = 0u;
+    state->panel_open_selected_requested = 0;
+    state->panel_requested_pack_path[0] = '\0';
 }
 
 const char *datalab_view_mode_name(DatalabViewMode mode) {

@@ -14,11 +14,14 @@ This project is currently focused on reliability and observability, not feature 
 ## Implemented Today
 
 - CLI pack loading (`--pack /path/to/file.pack`).
+- CLI input-root override (`--input-root /path/to/folder`), with CLI precedence over persisted runtime root.
 - Optional headless mode (`--no-gui`).
+- No-arg GUI launch opens startup picker for input-root and `.pack` selection.
 - Frame summary output to terminal.
 - Physics dataset mapping (`density`, `velocity`) through shared `core_data`.
-- Basic interactive view modes and input controls for visual inspection.
+- Basic interactive view modes and input controls for visual inspection, including in-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan).
 - Runtime text zoom controls (`Cmd/Ctrl +`, `Cmd/Ctrl -`, `Cmd/Ctrl 0`) with persisted zoom step in `data/runtime/text_zoom_step.txt`.
+- Runtime input-root persistence in `data/runtime/input_root.txt`.
 
 ## Build and Run
 
@@ -49,6 +52,13 @@ With an explicit pack path:
 ```bash
 ./datalab/datalab --pack /absolute/path/to/frame.pack
 ./datalab/datalab --pack /absolute/path/to/frame.pack --no-gui
+```
+
+Picker and input-root examples:
+
+```bash
+./datalab/datalab
+./datalab/datalab --input-root /absolute/path/to/folder
 ```
 
 ## Tests

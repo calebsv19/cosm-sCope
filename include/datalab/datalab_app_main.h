@@ -11,6 +11,9 @@ typedef struct DatalabAppRuntime {
     int show_help;
     int text_zoom_step;
     int frame_loaded;
+    int input_root_from_cli;
+    char input_root[DATALAB_APP_PATH_CAP];
+    char selected_pack_path[DATALAB_APP_PATH_CAP];
     DatalabFrame frame;
 } DatalabAppRuntime;
 

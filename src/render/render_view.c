@@ -1,86 +1,23 @@
 #include "render/render_view.h"
+#include "render/render_view_internal.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
-#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 
-#include "kit_graph_timeseries.h"
-#include "kit_viz.h"
+#include "core_font.h"
 #include "ui/input.h"
 
+#ifndef PATH_MAX
+#define PATH_MAX 1024
+#endif
+
 static float g_datalab_text_zoom_multiplier = 1.0f;
-
-typedef enum DatalabInputRouteTargetPolicy {
-    DATALAB_INPUT_ROUTE_TARGET_FALLBACK = 0,
-    DATALAB_INPUT_ROUTE_TARGET_GLOBAL = 1
-} DatalabInputRouteTargetPolicy;
-
-typedef enum DatalabInputInvalidateReasonBits {
-    DATALAB_INPUT_INVALIDATE_REASON_QUIT = 1u << 0,
-    DATALAB_INPUT_INVALIDATE_REASON_KEYBOARD = 1u << 1,
-    DATALAB_INPUT_INVALIDATE_REASON_OTHER = 1u << 2
-} DatalabInputInvalidateReasonBits;
-
-typedef struct DatalabInputEventRaw {
-    uint32_t sdl_event_count;
-    uint32_t quit_event_count;
-    uint32_t key_event_count;
-    uint32_t other_event_count;
-    uint8_t quit_requested;
-} DatalabInputEventRaw;
-
-typedef struct DatalabInputEventNormalized {
-    uint8_t has_quit_action;
-    uint8_t has_keyboard_action;
-    uint8_t has_other_action;
-    uint32_t action_count;
-} DatalabInputEventNormalized;
-
-typedef struct DatalabInputRouteResult {
-    uint8_t consumed;
-    DatalabInputRouteTargetPolicy target_policy;
-    uint32_t routed_global_count;
-    uint32_t routed_fallback_count;
-} DatalabInputRouteResult;
-
-typedef struct DatalabInputInvalidationResult {
-    uint8_t full_invalidate;
-    uint32_t invalidation_reason_bits;
-    uint32_t target_invalidation_count;
-    uint32_t full_invalidation_count;
-} DatalabInputInvalidationResult;
-
-typedef struct DatalabInputFrame {
-    DatalabInputEventRaw raw;
-    DatalabInputRouteResult route;
-    DatalabInputInvalidationResult invalidation;
-} DatalabInputFrame;
-
-typedef struct DatalabInputDiagTotals {
-    uint64_t frame_count;
-    uint64_t event_count_total;
-    uint64_t routed_global_total;
-    uint64_t routed_fallback_total;
-    uint64_t invalidation_reason_bits_total;
-} DatalabInputDiagTotals;
-
-typedef struct DatalabRenderDeriveFrame {
-    char title[256];
-} DatalabRenderDeriveFrame;
-
-typedef struct DatalabRenderSubmitOutcome {
-    CoreResult result;
-    uint8_t presented;
-} DatalabRenderSubmitOutcome;
-
-typedef struct DatalabRenderDiagTotals {
-    uint64_t frame_count;
-    uint64_t submit_count;
-    uint64_t present_count;
-} DatalabRenderDiagTotals;
 
 static int datalab_env_flag_enabled(const char *name) {
     const char *value = NULL;
@@ -98,15 +35,15 @@ static int datalab_env_flag_enabled(const char *name) {
            strcmp(value, "on") == 0;
 }
 
-static int datalab_ir1_diag_enabled(void) {
+int datalab_ir1_diag_enabled(void) {
     return datalab_env_flag_enabled("DATALAB_IR1_DIAG");
 }
 
-static int datalab_rs1_diag_enabled(void) {
+int datalab_rs1_diag_enabled(void) {
     return datalab_env_flag_enabled("DATALAB_RS1_DIAG");
 }
 
-static void datalab_input_frame_begin(DatalabInputFrame *frame) {
+void datalab_input_frame_begin(DatalabInputFrame *frame) {
     if (!frame) {
         return;
     }
@@ -195,7 +132,7 @@ static void datalab_input_invalidate(const DatalabInputEventNormalized *normaliz
     out_invalidation->target_invalidation_count += route->routed_fallback_count;
 }
 
-static void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event) {
+void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event) {
     DatalabInputEventNormalized normalized;
     DatalabInputRouteResult route;
     DatalabInputInvalidationResult invalidation;
@@ -221,15 +158,19 @@ static void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event 
     }
 }
 
-static void datalab_sync_text_zoom(const DatalabAppState *app_state) {
+void datalab_set_text_zoom_step(int step) {
+    g_datalab_text_zoom_multiplier = datalab_text_zoom_step_multiplier(step);
+}
+
+void datalab_sync_text_zoom(const DatalabAppState *app_state) {
     int step = 0;
     if (app_state) {
         step = app_state->text_zoom_step;
     }
-    g_datalab_text_zoom_multiplier = datalab_text_zoom_step_multiplier(step);
+    datalab_set_text_zoom_step(step);
 }
 
-static int datalab_scaled_px(float px) {
+int datalab_scaled_px(float px) {
     float scaled = px * g_datalab_text_zoom_multiplier;
     if (scaled < 1.0f) {
         scaled = 1.0f;
@@ -246,11 +187,11 @@ static const char *daw_view_mode_name(DatalabViewMode mode) {
     }
 }
 
-static int lane_name_eq(const char *a, const char *b) {
+int lane_name_eq(const char *a, const char *b) {
     return strncmp(a, b, 31) == 0;
 }
 
-static void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *title, size_t title_cap) {
+void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *title, size_t title_cap) {
     if (!frame || !state || !title || title_cap == 0) return;
 
     if (frame->profile == DATALAB_PROFILE_DAW) {
@@ -293,7 +234,7 @@ static void make_title(const DatalabFrame *frame, const DatalabAppState *state, 
              state->text_zoom_step);
 }
 
-static void calc_fit_rect(int ww, int wh, uint32_t fw, uint32_t fh, SDL_Rect *out_rect) {
+void calc_fit_rect(int ww, int wh, uint32_t fw, uint32_t fh, SDL_Rect *out_rect) {
     if (!out_rect || fw == 0 || fh == 0 || ww <= 0 || wh <= 0) return;
 
     const float sx = (float)ww / (float)fw;
@@ -308,10 +249,393 @@ static void calc_fit_rect(int ww, int wh, uint32_t fw, uint32_t fh, SDL_Rect *ou
     out_rect->h = rh;
 }
 
-static float clamp_unit(float v) {
+float clamp_unit(float v) {
     if (v < -1.0f) return -1.0f;
     if (v > 1.0f) return 1.0f;
     return v;
+}
+
+typedef struct DatalabFontCacheEntry {
+    int point_size;
+    TTF_Font *font;
+} DatalabFontCacheEntry;
+
+typedef struct DatalabTextRendererState {
+    int init_attempted;
+    int ttf_ready;
+    int ttf_owner;
+    int fallback_warned;
+    CoreFontRoleSpec ui_regular_role;
+    char font_path[PATH_MAX];
+    DatalabFontCacheEntry cache[16];
+    size_t cache_count;
+} DatalabTextRendererState;
+
+static DatalabTextRendererState g_text_renderer;
+
+static int datalab_file_exists(const char *path) {
+    struct stat st;
+    if (!path || !path[0]) {
+        return 0;
+    }
+    return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
+static const char *datalab_basename(const char *path) {
+    const char *base = NULL;
+    if (!path || !path[0]) {
+        return "";
+    }
+    base = strrchr(path, '/');
+    if (!base) {
+        base = strrchr(path, '\\');
+    }
+    return base ? (base + 1) : path;
+}
+
+static int datalab_path_is_absolute(const char *path) {
+    if (!path || !path[0]) {
+        return 0;
+    }
+#if defined(_WIN32)
+    if (((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) &&
+        path[1] == ':' &&
+        (path[2] == '\\' || path[2] == '/')) {
+        return 1;
+    }
+#endif
+    return path[0] == '/';
+}
+
+static int datalab_resolve_from_base_search(const char *relative_path,
+                                            char *out_path,
+                                            size_t out_path_cap) {
+    char *base_path = NULL;
+    int depth = 0;
+    if (!relative_path || !relative_path[0] || !out_path || out_path_cap == 0) {
+        return 0;
+    }
+    if (datalab_path_is_absolute(relative_path)) {
+        return 0;
+    }
+    base_path = SDL_GetBasePath();
+    if (!base_path || !base_path[0]) {
+        if (base_path) {
+            SDL_free(base_path);
+        }
+        return 0;
+    }
+    for (depth = 0; depth <= 8; ++depth) {
+        char candidate[PATH_MAX];
+        int written = 0;
+        size_t offset = 0u;
+        int i = 0;
+
+        written = snprintf(candidate, sizeof(candidate), "%s", base_path);
+        if (written <= 0 || (size_t)written >= sizeof(candidate)) {
+            continue;
+        }
+        offset = (size_t)written;
+        for (i = 0; i < depth; ++i) {
+            written = snprintf(candidate + offset,
+                               sizeof(candidate) - offset,
+                               "../");
+            if (written <= 0 || (size_t)written >= (sizeof(candidate) - offset)) {
+                offset = 0u;
+                break;
+            }
+            offset += (size_t)written;
+        }
+        if (offset == 0u) {
+            continue;
+        }
+        written = snprintf(candidate + offset,
+                           sizeof(candidate) - offset,
+                           "%s",
+                           relative_path);
+        if (written <= 0 || (size_t)written >= (sizeof(candidate) - offset)) {
+            continue;
+        }
+        if (datalab_file_exists(candidate)) {
+            snprintf(out_path, out_path_cap, "%s", candidate);
+            SDL_free(base_path);
+            return 1;
+        }
+    }
+    SDL_free(base_path);
+    return 0;
+}
+
+static int datalab_resolve_font_path(const char *path, char *out_path, size_t out_path_cap) {
+    const char *base = NULL;
+    char scratch_out[PATH_MAX];
+    char candidates[4][PATH_MAX];
+    size_t i = 0u;
+    if (!path || !path[0]) {
+        return 0;
+    }
+    if (!out_path || out_path_cap == 0) {
+        out_path = scratch_out;
+        out_path_cap = sizeof(scratch_out);
+    }
+    if (datalab_file_exists(path)) {
+        snprintf(out_path, out_path_cap, "%s", path);
+        return 1;
+    }
+    if (datalab_resolve_from_base_search(path, out_path, out_path_cap)) {
+        return 1;
+    }
+
+    base = datalab_basename(path);
+    if (!base || !base[0]) {
+        return 0;
+    }
+
+    snprintf(candidates[0], sizeof(candidates[0]), "third_party/codework_shared/assets/fonts/%s", base);
+    snprintf(candidates[1], sizeof(candidates[1]), "shared/assets/fonts/%s", base);
+    snprintf(candidates[2], sizeof(candidates[2]), "Resources/shared/assets/fonts/%s", base);
+    snprintf(candidates[3], sizeof(candidates[3]), "../Resources/shared/assets/fonts/%s", base);
+
+    for (i = 0u; i < (sizeof(candidates) / sizeof(candidates[0])); ++i) {
+        const char *rel = candidates[i];
+        if (datalab_file_exists(rel)) {
+            snprintf(out_path, out_path_cap, "%s", rel);
+            return 1;
+        }
+        if (datalab_resolve_from_base_search(rel, out_path, out_path_cap)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int datalab_stat_font_path_exists(const char *path, void *user) {
+    char *resolved = (char *)user;
+    if (!path || !path[0]) {
+        return 0;
+    }
+    if (resolved && datalab_resolve_font_path(path, resolved, PATH_MAX)) {
+        return 1;
+    }
+    return datalab_resolve_font_path(path, NULL, 0);
+}
+
+static int datalab_resolve_font_setup(void) {
+    const char *preset_name = getenv("DATALAB_FONT_PRESET");
+    CoreFontPreset preset = {0};
+    CoreResult r;
+    const char *chosen_path = NULL;
+    char resolved_path[PATH_MAX] = {0};
+    if (!preset_name || !preset_name[0]) {
+        preset_name = "ide";
+    }
+    r = core_font_get_preset_by_name(preset_name, &preset);
+    if (r.code != CORE_OK) {
+        r = core_font_get_preset(CORE_FONT_PRESET_DAW_DEFAULT, &preset);
+        if (r.code != CORE_OK) {
+            return 0;
+        }
+    }
+    r = core_font_resolve_role(&preset, CORE_FONT_ROLE_UI_REGULAR, &g_text_renderer.ui_regular_role);
+    if (r.code != CORE_OK) {
+        return 0;
+    }
+    r = core_font_choose_path(&g_text_renderer.ui_regular_role,
+                              datalab_stat_font_path_exists,
+                              resolved_path,
+                              &chosen_path);
+    if (r.code != CORE_OK && (!resolved_path[0] || !chosen_path || !chosen_path[0])) {
+        if (!datalab_resolve_font_path(g_text_renderer.ui_regular_role.fallback_path,
+                                       resolved_path,
+                                       sizeof(resolved_path))) {
+            return 0;
+        }
+    }
+    if (!resolved_path[0] && chosen_path && chosen_path[0]) {
+        snprintf(resolved_path, sizeof(resolved_path), "%s", chosen_path);
+    }
+    if (!resolved_path[0]) {
+        return 0;
+    }
+    snprintf(g_text_renderer.font_path, sizeof(g_text_renderer.font_path), "%s", resolved_path);
+    return 1;
+}
+
+static int datalab_text_renderer_init(void) {
+    if (g_text_renderer.init_attempted) {
+        return g_text_renderer.ttf_ready;
+    }
+    memset(&g_text_renderer, 0, sizeof(g_text_renderer));
+    g_text_renderer.init_attempted = 1;
+    if (TTF_WasInit() == 0) {
+        if (TTF_Init() != 0) {
+            return 0;
+        }
+        g_text_renderer.ttf_owner = 1;
+    }
+    if (!datalab_resolve_font_setup()) {
+        if (g_text_renderer.ttf_owner && TTF_WasInit()) {
+            TTF_Quit();
+        }
+        g_text_renderer.ttf_owner = 0;
+        return 0;
+    }
+    g_text_renderer.ttf_ready = 1;
+    return 1;
+}
+
+static void datalab_text_renderer_shutdown(void) {
+    size_t i = 0u;
+    for (i = 0u; i < g_text_renderer.cache_count; ++i) {
+        if (g_text_renderer.cache[i].font) {
+            TTF_CloseFont(g_text_renderer.cache[i].font);
+            g_text_renderer.cache[i].font = NULL;
+        }
+    }
+    g_text_renderer.cache_count = 0u;
+    g_text_renderer.ttf_ready = 0;
+    if (g_text_renderer.ttf_owner && TTF_WasInit()) {
+        TTF_Quit();
+    }
+    g_text_renderer.ttf_owner = 0;
+    g_text_renderer.init_attempted = 0;
+}
+
+static CoreFontTextSizeTier datalab_text_tier_for_scale(int scale) {
+    if (scale >= 2) {
+        return CORE_FONT_TEXT_SIZE_PARAGRAPH;
+    }
+    return CORE_FONT_TEXT_SIZE_CAPTION;
+}
+
+static int datalab_point_size_for_scale(int scale) {
+    int point_size = 9;
+    int scaled_point = 0;
+    if (scale < 1) {
+        scale = 1;
+    }
+    if (core_font_point_size_for_tier(&g_text_renderer.ui_regular_role,
+                                      datalab_text_tier_for_scale(scale),
+                                      &point_size).code != CORE_OK) {
+        point_size = g_text_renderer.ui_regular_role.point_size > 0 ? g_text_renderer.ui_regular_role.point_size : 9;
+    }
+    if (scale > 2) {
+        point_size += (scale - 2) * 2;
+    }
+    scaled_point = (int)lroundf((float)point_size * g_datalab_text_zoom_multiplier);
+    if (scaled_point < 6) {
+        scaled_point = 6;
+    }
+    return scaled_point;
+}
+
+static TTF_Font *datalab_get_font_for_scale(int scale) {
+    int point_size = 0;
+    size_t i = 0u;
+    TTF_Font *font = NULL;
+
+    if (!datalab_text_renderer_init()) {
+        return NULL;
+    }
+    point_size = datalab_point_size_for_scale(scale);
+    for (i = 0u; i < g_text_renderer.cache_count; ++i) {
+        if (g_text_renderer.cache[i].point_size == point_size) {
+            return g_text_renderer.cache[i].font;
+        }
+    }
+    font = TTF_OpenFont(g_text_renderer.font_path, point_size);
+    if (!font) {
+        return NULL;
+    }
+    TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
+    TTF_SetFontKerning(font, 1);
+
+    if (g_text_renderer.cache_count < (sizeof(g_text_renderer.cache) / sizeof(g_text_renderer.cache[0]))) {
+        g_text_renderer.cache[g_text_renderer.cache_count].point_size = point_size;
+        g_text_renderer.cache[g_text_renderer.cache_count].font = font;
+        g_text_renderer.cache_count++;
+    }
+    return font;
+}
+
+static int datalab_draw_text_ttf(SDL_Renderer *renderer,
+                                 int x,
+                                 int y,
+                                 const char *text,
+                                 int scale,
+                                 uint8_t r,
+                                 uint8_t g,
+                                 uint8_t b,
+                                 uint8_t a) {
+    TTF_Font *font = NULL;
+    SDL_Color color;
+    SDL_Surface *surface = NULL;
+    SDL_Texture *texture = NULL;
+    SDL_Rect dst = {0};
+
+    if (!renderer || !text || text[0] == '\0') {
+        return 1;
+    }
+    font = datalab_get_font_for_scale(scale);
+    if (!font) {
+        return 0;
+    }
+    color.r = r;
+    color.g = g;
+    color.b = b;
+    color.a = a;
+
+    surface = TTF_RenderUTF8_Blended(font, text, color);
+    if (!surface) {
+        return 0;
+    }
+    texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture) {
+        SDL_FreeSurface(surface);
+        return 0;
+    }
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    dst.x = x;
+    dst.y = y;
+    dst.w = surface->w;
+    dst.h = surface->h;
+    SDL_RenderCopy(renderer, texture, NULL, &dst);
+    SDL_DestroyTexture(texture);
+    SDL_FreeSurface(surface);
+    return 1;
+}
+
+static int datalab_measure_text_ttf(const char *text, int scale, int *out_width, int *out_height) {
+    TTF_Font *font = NULL;
+    int width = 0;
+    int height = 0;
+    if (!text || !out_width || !out_height) {
+        return 0;
+    }
+    font = datalab_get_font_for_scale(scale);
+    if (!font) {
+        return 0;
+    }
+    if (text[0] == '\0') {
+        *out_width = 0;
+        *out_height = TTF_FontHeight(font);
+        if (*out_height <= 0) {
+            *out_height = datalab_scaled_px(8.0f);
+        }
+        return 1;
+    }
+    if (TTF_SizeUTF8(font, text, &width, &height) != 0) {
+        return 0;
+    }
+    if (height <= 0) {
+        height = TTF_FontHeight(font);
+    }
+    if (height <= 0) {
+        height = datalab_scaled_px(8.0f);
+    }
+    *out_width = width;
+    *out_height = height;
+    return 1;
 }
 
 static const char *glyph5x7(char c) {
@@ -387,15 +711,15 @@ static const char *glyph5x7(char c) {
     }
 }
 
-static void draw_text_5x7(SDL_Renderer *renderer,
-                          int x,
-                          int y,
-                          const char *text,
-                          int scale,
-                          uint8_t r,
-                          uint8_t g,
-                          uint8_t b,
-                          uint8_t a) {
+static void draw_text_5x7_bitmap(SDL_Renderer *renderer,
+                                 int x,
+                                 int y,
+                                 const char *text,
+                                 int scale,
+                                 uint8_t r,
+                                 uint8_t g,
+                                 uint8_t b,
+                                 uint8_t a) {
     float draw_scale;
     float glyph_advance;
     if (!renderer || !text || scale < 1) {
@@ -435,17 +759,166 @@ static void draw_text_5x7(SDL_Renderer *renderer,
     }
 }
 
+static void datalab_measure_text_bitmap(const char *text, int scale, int *out_width, int *out_height) {
+    float draw_scale = 0.0f;
+    float glyph_advance = 0.0f;
+    size_t length = 0u;
+    if (!out_width || !out_height) {
+        return;
+    }
+    if (!text) {
+        *out_width = 0;
+        *out_height = 0;
+        return;
+    }
+    if (scale < 1) {
+        scale = 1;
+    }
+    draw_scale = ((float)scale) * g_datalab_text_zoom_multiplier;
+    if (draw_scale < 0.35f) {
+        draw_scale = 0.35f;
+    }
+    glyph_advance = 6.0f * draw_scale;
+    if (glyph_advance < 1.0f) {
+        glyph_advance = 1.0f;
+    }
+    length = strlen(text);
+    *out_width = (int)lroundf((float)length * glyph_advance);
+    *out_height = (int)lroundf(7.0f * draw_scale);
+    if (*out_height < 1) {
+        *out_height = 1;
+    }
+}
+
+int datalab_measure_text(int scale, const char *text, int *out_width, int *out_height) {
+    if (!out_width || !out_height) {
+        return 0;
+    }
+    if (datalab_measure_text_ttf(text ? text : "", scale, out_width, out_height)) {
+        return 1;
+    }
+    datalab_measure_text_bitmap(text ? text : "", scale, out_width, out_height);
+    return 0;
+}
+
+int datalab_text_line_height(int scale) {
+    int width = 0;
+    int height = 0;
+    (void)datalab_measure_text(scale, "Ag", &width, &height);
+    if (height < 1) {
+        height = datalab_scaled_px(9.0f);
+    }
+    return height;
+}
+
+void draw_text_5x7(SDL_Renderer *renderer,
+                   int x,
+                   int y,
+                   const char *text,
+                   int scale,
+                   uint8_t r,
+                   uint8_t g,
+                   uint8_t b,
+                   uint8_t a) {
+    if (datalab_draw_text_ttf(renderer, x, y, text, scale, r, g, b, a)) {
+        return;
+    }
+    if (!g_text_renderer.fallback_warned) {
+        fprintf(stderr, "[datalab] shared font unavailable, falling back to bitmap glyph text.\n");
+        g_text_renderer.fallback_warned = 1;
+    }
+    draw_text_5x7_bitmap(renderer, x, y, text, scale, r, g, b, a);
+}
+
+void draw_text_5x7_clipped(SDL_Renderer *renderer,
+                           const SDL_Rect *clip_rect,
+                           int x,
+                           int y,
+                           const char *text,
+                           int scale,
+                           uint8_t r,
+                           uint8_t g,
+                           uint8_t b,
+                           uint8_t a) {
+    SDL_Rect prior_clip = {0};
+    SDL_bool had_clip = SDL_FALSE;
+    if (!renderer || !text || !clip_rect) {
+        draw_text_5x7(renderer, x, y, text, scale, r, g, b, a);
+        return;
+    }
+    had_clip = SDL_RenderIsClipEnabled(renderer);
+    if (had_clip == SDL_TRUE) {
+        SDL_RenderGetClipRect(renderer, &prior_clip);
+    }
+    SDL_RenderSetClipRect(renderer, clip_rect);
+    draw_text_5x7(renderer, x, y, text, scale, r, g, b, a);
+    if (had_clip == SDL_TRUE) {
+        SDL_RenderSetClipRect(renderer, &prior_clip);
+    } else {
+        SDL_RenderSetClipRect(renderer, NULL);
+    }
+}
+
 static void draw_daw_legend(SDL_Renderer *renderer, const DatalabAppState *app_state, const SDL_Rect *plot_rect) {
+    static const char *kTitle = "MODE";
+    static const char *kRow1 = "1 WAVEFORM";
+    static const char *kRow2 = "2 WAVE+MARKERS";
+    static const char *kRow3 = "3 MARKERS";
+    int title_w = 0;
+    int title_h = 0;
+    int row1_w = 0;
+    int row1_h = 0;
+    int row2_w = 0;
+    int row2_h = 0;
+    int row3_w = 0;
+    int row3_h = 0;
+    int inner_pad = 0;
+    int row_gap = 0;
+    int max_row_w = 0;
+    int panel_w = 0;
+    int panel_h = 0;
+    int cursor_y = 0;
+    SDL_Rect panel;
     if (!renderer || !app_state || !plot_rect) {
         return;
     }
+    (void)datalab_measure_text(2, kTitle, &title_w, &title_h);
+    (void)datalab_measure_text(2, kRow1, &row1_w, &row1_h);
+    (void)datalab_measure_text(1, kRow2, &row2_w, &row2_h);
+    (void)datalab_measure_text(1, kRow3, &row3_w, &row3_h);
+
+    inner_pad = datalab_scaled_px(8.0f);
+    row_gap = datalab_scaled_px(4.0f);
+    max_row_w = row1_w;
+    if (row2_w > max_row_w) {
+        max_row_w = row2_w;
+    }
+    if (row3_w > max_row_w) {
+        max_row_w = row3_w;
+    }
+
+    panel_w = max_row_w + (inner_pad * 2);
+    if (title_w + (inner_pad * 2) > panel_w) {
+        panel_w = title_w + (inner_pad * 2);
+    }
+    if (panel_w < datalab_scaled_px(180.0f)) {
+        panel_w = datalab_scaled_px(180.0f);
+    }
+    if (panel_w > (plot_rect->w / 2)) {
+        panel_w = plot_rect->w / 2;
+    }
+
+    panel_h = inner_pad + title_h + row_gap + row1_h + row_gap + row2_h + row_gap + row3_h + inner_pad;
+    if (panel_h < datalab_scaled_px(66.0f)) {
+        panel_h = datalab_scaled_px(66.0f);
+    }
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_Rect panel = {
+    panel = (SDL_Rect){
         plot_rect->x + datalab_scaled_px(8.0f),
         plot_rect->y + datalab_scaled_px(8.0f),
-        datalab_scaled_px(258.0f),
-        datalab_scaled_px(64.0f)
+        panel_w,
+        panel_h
     };
     SDL_SetRenderDrawColor(renderer, 8, 10, 16, 180);
     SDL_RenderFillRect(renderer, &panel);
@@ -453,9 +926,9 @@ static void draw_daw_legend(SDL_Renderer *renderer, const DatalabAppState *app_s
     SDL_RenderDrawRect(renderer, &panel);
 
     draw_text_5x7(renderer,
-                  panel.x + datalab_scaled_px(8.0f),
-                  panel.y + datalab_scaled_px(6.0f),
-                  "MODE:",
+                  panel.x + inner_pad,
+                  panel.y + inner_pad,
+                  kTitle,
                   2,
                   215,
                   220,
@@ -466,17 +939,20 @@ static void draw_daw_legend(SDL_Renderer *renderer, const DatalabAppState *app_s
     const uint8_t idle_r = 150, idle_g = 155, idle_b = 165;
 
     const int m = (int)app_state->view_mode;
-    draw_text_5x7(renderer, panel.x + datalab_scaled_px(8.0f), panel.y + datalab_scaled_px(22.0f), "1 WAVEFORM", 2,
+    cursor_y = panel.y + inner_pad + title_h + row_gap;
+    draw_text_5x7(renderer, panel.x + inner_pad, cursor_y, kRow1, 2,
                   (m == DATALAB_VIEW_SPEED) ? active_r : idle_r,
                   (m == DATALAB_VIEW_SPEED) ? active_g : idle_g,
                   (m == DATALAB_VIEW_SPEED) ? active_b : idle_b,
                   255);
-    draw_text_5x7(renderer, panel.x + datalab_scaled_px(8.0f), panel.y + datalab_scaled_px(38.0f), "2 WAVEFORM+MARKERS", 1,
+    cursor_y += row1_h + row_gap;
+    draw_text_5x7(renderer, panel.x + inner_pad, cursor_y, kRow2, 1,
                   (m == DATALAB_VIEW_DENSITY_VECTOR) ? active_r : idle_r,
                   (m == DATALAB_VIEW_DENSITY_VECTOR) ? active_g : idle_g,
                   (m == DATALAB_VIEW_DENSITY_VECTOR) ? active_b : idle_b,
                   255);
-    draw_text_5x7(renderer, panel.x + datalab_scaled_px(8.0f), panel.y + datalab_scaled_px(50.0f), "3 MARKERS", 1,
+    cursor_y += row2_h + row_gap;
+    draw_text_5x7(renderer, panel.x + inner_pad, cursor_y, kRow3, 1,
                   (m == DATALAB_VIEW_DENSITY) ? active_r : idle_r,
                   (m == DATALAB_VIEW_DENSITY) ? active_g : idle_g,
                   (m == DATALAB_VIEW_DENSITY) ? active_b : idle_b,
@@ -514,7 +990,7 @@ static void draw_daw_markers(SDL_Renderer *renderer, const DatalabFrame *frame, 
     }
 }
 
-static void render_daw_frame(SDL_Renderer *renderer, const DatalabFrame *frame, const DatalabAppState *app_state) {
+void render_daw_frame(SDL_Renderer *renderer, const DatalabFrame *frame, const DatalabAppState *app_state) {
     if (!renderer || !frame || !app_state || !frame->wave_min || !frame->wave_max || frame->point_count == 0) {
         return;
     }
@@ -569,1001 +1045,6 @@ static void render_daw_frame(SDL_Renderer *renderer, const DatalabFrame *frame, 
     draw_daw_legend(renderer, app_state, &plot);
 }
 
-typedef struct TraceLaneMeta {
-    char lane[32];
-    float min_v;
-    float max_v;
-    size_t count;
-    float current_value;
-    double current_dt;
-    int has_current_value;
-} TraceLaneMeta;
-
-typedef struct TraceGridSpec {
-    int time_divisions;
-    int value_divisions;
-    double time_unit_scale;
-    float value_unit_scale;
-} TraceGridSpec;
-
-static const float TRACE_FLATLINE_BASELINE = 0.12f;
-
-static int cmp_double_asc(const void *a, const void *b) {
-    const double da = *(const double *)a;
-    const double db = *(const double *)b;
-    if (da < db) return -1;
-    if (da > db) return 1;
-    return 0;
-}
-
-static int clamp_int(int v, int lo, int hi) {
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
-}
-
-static SDL_Color trace_lane_color(size_t lane_idx) {
-    static const SDL_Color kPalette[] = {
-        {185, 245, 220, 255},
-        {255, 205, 120, 255},
-        {145, 205, 255, 255},
-        {220, 180, 255, 255},
-        {255, 150, 150, 255},
-        {160, 235, 170, 255}
-    };
-    return kPalette[lane_idx % (sizeof(kPalette) / sizeof(kPalette[0]))];
-}
-
-static void draw_trace_time_grid(SDL_Renderer *renderer,
-                                 const SDL_Rect *plot,
-                                 double min_t,
-                                 double max_t,
-                                 int label_y,
-                                 const TraceGridSpec *grid) {
-    if (!renderer || !plot || !grid || plot->w < 4 || plot->h < 4) return;
-    if (grid->time_divisions <= 0) return;
-
-    for (int i = 0; i <= grid->time_divisions; ++i) {
-        double ratio = (double)i / (double)grid->time_divisions;
-        int x = plot->x + (int)(ratio * (double)(plot->w - 1));
-        double t = min_t + ratio * (max_t - min_t);
-        double t_scaled = (grid->time_unit_scale > 0.0) ? (t / grid->time_unit_scale) : t;
-        char label[32];
-
-        SDL_SetRenderDrawColor(renderer, 42, 46, 58, (i == 0 || i == grid->time_divisions) ? 120 : 90);
-        SDL_RenderDrawLine(renderer, x, plot->y, x, plot->y + plot->h - 1);
-
-        snprintf(label, sizeof(label), "%.2f", t_scaled);
-        draw_text_5x7(renderer, x - datalab_scaled_px(14.0f), label_y, label, 1, 120, 130, 150, 255);
-    }
-}
-
-static void draw_trace_value_grid(SDL_Renderer *renderer,
-                                  const SDL_Rect *band,
-                                  float min_v,
-                                  float max_v,
-                                  const TraceGridSpec *grid) {
-    if (!renderer || !band || !grid || band->w < 4 || band->h < 4) return;
-    if (grid->value_divisions <= 0) return;
-
-    for (int i = 0; i <= grid->value_divisions; ++i) {
-        double ratio = (double)i / (double)grid->value_divisions;
-        int y = band->y + band->h - 1 - (int)(ratio * (double)(band->h - 1));
-        float v = min_v + (float)ratio * (max_v - min_v);
-        float v_scaled = (grid->value_unit_scale > 0.0f) ? (v / grid->value_unit_scale) : v;
-        char label[24];
-
-        SDL_SetRenderDrawColor(renderer, 50, 55, 68, (i == 0 || i == grid->value_divisions) ? 110 : 85);
-        SDL_RenderDrawLine(renderer, band->x, y, band->x + band->w - 1, y);
-
-        if (i == 0 || i == grid->value_divisions || i == grid->value_divisions / 2) {
-            int label_y;
-            snprintf(label, sizeof(label), "%.2f", v_scaled);
-            label_y = clamp_int(y - datalab_scaled_px(4.0f),
-                                band->y + 1,
-                                band->y + band->h - datalab_scaled_px(8.0f));
-            draw_text_5x7(renderer,
-                          band->x + band->w - datalab_scaled_px(34.0f),
-                          label_y,
-                          label,
-                          1,
-                          120,
-                          130,
-                          150,
-                          255);
-        }
-    }
-}
-
-static void draw_trace_legend(SDL_Renderer *renderer, const TraceLaneMeta *lanes, size_t lane_count, const SDL_Rect *header_rect) {
-    if (!renderer || !lanes || !header_rect) return;
-
-    SDL_Rect panel = {
-        header_rect->x + datalab_scaled_px(8.0f),
-        header_rect->y + datalab_scaled_px(6.0f),
-        datalab_scaled_px(270.0f),
-        header_rect->h - datalab_scaled_px(12.0f)
-    };
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 8, 10, 16, 182);
-    SDL_RenderFillRect(renderer, &panel);
-    SDL_SetRenderDrawColor(renderer, 90, 95, 110, 220);
-    SDL_RenderDrawRect(renderer, &panel);
-
-    draw_text_5x7(renderer,
-                  panel.x + datalab_scaled_px(8.0f),
-                  panel.y + datalab_scaled_px(4.0f),
-                  "TRACE LANES",
-                  1,
-                  215,
-                  220,
-                  235,
-                  255);
-    for (size_t i = 0; i < lane_count; ++i) {
-        SDL_Color c = trace_lane_color(i);
-        int y = panel.y + datalab_scaled_px(14.0f) + (int)i * datalab_scaled_px(10.0f);
-        if (y > panel.y + panel.h - datalab_scaled_px(10.0f)) break;
-        SDL_Rect swatch = {
-            panel.x + datalab_scaled_px(8.0f),
-            y + datalab_scaled_px(1.0f),
-            datalab_scaled_px(10.0f),
-            datalab_scaled_px(6.0f)
-        };
-        SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, 255);
-        SDL_RenderFillRect(renderer, &swatch);
-        draw_text_5x7(renderer,
-                      panel.x + datalab_scaled_px(24.0f),
-                      y,
-                      lanes[i].lane,
-                      1,
-                      205,
-                      210,
-                      220,
-                      255);
-    }
-}
-
-static void draw_trace_readout(SDL_Renderer *renderer,
-                               const TraceLaneMeta *lanes,
-                               size_t lane_count,
-                               double play_t,
-                               size_t total_samples,
-                               size_t total_markers,
-                               double min_t,
-                               double max_t,
-                               const char *nearest_marker_label,
-                               double nearest_marker_t,
-                               const SDL_Rect *header_rect) {
-    if (!renderer || !lanes || !header_rect) return;
-
-    {
-        char line[64];
-        char summary[96];
-        char marker_line[112];
-        SDL_Rect panel = {
-            header_rect->x + header_rect->w - datalab_scaled_px(388.0f),
-            header_rect->y + datalab_scaled_px(6.0f),
-            datalab_scaled_px(380.0f),
-            header_rect->h - datalab_scaled_px(12.0f)
-        };
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 8, 10, 16, 182);
-        SDL_RenderFillRect(renderer, &panel);
-        SDL_SetRenderDrawColor(renderer, 90, 95, 110, 220);
-        SDL_RenderDrawRect(renderer, &panel);
-
-        snprintf(line, sizeof(line), "T %.4f", play_t);
-        draw_text_5x7(renderer,
-                      panel.x + datalab_scaled_px(8.0f),
-                      panel.y + datalab_scaled_px(4.0f),
-                      line,
-                      1,
-                      230,
-                      230,
-                      235,
-                      255);
-        snprintf(summary,
-                 sizeof(summary),
-                 "S:%zu M:%zu DUR:%.4f",
-                 total_samples,
-                 total_markers,
-                 (max_t > min_t) ? (max_t - min_t) : 0.0);
-        draw_text_5x7(renderer,
-                      panel.x + datalab_scaled_px(112.0f),
-                      panel.y + datalab_scaled_px(4.0f),
-                      summary,
-                      1,
-                      180,
-                      190,
-                      205,
-                      255);
-
-        if (nearest_marker_label && nearest_marker_label[0] != '\0') {
-            snprintf(marker_line, sizeof(marker_line), "MKR %.4f %s", nearest_marker_t, nearest_marker_label);
-        } else {
-            snprintf(marker_line, sizeof(marker_line), "MKR N/A");
-        }
-        draw_text_5x7(renderer,
-                      panel.x + datalab_scaled_px(8.0f),
-                      panel.y + datalab_scaled_px(14.0f),
-                      marker_line,
-                      1,
-                      250,
-                      180,
-                      120,
-                      255);
-
-        for (size_t i = 0; i < lane_count; ++i) {
-            SDL_Color c = trace_lane_color(i);
-            int y = panel.y + datalab_scaled_px(24.0f) + (int)i * datalab_scaled_px(10.0f);
-            if (y > panel.y + panel.h - datalab_scaled_px(10.0f)) break;
-            SDL_Rect swatch = {
-                panel.x + datalab_scaled_px(8.0f),
-                y + datalab_scaled_px(1.0f),
-                datalab_scaled_px(10.0f),
-                datalab_scaled_px(6.0f)
-            };
-            char value_line[96];
-            SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, 255);
-            SDL_RenderFillRect(renderer, &swatch);
-            if (lanes[i].has_current_value) {
-                snprintf(value_line, sizeof(value_line), "%s: %.4f", lanes[i].lane, lanes[i].current_value);
-            } else {
-                snprintf(value_line, sizeof(value_line), "%s: N/A", lanes[i].lane);
-            }
-            draw_text_5x7(renderer,
-                          panel.x + datalab_scaled_px(24.0f),
-                          y,
-                          value_line,
-                          1,
-                          215,
-                          220,
-                          235,
-                          255);
-        }
-    }
-}
-
-static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame, DatalabAppState *app_state) {
-    TraceLaneMeta lanes[12];
-    size_t lane_count = 0;
-    double *time_points = NULL;
-    size_t time_count = 0;
-    int ww = 0;
-    int wh = 0;
-    SDL_Rect header = {0};
-    SDL_Rect plot = {0};
-    double min_t = 0.0;
-    double max_t = 0.0;
-    double play_t = 0.0;
-    int trace_time_label_y = 0;
-    int footer_y = 0;
-    TraceGridSpec grid = {8, 4, 1.0, 1.0f};
-
-    if (!renderer || !frame || !app_state || !frame->trace_samples || frame->trace_sample_count == 0) {
-        return;
-    }
-    datalab_sync_text_zoom(app_state);
-
-    memset(lanes, 0, sizeof(lanes));
-
-    min_t = frame->trace_samples[0].time_seconds;
-    max_t = frame->trace_samples[0].time_seconds;
-    for (size_t i = 0; i < frame->trace_sample_count; ++i) {
-        const DatalabTraceSample *s = &frame->trace_samples[i];
-        size_t lane_idx = (size_t)-1;
-        for (size_t l = 0; l < lane_count; ++l) {
-            if (lane_name_eq(lanes[l].lane, s->lane)) {
-                lane_idx = l;
-                break;
-            }
-        }
-        if (lane_idx == (size_t)-1 && lane_count < (sizeof(lanes) / sizeof(lanes[0]))) {
-            lane_idx = lane_count++;
-            snprintf(lanes[lane_idx].lane, sizeof(lanes[lane_idx].lane), "%s", s->lane);
-            lanes[lane_idx].min_v = s->value;
-            lanes[lane_idx].max_v = s->value;
-        }
-        if (lane_idx != (size_t)-1) {
-            if (s->value < lanes[lane_idx].min_v) lanes[lane_idx].min_v = s->value;
-            if (s->value > lanes[lane_idx].max_v) lanes[lane_idx].max_v = s->value;
-            lanes[lane_idx].count++;
-        }
-        if (s->time_seconds < min_t) min_t = s->time_seconds;
-        if (s->time_seconds > max_t) max_t = s->time_seconds;
-    }
-
-    time_points = (double *)core_alloc(frame->trace_sample_count * sizeof(double));
-    if (!time_points) return;
-    for (size_t i = 0; i < frame->trace_sample_count; ++i) {
-        time_points[time_count++] = frame->trace_samples[i].time_seconds;
-    }
-    qsort(time_points, time_count, sizeof(double), cmp_double_asc);
-    {
-        size_t write_idx = 0u;
-        for (size_t read_idx = 0u; read_idx < time_count; ++read_idx) {
-            double t = time_points[read_idx];
-            if (write_idx == 0u || fabs(t - time_points[write_idx - 1u]) > 1e-9) {
-                time_points[write_idx++] = t;
-            }
-        }
-        time_count = write_idx;
-    }
-
-    if (time_count == 0) {
-        core_free(time_points);
-        return;
-    }
-    if (app_state->trace_cursor_index == (size_t)-1) {
-        app_state->trace_cursor_index = time_count - 1u;
-    } else if (app_state->trace_cursor_index >= time_count) {
-        app_state->trace_cursor_index = time_count - 1u;
-    }
-    play_t = time_points[app_state->trace_cursor_index];
-
-    for (size_t l = 0; l < lane_count; ++l) {
-        lanes[l].has_current_value = 0;
-        lanes[l].current_dt = 1e30;
-        lanes[l].current_value = 0.0f;
-    }
-    for (size_t i = 0; i < frame->trace_sample_count; ++i) {
-        const DatalabTraceSample *s = &frame->trace_samples[i];
-        for (size_t l = 0; l < lane_count; ++l) {
-            if (!lane_name_eq(s->lane, lanes[l].lane)) continue;
-            {
-                double dt = fabs(s->time_seconds - play_t);
-                if (!lanes[l].has_current_value || dt < lanes[l].current_dt) {
-                    lanes[l].current_dt = dt;
-                    lanes[l].current_value = s->value;
-                    lanes[l].has_current_value = 1;
-                }
-            }
-            break;
-        }
-    }
-
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
-    header.x = datalab_scaled_px(32.0f);
-    header.y = datalab_scaled_px(8.0f);
-    header.w = ww - datalab_scaled_px(64.0f);
-    header.h = datalab_scaled_px(64.0f);
-    plot.x = datalab_scaled_px(32.0f);
-    plot.y = header.y + header.h + datalab_scaled_px(6.0f);
-    plot.w = ww - datalab_scaled_px(64.0f);
-    plot.h = wh - plot.y - datalab_scaled_px(42.0f);
-    if (plot.w < 40 || plot.h < 40) {
-        core_free(time_points);
-        return;
-    }
-
-    SDL_SetRenderDrawColor(renderer, 10, 10, 14, 255);
-    SDL_RenderClear(renderer);
-    SDL_SetRenderDrawColor(renderer, 20, 23, 31, 255);
-    SDL_RenderFillRect(renderer, &header);
-    SDL_SetRenderDrawColor(renderer, 80, 86, 104, 255);
-    SDL_RenderDrawRect(renderer, &header);
-    SDL_SetRenderDrawColor(renderer, 24, 27, 36, 255);
-    SDL_RenderFillRect(renderer, &plot);
-    trace_time_label_y = plot.y + plot.h + 6;
-    draw_trace_time_grid(renderer, &plot, min_t, max_t, trace_time_label_y, &grid);
-
-    if (lane_count == 0) lane_count = 1;
-    if (app_state->trace_lane_cycle_requested) {
-        size_t cycle_span = lane_count + 1u; /* all + per-lane */
-        app_state->trace_lane_visibility_index = (app_state->trace_lane_visibility_index + 1u) % cycle_span;
-        app_state->trace_lane_cycle_requested = 0;
-    } else if (app_state->trace_lane_visibility_index > lane_count) {
-        app_state->trace_lane_visibility_index = 0u;
-    }
-
-    {
-        size_t visible_lane_count = (app_state->trace_lane_visibility_index == 0u) ? lane_count : 1u;
-        size_t visible_lane_cursor = 0u;
-        for (size_t l = 0; l < lane_count; ++l) {
-        if (app_state->trace_lane_visibility_index > 0u &&
-            app_state->trace_lane_visibility_index != (l + 1u)) {
-            continue;
-        }
-            int by = plot.y + (int)((double)visible_lane_cursor * (double)plot.h / (double)visible_lane_count);
-            int bh = (int)((double)plot.h / (double)visible_lane_count);
-        SDL_Rect band = {
-            plot.x + datalab_scaled_px(8.0f),
-            by + datalab_scaled_px(4.0f),
-            plot.w - datalab_scaled_px(16.0f),
-            bh - datalab_scaled_px(8.0f)
-        };
-        if (band.h < 12) continue;
-
-        SDL_SetRenderDrawColor(renderer, 31, 35, 46, 255);
-        SDL_RenderFillRect(renderer, &band);
-        SDL_SetRenderDrawColor(renderer, 64, 70, 86, 255);
-        SDL_RenderDrawRect(renderer, &band);
-        draw_trace_value_grid(renderer, &band, lanes[l].min_v, lanes[l].max_v, &grid);
-
-        draw_text_5x7(renderer,
-                      band.x + datalab_scaled_px(6.0f),
-                      band.y + datalab_scaled_px(6.0f),
-                      lanes[l].lane,
-                      1,
-                      170,
-                      220,
-                      240,
-                      255);
-
-        float span = lanes[l].max_v - lanes[l].min_v;
-        int is_flat_lane = fabsf(span) < 1e-8f;
-        uint32_t lane_stride = kit_graph_ts_recommended_stride((uint32_t)lanes[l].count, (float)band.w, 0u);
-        size_t lane_sample_index = 0u;
-        size_t last_lane_sample_index = lanes[l].count > 0 ? lanes[l].count - 1u : 0u;
-        if (is_flat_lane) span = 1.0f;
-        int have_prev = 0;
-        int prev_x = 0;
-        int prev_y = 0;
-        {
-            SDL_Color lane_color = trace_lane_color(l);
-            SDL_SetRenderDrawColor(renderer, lane_color.r, lane_color.g, lane_color.b, 255);
-        }
-        for (size_t i = 0; i < frame->trace_sample_count; ++i) {
-            const DatalabTraceSample *s = &frame->trace_samples[i];
-            if (!lane_name_eq(s->lane, lanes[l].lane)) continue;
-            {
-                int should_draw = ((lane_sample_index % lane_stride) == 0u) ||
-                                  (lane_sample_index == last_lane_sample_index);
-                lane_sample_index++;
-                if (!should_draw) {
-                    continue;
-                }
-            }
-            double tr = (max_t > min_t) ? ((s->time_seconds - min_t) / (max_t - min_t)) : 0.0;
-            float vr = is_flat_lane ? TRACE_FLATLINE_BASELINE : ((s->value - lanes[l].min_v) / span);
-            if (vr < 0.0f) vr = 0.0f;
-            if (vr > 1.0f) vr = 1.0f;
-            int x = band.x + (int)(tr * (double)(band.w - 1));
-            int y = band.y + band.h - 1 - (int)(vr * (float)(band.h - 1));
-            if (have_prev) {
-                SDL_RenderDrawLine(renderer, prev_x, prev_y, x, y);
-            }
-            prev_x = x;
-            prev_y = y;
-            have_prev = 1;
-        }
-            visible_lane_cursor++;
-        }
-    }
-
-    if (frame->trace_marker_count > 0) {
-        for (size_t i = 0; i < frame->trace_marker_count; ++i) {
-            const DatalabTraceMarker *m = &frame->trace_markers[i];
-            double tr = (max_t > min_t) ? ((m->time_seconds - min_t) / (max_t - min_t)) : 0.0;
-            int x = plot.x + (int)(tr * (double)(plot.w - 1));
-        SDL_SetRenderDrawColor(renderer, 250, 170, 95, 220);
-        SDL_RenderDrawLine(renderer, x, plot.y, x, plot.y + plot.h - 1);
-    }
-    }
-
-    {
-        double pr = (max_t > min_t) ? ((play_t - min_t) / (max_t - min_t)) : 0.0;
-        int x = plot.x + (int)(pr * (double)(plot.w - 1));
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        SDL_RenderDrawLine(renderer, x, plot.y, x, plot.y + plot.h - 1);
-    }
-
-    SDL_SetRenderDrawColor(renderer, 90, 95, 110, 255);
-    SDL_RenderDrawRect(renderer, &plot);
-    {
-        const DatalabTraceMarker *nearest_marker = NULL;
-        double nearest_marker_dt = 1e30;
-        for (size_t i = 0; i < frame->trace_marker_count; ++i) {
-            const DatalabTraceMarker *m = &frame->trace_markers[i];
-            double dt = fabs(m->time_seconds - play_t);
-            if (dt < nearest_marker_dt) {
-                nearest_marker_dt = dt;
-                nearest_marker = m;
-            }
-        }
-        draw_trace_legend(renderer, lanes, lane_count, &header);
-        draw_trace_readout(renderer,
-                           lanes,
-                           lane_count,
-                           play_t,
-                           frame->trace_sample_count,
-                           frame->trace_marker_count,
-                           min_t,
-                           max_t,
-                           nearest_marker ? nearest_marker->label : "",
-                           nearest_marker ? nearest_marker->time_seconds : 0.0,
-                           &header);
-    }
-    draw_text_5x7(renderer,
-                  plot.x + datalab_scaled_px(10.0f),
-                  trace_time_label_y + datalab_scaled_px(10.0f),
-                  "TIME SECONDS",
-                  1,
-                  120,
-                  130,
-                  150,
-                  255);
-    draw_text_5x7(renderer,
-                  plot.x + datalab_scaled_px(120.0f),
-                  trace_time_label_y + datalab_scaled_px(10.0f),
-                  "GRID T=SECONDS V=VALUE",
-                  1,
-                  120,
-                  130,
-                  150,
-                  255);
-
-    footer_y = wh - datalab_scaled_px(14.0f);
-    draw_text_5x7(renderer,
-                  plot.x + datalab_scaled_px(10.0f),
-                  footer_y,
-                  "LEFT RIGHT SCRUB",
-                  1,
-                  205,
-                  210,
-                  220,
-                  255);
-    draw_text_5x7(renderer,
-                  plot.x + datalab_scaled_px(180.0f),
-                  footer_y,
-                  "Z ZOOM-STUB",
-                  1,
-                  160,
-                  175,
-                  190,
-                  255);
-    draw_text_5x7(renderer,
-                  plot.x + datalab_scaled_px(286.0f),
-                  footer_y,
-                  "X STATS-STUB",
-                  1,
-                  160,
-                  175,
-                  190,
-                  255);
-    draw_text_5x7(renderer,
-                  plot.x + datalab_scaled_px(392.0f),
-                  footer_y,
-                  "C LANE-CYCLE",
-                  1,
-                  160,
-                  175,
-                  190,
-                  255);
-
-    core_free(time_points);
-}
-
-typedef struct DatalabPhysicsRenderDeriveFrame {
-    DatalabRenderDeriveFrame common;
-    const uint8_t *pixels;
-    SDL_Rect dst;
-    uint8_t draw_vectors;
-} DatalabPhysicsRenderDeriveFrame;
-
-static void datalab_render_derive_frame(const DatalabFrame *frame,
-                                        const DatalabAppState *app_state,
-                                        DatalabRenderDeriveFrame *out_derive) {
-    if (!frame || !app_state || !out_derive) {
-        return;
-    }
-    memset(out_derive, 0, sizeof(*out_derive));
-    make_title(frame, app_state, out_derive->title, sizeof(out_derive->title));
-}
-
-static void datalab_physics_render_derive_frame(SDL_Renderer *renderer,
-                                                const DatalabFrame *frame,
-                                                const DatalabAppState *app_state,
-                                                const uint8_t *density_rgba,
-                                                const uint8_t *speed_rgba,
-                                                DatalabPhysicsRenderDeriveFrame *out_derive) {
-    int ww = 0;
-    int wh = 0;
-    if (!renderer || !frame || !app_state || !density_rgba || !speed_rgba || !out_derive) {
-        return;
-    }
-    memset(out_derive, 0, sizeof(*out_derive));
-    datalab_render_derive_frame(frame, app_state, &out_derive->common);
-    out_derive->pixels = density_rgba;
-    if (app_state->view_mode == DATALAB_VIEW_SPEED) {
-        out_derive->pixels = speed_rgba;
-    }
-    out_derive->draw_vectors = (uint8_t)(app_state->view_mode == DATALAB_VIEW_DENSITY_VECTOR);
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
-    calc_fit_rect(ww, wh, frame->width, frame->height, &out_derive->dst);
-}
-
-static void datalab_physics_render_submit_frame(SDL_Window *window,
-                                                SDL_Renderer *renderer,
-                                                SDL_Texture *texture,
-                                                const DatalabFrame *frame,
-                                                const DatalabAppState *app_state,
-                                                KitVizVecSegment *segments,
-                                                size_t sample_count,
-                                                const DatalabPhysicsRenderDeriveFrame *derive,
-                                                DatalabRenderSubmitOutcome *outcome) {
-    if (!outcome) {
-        return;
-    }
-    memset(outcome, 0, sizeof(*outcome));
-    if (!window || !renderer || !texture || !frame || !app_state || !segments || !derive || !derive->pixels) {
-        outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid physics render submit request" };
-        return;
-    }
-
-    SDL_UpdateTexture(texture, NULL, derive->pixels, (int)frame->width * 4);
-    SDL_SetRenderDrawColor(renderer, 10, 10, 14, 255);
-    SDL_RenderClear(renderer);
-    SDL_RenderCopy(renderer, texture, NULL, &derive->dst);
-
-    if (derive->draw_vectors) {
-        size_t seg_count = 0;
-        CoreResult rv = kit_viz_build_vector_segments(frame->velx,
-                                                      frame->vely,
-                                                      frame->width,
-                                                      frame->height,
-                                                      app_state->vector_stride,
-                                                      app_state->vector_scale,
-                                                      segments,
-                                                      sample_count,
-                                                      &seg_count);
-        if (rv.code == CORE_OK) {
-            size_t i = 0u;
-            SDL_SetRenderDrawColor(renderer, 230, 255, 230, 255);
-            for (i = 0u; i < seg_count; ++i) {
-                const float x0 = (float)derive->dst.x + (segments[i].x0 / (float)frame->width) * (float)derive->dst.w;
-                const float y0 = (float)derive->dst.y + (segments[i].y0 / (float)frame->height) * (float)derive->dst.h;
-                const float x1 = (float)derive->dst.x + (segments[i].x1 / (float)frame->width) * (float)derive->dst.w;
-                const float y1 = (float)derive->dst.y + (segments[i].y1 / (float)frame->height) * (float)derive->dst.h;
-                SDL_RenderDrawLine(renderer, (int)x0, (int)y0, (int)x1, (int)y1);
-            }
-        }
-    }
-
-    SDL_SetWindowTitle(window, derive->common.title);
-    SDL_RenderPresent(renderer);
-    outcome->presented = 1u;
-    outcome->result = core_result_ok();
-}
-
-static void datalab_daw_render_submit_frame(SDL_Window *window,
-                                            SDL_Renderer *renderer,
-                                            const DatalabFrame *frame,
-                                            const DatalabAppState *app_state,
-                                            const DatalabRenderDeriveFrame *derive,
-                                            DatalabRenderSubmitOutcome *outcome) {
-    if (!outcome) {
-        return;
-    }
-    memset(outcome, 0, sizeof(*outcome));
-    if (!window || !renderer || !frame || !app_state || !derive) {
-        outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid daw render submit request" };
-        return;
-    }
-    render_daw_frame(renderer, frame, app_state);
-    SDL_SetWindowTitle(window, derive->title);
-    SDL_RenderPresent(renderer);
-    outcome->presented = 1u;
-    outcome->result = core_result_ok();
-}
-
-static void datalab_trace_render_submit_frame(SDL_Window *window,
-                                              SDL_Renderer *renderer,
-                                              const DatalabFrame *frame,
-                                              DatalabAppState *app_state,
-                                              const DatalabRenderDeriveFrame *derive,
-                                              DatalabRenderSubmitOutcome *outcome) {
-    if (!outcome) {
-        return;
-    }
-    memset(outcome, 0, sizeof(*outcome));
-    if (!window || !renderer || !frame || !app_state || !derive) {
-        outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid trace render submit request" };
-        return;
-    }
-    render_trace_frame(renderer, frame, app_state);
-    SDL_SetWindowTitle(window, derive->title);
-    SDL_RenderPresent(renderer);
-    outcome->presented = 1u;
-    outcome->result = core_result_ok();
-}
-
-static void datalab_rs1_diag_note(const char *lane,
-                                  DatalabRenderDiagTotals *totals,
-                                  const DatalabRenderSubmitOutcome *submit) {
-    if (!totals || !submit) {
-        return;
-    }
-    totals->frame_count += 1u;
-    if (submit->result.code == CORE_OK) {
-        totals->submit_count += 1u;
-    }
-    if (submit->presented) {
-        totals->present_count += 1u;
-    }
-    if (datalab_rs1_diag_enabled()) {
-        printf("[rs1] datalab-%s frame=%llu submit_ok=%d presented=%u totals(frames=%llu submit_ok=%llu present=%llu)\n",
-               lane ? lane : "unknown",
-               (unsigned long long)totals->frame_count,
-               submit->result.code == CORE_OK ? 1 : 0,
-               (unsigned int)submit->presented,
-               (unsigned long long)totals->frame_count,
-               (unsigned long long)totals->submit_count,
-               (unsigned long long)totals->present_count);
-    }
-}
-
-static CoreResult render_physics_loop(SDL_Window *window,
-                                      SDL_Renderer *renderer,
-                                      const DatalabFrame *frame,
-                                      DatalabAppState *app_state) {
-    SDL_Texture *texture = SDL_CreateTexture(renderer,
-                                             SDL_PIXELFORMAT_RGBA32,
-                                             SDL_TEXTUREACCESS_STREAMING,
-                                             (int)frame->width,
-                                             (int)frame->height);
-    if (!texture) {
-        CoreResult r = { CORE_ERR_IO, SDL_GetError() };
-        return r;
-    }
-
-    const size_t sample_count = (size_t)frame->width * (size_t)frame->height;
-    const size_t rgba_size = sample_count * 4u;
-
-    uint8_t *density_rgba = (uint8_t *)core_alloc(rgba_size);
-    uint8_t *speed_rgba = (uint8_t *)core_alloc(rgba_size);
-    float *speed = (float *)core_alloc(sample_count * sizeof(float));
-    KitVizVecSegment *segments = (KitVizVecSegment *)core_alloc(sample_count * sizeof(KitVizVecSegment));
-    if (!density_rgba || !speed_rgba || !speed || !segments) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        CoreResult r = { CORE_ERR_OUT_OF_MEMORY, "out of memory" };
-        return r;
-    }
-
-    KitVizFieldStats dens_stats;
-    CoreResult rs = kit_viz_compute_field_stats(frame->density, frame->width, frame->height, &dens_stats);
-    if (rs.code != CORE_OK) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        return rs;
-    }
-
-    for (size_t i = 0; i < sample_count; ++i) {
-        const float x = frame->velx[i];
-        const float y = frame->vely[i];
-        speed[i] = sqrtf((x * x) + (y * y));
-    }
-
-    KitVizFieldStats speed_stats;
-    rs = kit_viz_compute_field_stats(speed, frame->width, frame->height, &speed_stats);
-    if (rs.code != CORE_OK) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        return rs;
-    }
-
-    rs = kit_viz_build_heatmap_rgba(frame->density,
-                                    frame->width,
-                                    frame->height,
-                                    dens_stats.min_value,
-                                    dens_stats.max_value,
-                                    KIT_VIZ_COLORMAP_HEAT,
-                                    density_rgba,
-                                    rgba_size);
-    if (rs.code != CORE_OK) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        return rs;
-    }
-
-    rs = kit_viz_build_heatmap_rgba(speed,
-                                    frame->width,
-                                    frame->height,
-                                    speed_stats.min_value,
-                                    speed_stats.max_value,
-                                    KIT_VIZ_COLORMAP_HEAT,
-                                    speed_rgba,
-                                    rgba_size);
-    if (rs.code != CORE_OK) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        return rs;
-    }
-
-    int quit = 0;
-    DatalabInputDiagTotals ir1_diag_totals = {0};
-    DatalabRenderDiagTotals rs1_diag_totals = {0};
-    while (!quit) {
-        SDL_Event e;
-        DatalabInputFrame input_frame;
-        DatalabPhysicsRenderDeriveFrame render_derive;
-        DatalabRenderSubmitOutcome render_submit;
-        datalab_input_frame_begin(&input_frame);
-        while (SDL_PollEvent(&e)) {
-            datalab_input_apply_event(&input_frame, &e);
-            if (e.type == SDL_QUIT) quit = 1;
-            if (e.type == SDL_KEYDOWN) datalab_handle_keydown(&e.key, app_state, &quit);
-        }
-        ir1_diag_totals.frame_count += 1u;
-        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
-        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
-        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
-        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
-        if (datalab_ir1_diag_enabled()) {
-            printf("[ir1] datalab-physics frame=%llu events=%u route(global=%u fallback=%u target=%d) "
-                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned int)input_frame.raw.sdl_event_count,
-                   (unsigned int)input_frame.route.routed_global_count,
-                   (unsigned int)input_frame.route.routed_fallback_count,
-                   (int)input_frame.route.target_policy,
-                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
-                   (unsigned int)input_frame.invalidation.target_invalidation_count,
-                   (unsigned int)input_frame.invalidation.full_invalidation_count,
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned long long)ir1_diag_totals.event_count_total,
-                   (unsigned long long)ir1_diag_totals.routed_global_total,
-                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
-                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
-        }
-        datalab_physics_render_derive_frame(renderer,
-                                            frame,
-                                            app_state,
-                                            density_rgba,
-                                            speed_rgba,
-                                            &render_derive);
-        datalab_physics_render_submit_frame(window,
-                                            renderer,
-                                            texture,
-                                            frame,
-                                            app_state,
-                                            segments,
-                                            sample_count,
-                                            &render_derive,
-                                            &render_submit);
-        datalab_rs1_diag_note("physics", &rs1_diag_totals, &render_submit);
-        if (render_submit.result.code != CORE_OK) {
-            core_free(density_rgba);
-            core_free(speed_rgba);
-            core_free(speed);
-            core_free(segments);
-            SDL_DestroyTexture(texture);
-            return render_submit.result;
-        }
-    }
-
-    core_free(density_rgba);
-    core_free(speed_rgba);
-    core_free(speed);
-    core_free(segments);
-    SDL_DestroyTexture(texture);
-    return core_result_ok();
-}
-
-static CoreResult render_daw_loop(SDL_Window *window,
-                                  SDL_Renderer *renderer,
-                                  const DatalabFrame *frame,
-                                  DatalabAppState *app_state) {
-    int quit = 0;
-    DatalabInputDiagTotals ir1_diag_totals = {0};
-    DatalabRenderDiagTotals rs1_diag_totals = {0};
-    while (!quit) {
-        SDL_Event e;
-        DatalabInputFrame input_frame;
-        DatalabRenderDeriveFrame render_derive;
-        DatalabRenderSubmitOutcome render_submit;
-        datalab_input_frame_begin(&input_frame);
-        while (SDL_PollEvent(&e)) {
-            datalab_input_apply_event(&input_frame, &e);
-            if (e.type == SDL_QUIT) {
-                quit = 1;
-            }
-            if (e.type == SDL_KEYDOWN) {
-                datalab_handle_keydown(&e.key, app_state, &quit);
-            }
-        }
-        ir1_diag_totals.frame_count += 1u;
-        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
-        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
-        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
-        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
-        if (datalab_ir1_diag_enabled()) {
-            printf("[ir1] datalab-daw frame=%llu events=%u route(global=%u fallback=%u target=%d) "
-                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned int)input_frame.raw.sdl_event_count,
-                   (unsigned int)input_frame.route.routed_global_count,
-                   (unsigned int)input_frame.route.routed_fallback_count,
-                   (int)input_frame.route.target_policy,
-                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
-                   (unsigned int)input_frame.invalidation.target_invalidation_count,
-                   (unsigned int)input_frame.invalidation.full_invalidation_count,
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned long long)ir1_diag_totals.event_count_total,
-                   (unsigned long long)ir1_diag_totals.routed_global_total,
-                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
-                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
-        }
-        datalab_render_derive_frame(frame, app_state, &render_derive);
-        datalab_daw_render_submit_frame(window, renderer, frame, app_state, &render_derive, &render_submit);
-        datalab_rs1_diag_note("daw", &rs1_diag_totals, &render_submit);
-        if (render_submit.result.code != CORE_OK) {
-            return render_submit.result;
-        }
-    }
-
-    return core_result_ok();
-}
-
-static CoreResult render_trace_loop(SDL_Window *window,
-                                    SDL_Renderer *renderer,
-                                    const DatalabFrame *frame,
-                                    DatalabAppState *app_state) {
-    int quit = 0;
-    DatalabInputDiagTotals ir1_diag_totals = {0};
-    DatalabRenderDiagTotals rs1_diag_totals = {0};
-    while (!quit) {
-        SDL_Event e;
-        DatalabInputFrame input_frame;
-        DatalabRenderDeriveFrame render_derive;
-        DatalabRenderSubmitOutcome render_submit;
-        datalab_input_frame_begin(&input_frame);
-        while (SDL_PollEvent(&e)) {
-            datalab_input_apply_event(&input_frame, &e);
-            if (e.type == SDL_QUIT) {
-                quit = 1;
-            }
-            if (e.type == SDL_KEYDOWN) {
-                datalab_handle_keydown(&e.key, app_state, &quit);
-            }
-        }
-        ir1_diag_totals.frame_count += 1u;
-        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
-        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
-        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
-        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
-        if (datalab_ir1_diag_enabled()) {
-            printf("[ir1] datalab-trace frame=%llu events=%u route(global=%u fallback=%u target=%d) "
-                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned int)input_frame.raw.sdl_event_count,
-                   (unsigned int)input_frame.route.routed_global_count,
-                   (unsigned int)input_frame.route.routed_fallback_count,
-                   (int)input_frame.route.target_policy,
-                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
-                   (unsigned int)input_frame.invalidation.target_invalidation_count,
-                   (unsigned int)input_frame.invalidation.full_invalidation_count,
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned long long)ir1_diag_totals.event_count_total,
-                   (unsigned long long)ir1_diag_totals.routed_global_total,
-                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
-                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
-        }
-        datalab_render_derive_frame(frame, app_state, &render_derive);
-        datalab_trace_render_submit_frame(window, renderer, frame, app_state, &render_derive, &render_submit);
-        datalab_rs1_diag_note("trace", &rs1_diag_totals, &render_submit);
-        if (render_submit.result.code != CORE_OK) {
-            return render_submit.result;
-        }
-    }
-    return core_result_ok();
-}
 
 CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_state) {
     if (!frame || !app_state) {
@@ -1617,6 +1098,7 @@ CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_st
         CoreResult r = { CORE_ERR_IO, SDL_GetError() };
         return r;
     }
+    (void)datalab_text_renderer_init();
 
     CoreResult run_r;
     if (frame->profile == DATALAB_PROFILE_DAW) {
@@ -1627,6 +1109,7 @@ CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_st
         run_r = render_physics_loop(window, renderer, frame, app_state);
     }
 
+    datalab_text_renderer_shutdown();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

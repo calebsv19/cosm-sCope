@@ -33,21 +33,21 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
             break;
         case SDLK_1:
             if (state->profile == DATALAB_PROFILE_DAW) {
-                state->view_mode = DATALAB_VIEW_SPEED; // waveform
+                state->view_mode = DATALAB_VIEW_SPEED; /* waveform */
             } else {
                 state->view_mode = DATALAB_VIEW_DENSITY;
             }
             break;
         case SDLK_2:
             if (state->profile == DATALAB_PROFILE_DAW) {
-                state->view_mode = DATALAB_VIEW_DENSITY_VECTOR; // waveform + markers
+                state->view_mode = DATALAB_VIEW_DENSITY_VECTOR; /* waveform + markers */
             } else {
                 state->view_mode = DATALAB_VIEW_SPEED;
             }
             break;
         case SDLK_3:
             if (state->profile == DATALAB_PROFILE_DAW) {
-                state->view_mode = DATALAB_VIEW_DENSITY; // markers
+                state->view_mode = DATALAB_VIEW_DENSITY; /* markers */
             } else {
                 state->view_mode = DATALAB_VIEW_DENSITY_VECTOR;
             }
@@ -103,6 +103,26 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
             state->trace_selection_stub_active = 0;
             state->trace_lane_visibility_index = 0u;
             state->trace_lane_cycle_requested = 0;
+            state->panel_rescan_requested = 0;
+            state->panel_selection_delta = 0;
+            state->panel_open_selected_requested = 0;
+            state->panel_requested_pack_path[0] = '\0';
+            break;
+        case SDLK_o:
+            state->open_picker_requested = 1;
+            break;
+        case SDLK_F5:
+            state->panel_rescan_requested = 1;
+            break;
+        case SDLK_u:
+            state->panel_selection_delta -= 1;
+            break;
+        case SDLK_j:
+            state->panel_selection_delta += 1;
+            break;
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+            state->panel_open_selected_requested = 1;
             break;
         default:
             break;

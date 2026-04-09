@@ -4,7 +4,6 @@ set -eu
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 APP_CONTENTS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 RES_DIR="$APP_CONTENTS_DIR/Resources"
-DEFAULT_PACK="$RES_DIR/data/default_preview.pack"
 RUNTIME_DIR_DEFAULT="${HOME}/Library/Application Support/DataLab/runtime"
 RUNTIME_DIR="${DATALAB_RUNTIME_DIR:-$RUNTIME_DIR_DEFAULT}"
 if ! mkdir -p "$RUNTIME_DIR" 2>/dev/null; then
@@ -41,10 +40,12 @@ cat >"$ICD_FILE" <<EOF
 }
 EOF
 export DATALAB_RUNTIME_DIR="$RUNTIME_DIR"
+export DATALAB_INPUT_ROOT="${DATALAB_INPUT_ROOT:-$RUNTIME_DIR/data/import}"
 export VK_RENDERER_SHADER_ROOT="${VK_RENDERER_SHADER_ROOT:-$RUNTIME_DIR/vk_renderer}"
 export VK_ICD_FILENAMES="${VK_ICD_FILENAMES:-$ICD_FILE}"
 export VK_DRIVER_FILES="${VK_DRIVER_FILES:-$ICD_FILE}"
 export MOLTENVK_DYLIB
+mkdir -p "$DATALAB_INPUT_ROOT" 2>/dev/null || true
 
 if [ "${1:-}" = "--print-config" ]; then
     echo "APP_CONTENTS_DIR=$APP_CONTENTS_DIR"
@@ -52,7 +53,7 @@ if [ "${1:-}" = "--print-config" ]; then
     echo "LOG_FILE=$LOG_FILE"
     echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
     echo "APP_DATA_HOME=$APP_DATA_HOME"
-    echo "DEFAULT_PACK=$DEFAULT_PACK"
+    echo "DATALAB_INPUT_ROOT=$DATALAB_INPUT_ROOT"
     echo "VK_RENDERER_SHADER_ROOT=$VK_RENDERER_SHADER_ROOT"
     echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
     echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
@@ -63,8 +64,8 @@ fi
 if [ "${1:-}" = "--self-test" ]; then
     [ -x "$SCRIPT_DIR/datalab-bin" ] || { echo "missing: datalab-bin" >&2; exit 1; }
     [ -f "$APP_CONTENTS_DIR/Info.plist" ] || { echo "missing: Info.plist" >&2; exit 1; }
-    [ -f "$DEFAULT_PACK" ] || { echo "missing: default preview pack" >&2; exit 1; }
     [ -d "$RES_DIR/data/runtime" ] || { echo "missing: runtime dir" >&2; exit 1; }
+    [ -d "$DATALAB_INPUT_ROOT" ] || { echo "missing: runtime input root" >&2; exit 1; }
     [ -f "$RES_DIR/shared/assets/fonts/Montserrat-Regular.ttf" ] || { echo "missing: shared font" >&2; exit 1; }
     [ -f "$RES_DIR/vk_renderer/shaders/textured.vert.spv" ] || { echo "missing: bundled vk shader" >&2; exit 1; }
     [ -f "$RES_DIR/shaders/textured.vert.spv" ] || { echo "missing: bundled runtime shader" >&2; exit 1; }
@@ -74,7 +75,7 @@ if [ "${1:-}" = "--self-test" ]; then
     echo "LOG_FILE=$LOG_FILE"
     echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
     echo "APP_DATA_HOME=$APP_DATA_HOME"
-    echo "DEFAULT_PACK=$DEFAULT_PACK"
+    echo "DATALAB_INPUT_ROOT=$DATALAB_INPUT_ROOT"
     echo "VK_RENDERER_SHADER_ROOT=$VK_RENDERER_SHADER_ROOT"
     echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
     echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
@@ -83,10 +84,6 @@ if [ "${1:-}" = "--self-test" ]; then
 fi
 
 cd "$APP_DATA_HOME"
-printf '%s launch begin pid=%s cwd=%s runtime=%s default_pack=%s shader_root=%s args=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$$" "$APP_DATA_HOME" "$DATALAB_RUNTIME_DIR" "$DEFAULT_PACK" "$VK_RENDERER_SHADER_ROOT" "$*" >>"$LOG_FILE" 2>/dev/null || true
-
-if [ $# -eq 0 ]; then
-    exec "$SCRIPT_DIR/datalab-bin" --pack "$DEFAULT_PACK" >>"$LOG_FILE" 2>&1
-fi
+printf '%s launch begin pid=%s cwd=%s runtime=%s input_root=%s shader_root=%s args=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$$" "$APP_DATA_HOME" "$DATALAB_RUNTIME_DIR" "$DATALAB_INPUT_ROOT" "$VK_RENDERER_SHADER_ROOT" "$*" >>"$LOG_FILE" 2>/dev/null || true
 
 exec "$SCRIPT_DIR/datalab-bin" "$@" >>"$LOG_FILE" 2>&1
