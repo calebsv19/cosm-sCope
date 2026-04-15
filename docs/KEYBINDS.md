@@ -36,3 +36,9 @@
 - `Z`: trace zoom-stub toggle value cycle.
 - `X`: trace stats-stub toggle.
 - `C`: cycle lane visibility.
+
+## Host Integration Pilot Notes
+- `Alt+C+V` authoring-entry chord is planned for the workspace host-integration lane and is not active yet in DataLab.
+- Current baseline conflict (pre-integration):
+  - `C` is still routed to Trace lane cycle even when `Alt` is held, because host key handling is currently modifier-agnostic for this action.
+- `DL1` will add chord-progression suppression before host key dispatch so `Alt+C+V` does not trigger Trace `C` behavior during entry.

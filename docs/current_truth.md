@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-04-11
+Last updated: 2026-04-15
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -198,6 +198,17 @@ Legacy test lane:
   - `DL-S0`, `DL-S1`, `DL-S2`, `DL-S3`, `DL-S4`, `DL-S5`
 - Next phase:
   - scaffold migration complete; post-scaffold font-size pass also complete (`5c77573`, `Post-Scaffold Font Size Standardization`)
+
+## Host Integration Pilot State
+- workspace authoring host-integration lane is active:
+  - execution plan:
+    - `../../docs/private_program_docs/datalab/2026-04-15_datalab_workspace_host_integration_execution_plan.md`
+  - `DL0` complete (baseline + attach-contract freeze, docs pass)
+  - `DL1` next (adapter seam + `Alt+C+V` entry chord routing implementation)
+- keybind conflict baseline captured for host attach:
+  - current conflict: `C` is a live Trace-profile action and must be suppressed during entry-chord progression once authoring attach is implemented
+  - `V` is currently unbound in host keymap
+- no runtime behavior change is applied in `DL0`; current input/render behavior remains parity with prior state
 
 ## Lifecycle Stage Symbol Lock
 - `datalab_app_bootstrap`

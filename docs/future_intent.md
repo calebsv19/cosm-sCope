@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-04-11
+Last updated: 2026-04-15
 
 ## Scaffold Alignment Intent
 1. Keep DataLab stable as a pack viewer while scaffold lanes are normalized.
@@ -136,6 +136,19 @@ Last updated: 2026-04-11
   - profile UI and loops in `render_view_profiles_{ui,loops}.c`
   - IR1 helper lane in `render_view_input.c`
 - run a follow-up docs sync pass after the active worktree render-view changes are committed to keep public/private docs anchored to committed evidence.
+
+## Workspace Authoring Host-Integration Intent
+- active lane:
+  - `DL0` complete (ownership baseline + attach-contract freeze + keybind conflict matrix)
+  - plan: `../../docs/private_program_docs/datalab/2026-04-15_datalab_workspace_host_integration_execution_plan.md`
+- next (`DL1`):
+  - add host adapter seam before profile-loop key dispatch
+  - implement `Alt+C+V` entry-chord detection with event suppression for chord constituent keys
+  - preserve non-authoring behavior parity for existing DataLab runtime controls
+- then (`DL2`-`DL4`):
+  - overlay cycle/apply/cancel routing parity
+  - host smoke verification
+  - closeout with reusable attach contract for additional hosts
 
 ## Non-Goals During Scaffold Migration
 - No broad feature expansion unrelated to scaffold normalization.

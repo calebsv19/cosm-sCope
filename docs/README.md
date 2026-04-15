@@ -17,6 +17,9 @@ Start here for public repository documentation.
 - `KNOWN_ISSUES.md`: release-facing caveats and current limitations.
 - `docs/KEYBINDS.md`: keyboard interaction reference (including text zoom shortcuts).
 - `docs/desktop_packaging.md`: `.app` packaging targets, launcher contract, and Desktop validation flow.
+- host-integration pilot tracking:
+  - current state/phase: `docs/current_truth.md`
+  - forward plan: `docs/future_intent.md`
 
 ## Private Planning Docs
 - Private scaffold plans/checklists are kept in the workspace private docs bucket:
