@@ -14,6 +14,11 @@ typedef enum DatalabViewMode {
     DATALAB_VIEW_DENSITY_VECTOR = 3
 } DatalabViewMode;
 
+typedef enum DatalabWorkspaceAuthoringOverlayMode {
+    DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE = 0,
+    DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME = 1
+} DatalabWorkspaceAuthoringOverlayMode;
+
 #define DATALAB_TEXT_ZOOM_STEP_MIN (-4)
 #define DATALAB_TEXT_ZOOM_STEP_MAX 5
 
@@ -39,10 +44,16 @@ typedef struct DatalabAppState {
     int workspace_authoring_stub_active;
     uint8_t workspace_authoring_entry_chord_mask;
     uint32_t workspace_authoring_entry_count;
+    DatalabWorkspaceAuthoringOverlayMode workspace_authoring_overlay_mode;
+    uint8_t workspace_authoring_pending_stub;
+    uint32_t workspace_authoring_overlay_cycle_count;
+    uint32_t workspace_authoring_apply_count;
+    uint32_t workspace_authoring_cancel_count;
 } DatalabAppState;
 
 void datalab_app_state_init(DatalabAppState *state, const char *pack_path, DatalabProfile profile);
 const char *datalab_view_mode_name(DatalabViewMode mode);
+const char *datalab_workspace_authoring_overlay_mode_name(DatalabWorkspaceAuthoringOverlayMode mode);
 int datalab_text_zoom_step_clamp(int step);
 float datalab_text_zoom_step_multiplier(int step);
 

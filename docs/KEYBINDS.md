@@ -41,4 +41,8 @@
 - `Alt+C+V` now enters the host authoring stub state in active profile runtime loops (`DL1`).
 - `Alt+C` / `Alt+V` are consumed during entry-chord progression and do not route to Trace `C` lane-cycle behavior.
 - Entry chord is currently scoped to active profile loops only; startup picker keeps existing key behavior in this phase.
-- This is host-entry plumbing only in `DL1`; pane/font-theme overlay controls are not attached in DataLab yet.
+- While host authoring stub is active (`DL2`), first-right-of-refusal keys are:
+  - `Tab`: cycle overlay stub (`pane` -> `font/theme` -> `pane`)
+  - `Enter`: apply stub changes (clear pending draft flag)
+  - `Esc`: cancel stub changes and exit authoring stub mode
+- This is host-side parity plumbing only in `DL2`; DataLab is not yet calling full workspace overlay runtime render/command lanes.

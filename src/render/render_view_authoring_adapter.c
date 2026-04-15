@@ -11,6 +11,37 @@ static int datalab_alt_modifier_active(SDL_Keymod mods) {
     return (mods & KMOD_ALT) != 0;
 }
 
+static void datalab_workspace_authoring_cycle_overlay(DatalabAppState *app_state) {
+    if (!app_state) {
+        return;
+    }
+    if (app_state->workspace_authoring_overlay_mode == DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE) {
+        app_state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME;
+    } else {
+        app_state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
+    }
+    app_state->workspace_authoring_pending_stub = 1u;
+    app_state->workspace_authoring_overlay_cycle_count += 1u;
+}
+
+static void datalab_workspace_authoring_apply_stub(DatalabAppState *app_state) {
+    if (!app_state) {
+        return;
+    }
+    app_state->workspace_authoring_pending_stub = 0u;
+    app_state->workspace_authoring_apply_count += 1u;
+}
+
+static void datalab_workspace_authoring_cancel_and_exit(DatalabAppState *app_state) {
+    if (!app_state) {
+        return;
+    }
+    app_state->workspace_authoring_pending_stub = 0u;
+    app_state->workspace_authoring_stub_active = 0;
+    app_state->workspace_authoring_entry_chord_mask = 0u;
+    app_state->workspace_authoring_cancel_count += 1u;
+}
+
 void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
                                                DatalabAppState *app_state,
                                                DatalabWorkspaceAuthoringAdapterResult *outcome) {
@@ -20,6 +51,32 @@ void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
     }
     if (!key || !app_state) {
         return;
+    }
+
+    if (app_state->workspace_authoring_stub_active) {
+        switch (key->keysym.sym) {
+            case SDLK_TAB:
+                datalab_workspace_authoring_cycle_overlay(app_state);
+                if (outcome) {
+                    outcome->consumed = 1u;
+                }
+                return;
+            case SDLK_RETURN:
+            case SDLK_KP_ENTER:
+                datalab_workspace_authoring_apply_stub(app_state);
+                if (outcome) {
+                    outcome->consumed = 1u;
+                }
+                return;
+            case SDLK_ESCAPE:
+                datalab_workspace_authoring_cancel_and_exit(app_state);
+                if (outcome) {
+                    outcome->consumed = 1u;
+                }
+                return;
+            default:
+                break;
+        }
     }
 
     alt_active = datalab_alt_modifier_active((SDL_Keymod)key->keysym.mod);
@@ -43,6 +100,8 @@ void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
              (DATALAB_AUTHORING_CHORD_C | DATALAB_AUTHORING_CHORD_V)) ==
             (DATALAB_AUTHORING_CHORD_C | DATALAB_AUTHORING_CHORD_V)) {
             app_state->workspace_authoring_stub_active = 1;
+            app_state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
+            app_state->workspace_authoring_pending_stub = 0u;
             app_state->workspace_authoring_entry_count += 1u;
             app_state->workspace_authoring_entry_chord_mask = 0u;
             if (outcome) {

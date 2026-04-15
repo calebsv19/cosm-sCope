@@ -144,13 +144,16 @@ Last updated: 2026-04-15
     - host adapter seam is active in profile loops before host key dispatch
     - `Alt+C+V` entry chord progression is consumed to avoid Trace `C` collision
     - host authoring stub-active state is surfaced via title (`auth=on/off`)
+  - `DL2` complete:
+    - while authoring stub is active, adapter consumes `Tab`/`Enter`/`Esc` first (cycle/apply/cancel+exit parity)
+    - host state now tracks overlay mode + pending stub + cycle/apply/cancel counters
+    - title observability now includes overlay mode and pending state (`auth=<on|off>/<overlay> pending=<0|1>`)
   - plan: `../../docs/private_program_docs/datalab/2026-04-15_datalab_workspace_host_integration_execution_plan.md`
-- next (`DL2`):
-  - introduce authoring-mode first-right-of-refusal routing for `Tab` / `Enter` / `Esc`
-  - begin overlay-cycle and apply/cancel behavior parity mapping against workspace runtime contract
+- next (`DL3`):
+  - replace host stub internals with real workspace runtime bridge calls
+  - keep adapter ownership in render profile loops while shifting state authority to workspace runtime boundary
   - keep startup picker explicitly out of authoring-entry scope unless promoted in a later phase
-- then (`DL3`-`DL4`):
-  - complete overlay cycle/apply/cancel parity
+- then (`DL4`):
   - host smoke verification
   - closeout with reusable attach contract for additional hosts
 

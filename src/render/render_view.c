@@ -73,18 +73,22 @@ static const char *daw_view_mode_name(DatalabViewMode mode) {
 int lane_name_eq(const char *a, const char *b) { return strncmp(a, b, 31) == 0; }
 
 void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *title, size_t title_cap) {
+    const char *authoring_overlay = NULL;
     if (!frame || !state || !title || title_cap == 0) return;
+    authoring_overlay = datalab_workspace_authoring_overlay_mode_name(state->workspace_authoring_overlay_mode);
 
     if (frame->profile == DATALAB_PROFILE_DAW) {
         snprintf(title,
                  title_cap,
-                 "DataLab | DAW points=%llu markers=%zu sr=%u mode=%s text=%+d auth=%s",
+                 "DataLab | DAW points=%llu markers=%zu sr=%u mode=%s text=%+d auth=%s/%s pending=%u",
                  (unsigned long long)frame->point_count,
                  frame->marker_count,
                  frame->sample_rate,
                  daw_view_mode_name(state->view_mode),
                  state->text_zoom_step,
-                 state->workspace_authoring_stub_active ? "on" : "off");
+                 state->workspace_authoring_stub_active ? "on" : "off",
+                 authoring_overlay,
+                 (unsigned int)state->workspace_authoring_pending_stub);
         return;
     }
 
@@ -93,20 +97,22 @@ void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *t
         if (frame->trace_sample_count == 0) cursor = 0;
         snprintf(title,
                  title_cap,
-                 "DataLab | TRACE samples=%zu markers=%zu cursor=%zu zoom_stub=%.2f stats_stub=%s text=%+d auth=%s",
+                 "DataLab | TRACE samples=%zu markers=%zu cursor=%zu zoom_stub=%.2f stats_stub=%s text=%+d auth=%s/%s pending=%u",
                  frame->trace_sample_count,
                  frame->trace_marker_count,
                  cursor,
                  state->trace_zoom_stub,
                  state->trace_selection_stub_active ? "on" : "off",
                  state->text_zoom_step,
-                 state->workspace_authoring_stub_active ? "on" : "off");
+                 state->workspace_authoring_stub_active ? "on" : "off",
+                 authoring_overlay,
+                 (unsigned int)state->workspace_authoring_pending_stub);
         return;
     }
 
     snprintf(title,
              title_cap,
-             "DataLab | frame=%llu grid=%ux%u t=%.3f dt=%.3f mode=%s stride=%u text=%+d auth=%s",
+             "DataLab | frame=%llu grid=%ux%u t=%.3f dt=%.3f mode=%s stride=%u text=%+d auth=%s/%s pending=%u",
              (unsigned long long)frame->frame_index,
              frame->width,
              frame->height,
@@ -115,7 +121,9 @@ void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *t
              datalab_view_mode_name(state->view_mode),
              state->vector_stride,
              state->text_zoom_step,
-             state->workspace_authoring_stub_active ? "on" : "off");
+             state->workspace_authoring_stub_active ? "on" : "off",
+             authoring_overlay,
+             (unsigned int)state->workspace_authoring_pending_stub);
 }
 
 void calc_fit_rect(int ww, int wh, uint32_t fw, uint32_t fh, SDL_Rect *out_rect) {

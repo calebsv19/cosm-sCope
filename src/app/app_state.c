@@ -46,6 +46,11 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->workspace_authoring_stub_active = 0;
     state->workspace_authoring_entry_chord_mask = 0u;
     state->workspace_authoring_entry_count = 0u;
+    state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
+    state->workspace_authoring_pending_stub = 0u;
+    state->workspace_authoring_overlay_cycle_count = 0u;
+    state->workspace_authoring_apply_count = 0u;
+    state->workspace_authoring_cancel_count = 0u;
 }
 
 const char *datalab_view_mode_name(DatalabViewMode mode) {
@@ -53,6 +58,14 @@ const char *datalab_view_mode_name(DatalabViewMode mode) {
         case DATALAB_VIEW_DENSITY: return "density";
         case DATALAB_VIEW_SPEED: return "speed";
         case DATALAB_VIEW_DENSITY_VECTOR: return "density+vector";
+        default: return "unknown";
+    }
+}
+
+const char *datalab_workspace_authoring_overlay_mode_name(DatalabWorkspaceAuthoringOverlayMode mode) {
+    switch (mode) {
+        case DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE: return "pane";
+        case DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME: return "font/theme";
         default: return "unknown";
     }
 }
