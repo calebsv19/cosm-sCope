@@ -18,6 +18,7 @@
 - `Enter`: apply edited path in edit mode, or open selected `.pack`.
 - `Up` / `Down`: move file selection.
 - `Esc`: cancel edit mode or exit picker.
+- `Alt+C+V`: open selected `.pack` and enter authoring mode immediately.
 
 ## Physics Profile
 - `1`: density view.
@@ -40,7 +41,8 @@
 ## Host Integration Pilot Notes
 - `Alt+C+V` now enters the host authoring stub state in active profile runtime loops (`DL1`).
 - `Alt+C` / `Alt+V` are consumed during entry-chord progression and do not route to Trace `C` lane-cycle behavior.
-- Entry chord is currently scoped to active profile loops only; startup picker keeps existing key behavior in this phase.
+- Entry chord is now supported in both startup picker and active profile loops.
+- In active profile loops, `Alt+C+V` toggles authoring mode on/off.
 - While host authoring stub is active (`DL2`), first-right-of-refusal keys are:
   - `Tab`: cycle overlay stub (`pane` -> `font/theme` -> `pane`)
   - `Enter`: apply stub changes (clear pending draft flag)

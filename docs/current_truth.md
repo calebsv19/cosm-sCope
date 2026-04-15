@@ -211,15 +211,17 @@ Legacy test lane:
   - profile runtime loops now route `SDL_KEYDOWN` through a host authoring adapter before `datalab_handle_keydown(...)`
   - `Alt+C+V` chord progression is consumed in adapter and no longer leaks `Alt+C` into Trace lane-cycle action
   - successful chord sequence sets host authoring stub-active state (`workspace_authoring_stub_active`) and increments entry count
+  - startup picker now accepts `Alt+C+V` to open selected pack and enter authoring immediately
   - while authoring stub is active, adapter consumes:
     - `Tab` to cycle overlay mode (`pane` / `font-theme`)
     - `Enter` to apply stub (clear pending draft)
     - `Esc` to cancel stub and exit authoring mode
+  - while in profile runtime loops, `Alt+C+V` now toggles authoring mode on/off
   - host state now tracks overlay mode + pending flag + cycle/apply/cancel counters
   - window title now includes `auth=on/off`, overlay name, and pending flag
 - explicit `DL2` boundary:
   - no pane/font-theme overlay rendering is attached yet
-  - startup picker loop still blocks/ignores authoring-entry chord in this phase
+  - authoring behavior is still host-stub parity (shared runtime attach bridge not landed yet)
 
 ## Lifecycle Stage Symbol Lock
 - `datalab_app_bootstrap`

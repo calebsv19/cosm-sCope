@@ -148,6 +148,7 @@ Last updated: 2026-04-15
     - while authoring stub is active, adapter consumes `Tab`/`Enter`/`Esc` first (cycle/apply/cancel+exit parity)
     - host state now tracks overlay mode + pending stub + cycle/apply/cancel counters
     - title observability now includes overlay mode and pending state (`auth=<on|off>/<overlay> pending=<0|1>`)
+    - follow-up hardening: startup picker now supports `Alt+C+V` open+author, and runtime `Alt+C+V` toggles authoring on/off
   - plan: `../../docs/private_program_docs/datalab/2026-04-15_datalab_workspace_host_integration_execution_plan.md`
 - next (`DL3`):
   - replace host stub internals with real workspace runtime bridge calls

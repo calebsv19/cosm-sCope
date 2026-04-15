@@ -329,6 +329,7 @@ int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app
 
 int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state) {
     CoreResult run_r;
+    int picker_enter_authoring = 0;
     if (!runtime) {
         return 1;
     }
@@ -342,6 +343,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                                                       runtime->input_root,
                                                       sizeof(runtime->input_root),
                                                       &runtime->text_zoom_step,
+                                                      &picker_enter_authoring,
                                                       runtime->selected_pack_path,
                                                       sizeof(runtime->selected_pack_path));
                 if (run_r.code != CORE_OK) {
@@ -369,6 +371,14 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                 snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", runtime->input_root);
                 app_state->open_picker_requested = 0;
                 app_state->panel_rescan_requested = 1;
+                if (picker_enter_authoring) {
+                    app_state->workspace_authoring_stub_active = 1;
+                    app_state->workspace_authoring_overlay_mode =
+                        DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
+                    app_state->workspace_authoring_pending_stub = 0u;
+                    app_state->workspace_authoring_entry_count += 1u;
+                    picker_enter_authoring = 0;
+                }
             }
         }
 

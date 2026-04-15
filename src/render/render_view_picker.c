@@ -10,6 +10,11 @@
 
 #define DATALAB_PICKER_MAX_FILES 256
 
+enum {
+    DATALAB_AUTHORING_CHORD_C = 1 << 0,
+    DATALAB_AUTHORING_CHORD_V = 1 << 1
+};
+
 static int datalab_picker_zoom_modifier_active(SDL_Keymod mods) {
     return ((mods & KMOD_CTRL) != 0) || ((mods & KMOD_GUI) != 0);
 }
@@ -120,6 +125,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                                          char *io_input_root,
                                          size_t input_root_cap,
                                          int *io_text_zoom_step,
+                                         int *out_enter_authoring,
                                          char *out_pack_path,
                                          size_t out_pack_path_cap) {
     SDL_Window *window = NULL;
@@ -128,6 +134,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     int canceled = 0;
     int edit_mode = 0;
     int picker_zoom_step = 0;
+    uint8_t authoring_entry_chord_mask = 0u;
     size_t file_count = 0u;
     int selected = 0;
     char input_root[DATALAB_APP_PATH_CAP];
@@ -143,6 +150,9 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
         datalab_set_text_zoom_step(picker_zoom_step);
     }
     out_pack_path[0] = '\0';
+    if (out_enter_authoring) {
+        *out_enter_authoring = 0;
+    }
     if (initial_input_root && initial_input_root[0] != '\0') {
         snprintf(input_root, sizeof(input_root), "%s", initial_input_root);
     } else if (io_input_root[0] != '\0') {
@@ -194,6 +204,37 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             }
             if (e.type != SDL_KEYDOWN) {
                 continue;
+            }
+            if (((SDL_Keymod)e.key.keysym.mod & KMOD_ALT) == 0 && authoring_entry_chord_mask != 0u) {
+                authoring_entry_chord_mask = 0u;
+            }
+            if (((SDL_Keymod)e.key.keysym.mod & KMOD_ALT) != 0) {
+                uint8_t chord_bit = 0u;
+                if (e.key.keysym.scancode == SDL_SCANCODE_C) {
+                    chord_bit = DATALAB_AUTHORING_CHORD_C;
+                } else if (e.key.keysym.scancode == SDL_SCANCODE_V) {
+                    chord_bit = DATALAB_AUTHORING_CHORD_V;
+                }
+                if (chord_bit != 0u) {
+                    authoring_entry_chord_mask |= chord_bit;
+                    if ((authoring_entry_chord_mask & (DATALAB_AUTHORING_CHORD_C | DATALAB_AUTHORING_CHORD_V)) ==
+                        (DATALAB_AUTHORING_CHORD_C | DATALAB_AUTHORING_CHORD_V)) {
+                        if (file_count > 0u && selected >= 0 && selected < (int)file_count) {
+                            snprintf(out_pack_path, out_pack_path_cap, "%s/%s", input_root, files[selected]);
+                            if (out_enter_authoring) {
+                                *out_enter_authoring = 1;
+                            }
+                            done = 1;
+                        } else {
+                            snprintf(status, sizeof(status), "authoring entry requires a selected .pack");
+                        }
+                        authoring_entry_chord_mask = 0u;
+                    }
+                    continue;
+                }
+                if (authoring_entry_chord_mask != 0u) {
+                    authoring_entry_chord_mask = 0u;
+                }
             }
             if (datalab_picker_zoom_modifier_active((SDL_Keymod)e.key.keysym.mod)) {
                 switch (e.key.keysym.sym) {
@@ -371,7 +412,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             draw_text_5x7(renderer, top.x + pad, y_title,
                           "DATALAB INPUT ROOT + PACK PICKER", 2, 220, 230, 240, 255);
             draw_text_5x7(renderer, top.x + pad, y_help,
-                          "E EDIT PATH  ENTER APPLY  B FOLDER DIALOG  UP/DOWN SELECT  ENTER OPEN  ESC CANCEL",
+                          "ALT+C+V OPEN+AUTHOR  E EDIT PATH  ENTER APPLY  B FOLDER DIALOG  UP/DOWN SELECT  ENTER OPEN  ESC CANCEL",
                           1, 170, 185, 205, 255);
             draw_text_5x7(renderer, top.x + pad, y_path_label,
                           edit_mode ? "PATH (EDIT MODE):" : "PATH:",
