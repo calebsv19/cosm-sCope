@@ -38,7 +38,7 @@
 - `C`: cycle lane visibility.
 
 ## Host Integration Pilot Notes
-- `Alt+C+V` authoring-entry chord is planned for the workspace host-integration lane and is not active yet in DataLab.
-- Current baseline conflict (pre-integration):
-  - `C` is still routed to Trace lane cycle even when `Alt` is held, because host key handling is currently modifier-agnostic for this action.
-- `DL1` will add chord-progression suppression before host key dispatch so `Alt+C+V` does not trigger Trace `C` behavior during entry.
+- `Alt+C+V` now enters the host authoring stub state in active profile runtime loops (`DL1`).
+- `Alt+C` / `Alt+V` are consumed during entry-chord progression and do not route to Trace `C` lane-cycle behavior.
+- Entry chord is currently scoped to active profile loops only; startup picker keeps existing key behavior in this phase.
+- This is host-entry plumbing only in `DL1`; pane/font-theme overlay controls are not attached in DataLab yet.

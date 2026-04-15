@@ -78,12 +78,13 @@ void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *t
     if (frame->profile == DATALAB_PROFILE_DAW) {
         snprintf(title,
                  title_cap,
-                 "DataLab | DAW points=%llu markers=%zu sr=%u mode=%s text=%+d",
+                 "DataLab | DAW points=%llu markers=%zu sr=%u mode=%s text=%+d auth=%s",
                  (unsigned long long)frame->point_count,
                  frame->marker_count,
                  frame->sample_rate,
                  daw_view_mode_name(state->view_mode),
-                 state->text_zoom_step);
+                 state->text_zoom_step,
+                 state->workspace_authoring_stub_active ? "on" : "off");
         return;
     }
 
@@ -92,19 +93,20 @@ void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *t
         if (frame->trace_sample_count == 0) cursor = 0;
         snprintf(title,
                  title_cap,
-                 "DataLab | TRACE samples=%zu markers=%zu cursor=%zu zoom_stub=%.2f stats_stub=%s text=%+d",
+                 "DataLab | TRACE samples=%zu markers=%zu cursor=%zu zoom_stub=%.2f stats_stub=%s text=%+d auth=%s",
                  frame->trace_sample_count,
                  frame->trace_marker_count,
                  cursor,
                  state->trace_zoom_stub,
                  state->trace_selection_stub_active ? "on" : "off",
-                 state->text_zoom_step);
+                 state->text_zoom_step,
+                 state->workspace_authoring_stub_active ? "on" : "off");
         return;
     }
 
     snprintf(title,
              title_cap,
-             "DataLab | frame=%llu grid=%ux%u t=%.3f dt=%.3f mode=%s stride=%u text=%+d",
+             "DataLab | frame=%llu grid=%ux%u t=%.3f dt=%.3f mode=%s stride=%u text=%+d auth=%s",
              (unsigned long long)frame->frame_index,
              frame->width,
              frame->height,
@@ -112,7 +114,8 @@ void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *t
              frame->dt_seconds,
              datalab_view_mode_name(state->view_mode),
              state->vector_stride,
-             state->text_zoom_step);
+             state->text_zoom_step,
+             state->workspace_authoring_stub_active ? "on" : "off");
 }
 
 void calc_fit_rect(int ww, int wh, uint32_t fw, uint32_t fh, SDL_Rect *out_rect) {

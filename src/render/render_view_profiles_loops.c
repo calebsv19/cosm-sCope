@@ -504,13 +504,19 @@ CoreResult render_physics_loop(SDL_Window *window,
     while (!quit) {
         SDL_Event e;
         DatalabInputFrame input_frame;
+        DatalabWorkspaceAuthoringAdapterResult authoring_route;
         DatalabPhysicsRenderDeriveFrame render_derive;
         DatalabRenderSubmitOutcome render_submit;
         datalab_input_frame_begin(&input_frame);
         while (SDL_PollEvent(&e)) {
             datalab_input_apply_event(&input_frame, &e);
             if (e.type == SDL_QUIT) quit = 1;
-            if (e.type == SDL_KEYDOWN) datalab_handle_keydown(&e.key, app_state, &quit);
+            if (e.type == SDL_KEYDOWN) {
+                datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);
+                if (!authoring_route.consumed) {
+                    datalab_handle_keydown(&e.key, app_state, &quit);
+                }
+            }
         }
         datalab_panel_tick(app_state);
         if (app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0') {
@@ -582,6 +588,7 @@ CoreResult render_daw_loop(SDL_Window *window,
     while (!quit) {
         SDL_Event e;
         DatalabInputFrame input_frame;
+        DatalabWorkspaceAuthoringAdapterResult authoring_route;
         DatalabRenderDeriveFrame render_derive;
         DatalabRenderSubmitOutcome render_submit;
         datalab_input_frame_begin(&input_frame);
@@ -591,7 +598,10 @@ CoreResult render_daw_loop(SDL_Window *window,
                 quit = 1;
             }
             if (e.type == SDL_KEYDOWN) {
-                datalab_handle_keydown(&e.key, app_state, &quit);
+                datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);
+                if (!authoring_route.consumed) {
+                    datalab_handle_keydown(&e.key, app_state, &quit);
+                }
             }
         }
         datalab_panel_tick(app_state);
@@ -641,6 +651,7 @@ CoreResult render_trace_loop(SDL_Window *window,
     while (!quit) {
         SDL_Event e;
         DatalabInputFrame input_frame;
+        DatalabWorkspaceAuthoringAdapterResult authoring_route;
         DatalabRenderDeriveFrame render_derive;
         DatalabRenderSubmitOutcome render_submit;
         datalab_input_frame_begin(&input_frame);
@@ -650,7 +661,10 @@ CoreResult render_trace_loop(SDL_Window *window,
                 quit = 1;
             }
             if (e.type == SDL_KEYDOWN) {
-                datalab_handle_keydown(&e.key, app_state, &quit);
+                datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);
+                if (!authoring_route.consumed) {
+                    datalab_handle_keydown(&e.key, app_state, &quit);
+                }
             }
         }
         datalab_panel_tick(app_state);

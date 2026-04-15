@@ -140,13 +140,17 @@ Last updated: 2026-04-15
 ## Workspace Authoring Host-Integration Intent
 - active lane:
   - `DL0` complete (ownership baseline + attach-contract freeze + keybind conflict matrix)
+  - `DL1` complete:
+    - host adapter seam is active in profile loops before host key dispatch
+    - `Alt+C+V` entry chord progression is consumed to avoid Trace `C` collision
+    - host authoring stub-active state is surfaced via title (`auth=on/off`)
   - plan: `../../docs/private_program_docs/datalab/2026-04-15_datalab_workspace_host_integration_execution_plan.md`
-- next (`DL1`):
-  - add host adapter seam before profile-loop key dispatch
-  - implement `Alt+C+V` entry-chord detection with event suppression for chord constituent keys
-  - preserve non-authoring behavior parity for existing DataLab runtime controls
-- then (`DL2`-`DL4`):
-  - overlay cycle/apply/cancel routing parity
+- next (`DL2`):
+  - introduce authoring-mode first-right-of-refusal routing for `Tab` / `Enter` / `Esc`
+  - begin overlay-cycle and apply/cancel behavior parity mapping against workspace runtime contract
+  - keep startup picker explicitly out of authoring-entry scope unless promoted in a later phase
+- then (`DL3`-`DL4`):
+  - complete overlay cycle/apply/cancel parity
   - host smoke verification
   - closeout with reusable attach contract for additional hosts
 

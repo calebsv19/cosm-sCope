@@ -204,11 +204,16 @@ Legacy test lane:
   - execution plan:
     - `../../docs/private_program_docs/datalab/2026-04-15_datalab_workspace_host_integration_execution_plan.md`
   - `DL0` complete (baseline + attach-contract freeze, docs pass)
-  - `DL1` next (adapter seam + `Alt+C+V` entry chord routing implementation)
-- keybind conflict baseline captured for host attach:
-  - current conflict: `C` is a live Trace-profile action and must be suppressed during entry-chord progression once authoring attach is implemented
-  - `V` is currently unbound in host keymap
-- no runtime behavior change is applied in `DL0`; current input/render behavior remains parity with prior state
+  - `DL1` complete (host adapter seam + entry-chord suppression path)
+  - `DL2` next (authoring overlay cycle/apply/cancel routing parity)
+- `DL1` implemented behavior:
+  - profile runtime loops now route `SDL_KEYDOWN` through a host authoring adapter before `datalab_handle_keydown(...)`
+  - `Alt+C+V` chord progression is consumed in adapter and no longer leaks `Alt+C` into Trace lane-cycle action
+  - successful chord sequence sets host authoring stub-active state (`workspace_authoring_stub_active`) and increments entry count
+  - window title now includes `auth=on/off` to make host entry state observable during pilot phase
+- explicit `DL1` boundary:
+  - no pane/font-theme overlay rendering is attached yet
+  - startup picker loop still blocks/ignores authoring-entry chord in this phase
 
 ## Lifecycle Stage Symbol Lock
 - `datalab_app_bootstrap`

@@ -36,6 +36,9 @@ typedef struct DatalabAppState {
     size_t panel_selected_index;
     int panel_open_selected_requested;
     char panel_requested_pack_path[DATALAB_APP_PATH_CAP];
+    int workspace_authoring_stub_active;
+    uint8_t workspace_authoring_entry_chord_mask;
+    uint32_t workspace_authoring_entry_count;
 } DatalabAppState;
 
 void datalab_app_state_init(DatalabAppState *state, const char *pack_path, DatalabProfile profile);

@@ -64,6 +64,11 @@ typedef struct DatalabInputDiagTotals {
     uint64_t invalidation_reason_bits_total;
 } DatalabInputDiagTotals;
 
+typedef struct DatalabWorkspaceAuthoringAdapterResult {
+    uint8_t consumed;
+    uint8_t entered_authoring;
+} DatalabWorkspaceAuthoringAdapterResult;
+
 typedef struct DatalabRenderDeriveFrame {
     char title[256];
 } DatalabRenderDeriveFrame;
@@ -91,6 +96,9 @@ int datalab_rs1_diag_enabled(void);
 
 void datalab_input_frame_begin(DatalabInputFrame *frame);
 void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event);
+void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
+                                               DatalabAppState *app_state,
+                                               DatalabWorkspaceAuthoringAdapterResult *outcome);
 
 void datalab_sync_text_zoom(const DatalabAppState *app_state);
 void datalab_set_text_zoom_step(int step);
