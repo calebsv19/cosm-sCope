@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-04-09
+Last updated: 2026-04-11
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -22,6 +22,7 @@ Last updated: 2026-04-09
   - `src/app/datalab_runtime_prefs.c` (runtime text/input-root persistence helpers)
 - Render split structure (refinement):
   - `src/render/render_view.c` (entry/orchestration)
+  - `src/render/render_view_input.c` (IR1 input frame intake/normalize/route/invalidate helpers)
   - `src/render/render_view_profiles_ui.c` (profile UI/derive/submit helpers)
   - `src/render/render_view_profiles_loops.c` (profile runtime loops)
   - `src/render/render_view_picker.c` (startup picker flow)
@@ -240,17 +241,17 @@ Legacy test lane:
 - private execution note:
   - `../../docs/private_program_docs/datalab/2026-04-03_datalab_ir1_s0_s3_execution.md`
 - `IR1-S0` through `IR1-S3` complete:
-  - input ownership baseline captured in `src/render/render_view.c` across:
+  - input ownership baseline captured in render loops across:
     - `render_physics_loop(...)`
     - `render_daw_loop(...)`
     - `render_trace_loop(...)`
-  - typed IR1 input contracts landed in `render_view.c`:
+  - typed IR1 input contracts are defined in `src/render/render_view_internal.h`:
     - `DatalabInputEventRaw`
     - `DatalabInputEventNormalized`
     - `DatalabInputRouteResult`
     - `DatalabInputInvalidationResult`
     - `DatalabInputFrame`
-  - explicit input seams landed:
+  - explicit input seams are currently implemented in `src/render/render_view_input.c`:
     - `datalab_input_intake(...)`
     - `datalab_input_normalize(...)`
     - `datalab_input_route(...)`

@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-04-09
+Last updated: 2026-04-11
 
 ## Scaffold Alignment Intent
 1. Keep DataLab stable as a pack viewer while scaffold lanes are normalized.
@@ -124,7 +124,18 @@ Last updated: 2026-04-09
   - execution note:
     - `../../docs/private_program_docs/datalab/2026-04-03_datalab_ir1_s0_s3_execution.md`
 - next:
-  - optional deeper action-command seam extraction only if editor/pane routing expansion requires it.
+  - keep IR1 behavior stable while preserving current split ownership:
+    - contracts in `src/render/render_view_internal.h`
+    - helper implementation in `src/render/render_view_input.c`
+    - loop call-sites in `src/render/render_view_profiles_loops.c`
+
+## Render-View Decomposition Intent
+- maintain current render-view decomposition boundaries:
+  - entry/orchestration in `render_view.c`
+  - picker flow in `render_view_picker.c`
+  - profile UI and loops in `render_view_profiles_{ui,loops}.c`
+  - IR1 helper lane in `render_view_input.c`
+- run a follow-up docs sync pass after the active worktree render-view changes are committed to keep public/private docs anchored to committed evidence.
 
 ## Non-Goals During Scaffold Migration
 - No broad feature expansion unrelated to scaffold normalization.
