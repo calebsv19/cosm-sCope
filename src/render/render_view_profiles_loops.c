@@ -405,6 +405,81 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     }
 }
 
+static double datalab_loop_elapsed_sec(Uint64 begin_counter,
+                                       Uint64 end_counter,
+                                       Uint64 perf_freq) {
+    if (perf_freq == 0u || end_counter <= begin_counter) {
+        return 0.0;
+    }
+    return (double)(end_counter - begin_counter) / (double)perf_freq;
+}
+
+static void datalab_loop_handle_event(const SDL_Event *event,
+                                      DatalabInputFrame *input_frame,
+                                      DatalabAppState *app_state,
+                                      int *quit,
+                                      int *resize_pending) {
+    DatalabWorkspaceAuthoringAdapterResult authoring_route = {0};
+    if (!event || !input_frame || !app_state || !quit || !resize_pending) {
+        return;
+    }
+    datalab_input_apply_event(input_frame, event);
+    if (event->type == SDL_QUIT) {
+        *quit = 1;
+    } else if (event->type == SDL_WINDOWEVENT) {
+        *resize_pending = 1;
+    }
+    if (datalab_workspace_authoring_route_mouse_event(event, app_state)) {
+        return;
+    }
+    if (event->type == SDL_KEYDOWN) {
+        datalab_workspace_authoring_route_keydown(&event->key, app_state, &authoring_route);
+        if (!authoring_route.consumed) {
+            datalab_handle_keydown(&event->key, app_state, quit);
+        }
+    }
+}
+
+static void datalab_loop_input_wait_and_drain(DatalabInputFrame *input_frame,
+                                              DatalabAppState *app_state,
+                                              int *quit,
+                                              int wait_timeout_ms,
+                                              uint32_t *out_wait_blocked_ms,
+                                              uint32_t *out_wait_call_count,
+                                              int *out_resize_pending) {
+    SDL_Event event;
+    if (!input_frame || !app_state || !quit || !out_wait_blocked_ms || !out_wait_call_count || !out_resize_pending) {
+        return;
+    }
+    if (wait_timeout_ms > 0) {
+        uint32_t wait_start = SDL_GetTicks();
+        if (SDL_WaitEventTimeout(&event, wait_timeout_ms) == 1) {
+            datalab_loop_handle_event(&event, input_frame, app_state, quit, out_resize_pending);
+        }
+        *out_wait_blocked_ms += (SDL_GetTicks() - wait_start);
+        *out_wait_call_count += 1u;
+    }
+    while (SDL_PollEvent(&event)) {
+        datalab_loop_handle_event(&event, input_frame, app_state, quit, out_resize_pending);
+    }
+}
+
+static void datalab_loop_update_wait_policy(DatalabLoopWaitPolicyInput *policy,
+                                            const DatalabInputFrame *input_frame,
+                                            const DatalabAppState *app_state,
+                                            int panel_rescan_pending,
+                                            int resize_pending) {
+    if (!policy || !input_frame || !app_state) {
+        return;
+    }
+    policy->high_intensity_mode = 0u;
+    policy->interaction_active = (input_frame->raw.sdl_event_count > 0u || app_state->workspace_authoring_pending_stub)
+                                     ? 1u
+                                     : 0u;
+    policy->background_busy = panel_rescan_pending ? 1u : 0u;
+    policy->resize_pending = resize_pending ? 1u : 0u;
+}
+
 CoreResult render_physics_loop(SDL_Window *window,
                                SDL_Renderer *renderer,
                                const DatalabFrame *frame,
@@ -499,28 +574,33 @@ CoreResult render_physics_loop(SDL_Window *window,
     }
 
     int quit = 0;
+    Uint64 perf_freq = SDL_GetPerformanceFrequency();
+    DatalabLoopWaitPolicyInput wait_policy_input = {0};
     DatalabInputDiagTotals ir1_diag_totals = {0};
     DatalabRenderDiagTotals rs1_diag_totals = {0};
+    wait_policy_input.interaction_active = 1u;
     while (!quit) {
-        SDL_Event e;
         DatalabInputFrame input_frame;
-        DatalabWorkspaceAuthoringAdapterResult authoring_route;
+        int panel_rescan_pending = 0;
+        int resize_pending = 0;
+        int wait_timeout_ms = 0;
+        uint32_t wait_blocked_ms = 0u;
+        uint32_t wait_call_count = 0u;
+        Uint64 frame_begin_counter = SDL_GetPerformanceCounter();
+        double frame_elapsed_sec = 0.0;
         DatalabPhysicsRenderDeriveFrame render_derive;
         DatalabRenderSubmitOutcome render_submit;
+
+        wait_timeout_ms = datalab_loop_compute_wait_timeout_ms(&wait_policy_input);
         datalab_input_frame_begin(&input_frame);
-        while (SDL_PollEvent(&e)) {
-            datalab_input_apply_event(&input_frame, &e);
-            if (e.type == SDL_QUIT) quit = 1;
-            if (datalab_workspace_authoring_route_mouse_event(&e, app_state)) {
-                continue;
-            }
-            if (e.type == SDL_KEYDOWN) {
-                datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);
-                if (!authoring_route.consumed) {
-                    datalab_handle_keydown(&e.key, app_state, &quit);
-                }
-            }
-        }
+        datalab_loop_input_wait_and_drain(&input_frame,
+                                          app_state,
+                                          &quit,
+                                          wait_timeout_ms,
+                                          &wait_blocked_ms,
+                                          &wait_call_count,
+                                          &resize_pending);
+        panel_rescan_pending = app_state->panel_rescan_requested;
         datalab_panel_tick(app_state);
         if (app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0') {
             break;
@@ -563,6 +643,15 @@ CoreResult render_physics_loop(SDL_Window *window,
                                             &render_derive,
                                             &render_submit);
         datalab_rs1_diag_note("physics", &rs1_diag_totals, &render_submit);
+        frame_elapsed_sec = datalab_loop_elapsed_sec(frame_begin_counter,
+                                                     SDL_GetPerformanceCounter(),
+                                                     perf_freq);
+        datalab_loop_diag_tick(frame_elapsed_sec, wait_blocked_ms, wait_call_count);
+        datalab_loop_update_wait_policy(&wait_policy_input,
+                                        &input_frame,
+                                        app_state,
+                                        panel_rescan_pending,
+                                        resize_pending);
         if (render_submit.result.code != CORE_OK) {
             core_free(density_rgba);
             core_free(speed_rgba);
@@ -586,30 +675,33 @@ CoreResult render_daw_loop(SDL_Window *window,
                            const DatalabFrame *frame,
                            DatalabAppState *app_state) {
     int quit = 0;
+    Uint64 perf_freq = SDL_GetPerformanceFrequency();
+    DatalabLoopWaitPolicyInput wait_policy_input = {0};
     DatalabInputDiagTotals ir1_diag_totals = {0};
     DatalabRenderDiagTotals rs1_diag_totals = {0};
+    wait_policy_input.interaction_active = 1u;
     while (!quit) {
-        SDL_Event e;
         DatalabInputFrame input_frame;
-        DatalabWorkspaceAuthoringAdapterResult authoring_route;
+        int panel_rescan_pending = 0;
+        int resize_pending = 0;
+        int wait_timeout_ms = 0;
+        uint32_t wait_blocked_ms = 0u;
+        uint32_t wait_call_count = 0u;
+        Uint64 frame_begin_counter = SDL_GetPerformanceCounter();
+        double frame_elapsed_sec = 0.0;
         DatalabRenderDeriveFrame render_derive;
         DatalabRenderSubmitOutcome render_submit;
+
+        wait_timeout_ms = datalab_loop_compute_wait_timeout_ms(&wait_policy_input);
         datalab_input_frame_begin(&input_frame);
-        while (SDL_PollEvent(&e)) {
-            datalab_input_apply_event(&input_frame, &e);
-            if (e.type == SDL_QUIT) {
-                quit = 1;
-            }
-            if (datalab_workspace_authoring_route_mouse_event(&e, app_state)) {
-                continue;
-            }
-            if (e.type == SDL_KEYDOWN) {
-                datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);
-                if (!authoring_route.consumed) {
-                    datalab_handle_keydown(&e.key, app_state, &quit);
-                }
-            }
-        }
+        datalab_loop_input_wait_and_drain(&input_frame,
+                                          app_state,
+                                          &quit,
+                                          wait_timeout_ms,
+                                          &wait_blocked_ms,
+                                          &wait_call_count,
+                                          &resize_pending);
+        panel_rescan_pending = app_state->panel_rescan_requested;
         datalab_panel_tick(app_state);
         if (app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0') {
             break;
@@ -639,6 +731,15 @@ CoreResult render_daw_loop(SDL_Window *window,
         datalab_render_derive_frame(frame, app_state, &render_derive);
         datalab_daw_render_submit_frame(window, renderer, frame, app_state, &render_derive, &render_submit);
         datalab_rs1_diag_note("daw", &rs1_diag_totals, &render_submit);
+        frame_elapsed_sec = datalab_loop_elapsed_sec(frame_begin_counter,
+                                                     SDL_GetPerformanceCounter(),
+                                                     perf_freq);
+        datalab_loop_diag_tick(frame_elapsed_sec, wait_blocked_ms, wait_call_count);
+        datalab_loop_update_wait_policy(&wait_policy_input,
+                                        &input_frame,
+                                        app_state,
+                                        panel_rescan_pending,
+                                        resize_pending);
         if (render_submit.result.code != CORE_OK) {
             return render_submit.result;
         }
@@ -652,30 +753,33 @@ CoreResult render_trace_loop(SDL_Window *window,
                              const DatalabFrame *frame,
                              DatalabAppState *app_state) {
     int quit = 0;
+    Uint64 perf_freq = SDL_GetPerformanceFrequency();
+    DatalabLoopWaitPolicyInput wait_policy_input = {0};
     DatalabInputDiagTotals ir1_diag_totals = {0};
     DatalabRenderDiagTotals rs1_diag_totals = {0};
+    wait_policy_input.interaction_active = 1u;
     while (!quit) {
-        SDL_Event e;
         DatalabInputFrame input_frame;
-        DatalabWorkspaceAuthoringAdapterResult authoring_route;
+        int panel_rescan_pending = 0;
+        int resize_pending = 0;
+        int wait_timeout_ms = 0;
+        uint32_t wait_blocked_ms = 0u;
+        uint32_t wait_call_count = 0u;
+        Uint64 frame_begin_counter = SDL_GetPerformanceCounter();
+        double frame_elapsed_sec = 0.0;
         DatalabRenderDeriveFrame render_derive;
         DatalabRenderSubmitOutcome render_submit;
+
+        wait_timeout_ms = datalab_loop_compute_wait_timeout_ms(&wait_policy_input);
         datalab_input_frame_begin(&input_frame);
-        while (SDL_PollEvent(&e)) {
-            datalab_input_apply_event(&input_frame, &e);
-            if (e.type == SDL_QUIT) {
-                quit = 1;
-            }
-            if (datalab_workspace_authoring_route_mouse_event(&e, app_state)) {
-                continue;
-            }
-            if (e.type == SDL_KEYDOWN) {
-                datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);
-                if (!authoring_route.consumed) {
-                    datalab_handle_keydown(&e.key, app_state, &quit);
-                }
-            }
-        }
+        datalab_loop_input_wait_and_drain(&input_frame,
+                                          app_state,
+                                          &quit,
+                                          wait_timeout_ms,
+                                          &wait_blocked_ms,
+                                          &wait_call_count,
+                                          &resize_pending);
+        panel_rescan_pending = app_state->panel_rescan_requested;
         datalab_panel_tick(app_state);
         if (app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0') {
             break;
@@ -705,6 +809,15 @@ CoreResult render_trace_loop(SDL_Window *window,
         datalab_render_derive_frame(frame, app_state, &render_derive);
         datalab_trace_render_submit_frame(window, renderer, frame, app_state, &render_derive, &render_submit);
         datalab_rs1_diag_note("trace", &rs1_diag_totals, &render_submit);
+        frame_elapsed_sec = datalab_loop_elapsed_sec(frame_begin_counter,
+                                                     SDL_GetPerformanceCounter(),
+                                                     perf_freq);
+        datalab_loop_diag_tick(frame_elapsed_sec, wait_blocked_ms, wait_call_count);
+        datalab_loop_update_wait_policy(&wait_policy_input,
+                                        &input_frame,
+                                        app_state,
+                                        panel_rescan_pending,
+                                        resize_pending);
         if (render_submit.result.code != CORE_OK) {
             return render_submit.result;
         }

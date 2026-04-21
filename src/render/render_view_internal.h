@@ -64,6 +64,13 @@ typedef struct DatalabInputDiagTotals {
     uint64_t invalidation_reason_bits_total;
 } DatalabInputDiagTotals;
 
+typedef struct DatalabLoopWaitPolicyInput {
+    uint8_t high_intensity_mode;
+    uint8_t interaction_active;
+    uint8_t background_busy;
+    uint8_t resize_pending;
+} DatalabLoopWaitPolicyInput;
+
 typedef struct DatalabWorkspaceAuthoringAdapterResult {
     uint8_t consumed;
     uint8_t entered_authoring;
@@ -93,6 +100,10 @@ typedef struct DatalabPhysicsRenderDeriveFrame {
 
 int datalab_ir1_diag_enabled(void);
 int datalab_rs1_diag_enabled(void);
+int datalab_loop_compute_wait_timeout_ms(const DatalabLoopWaitPolicyInput *input);
+void datalab_loop_diag_tick(double frame_elapsed_sec,
+                            uint32_t wait_blocked_ms,
+                            uint32_t wait_call_count);
 
 void datalab_input_frame_begin(DatalabInputFrame *frame);
 void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event);
