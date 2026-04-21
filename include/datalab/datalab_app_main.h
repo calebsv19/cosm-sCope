@@ -10,6 +10,11 @@ typedef struct DatalabAppRuntime {
     int no_gui;
     int show_help;
     int text_zoom_step;
+    uint8_t workspace_authoring_theme_preset_id;
+    DatalabWorkspaceCustomTheme workspace_authoring_custom_theme;
+    uint8_t workspace_authoring_custom_theme_active_slot;
+    DatalabWorkspaceCustomTheme workspace_authoring_custom_theme_slots[DATALAB_CUSTOM_THEME_SLOT_COUNT];
+    char workspace_authoring_custom_theme_slot_names[DATALAB_CUSTOM_THEME_SLOT_COUNT][DATALAB_CUSTOM_THEME_NAME_CAP];
     int frame_loaded;
     int input_root_from_cli;
     char input_root[DATALAB_APP_PATH_CAP];

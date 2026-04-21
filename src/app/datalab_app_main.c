@@ -137,12 +137,34 @@ static void datalab_print_usage(const char *argv0) {
 }
 
 void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
+    int i = 0;
     if (!runtime) {
         return;
     }
     memset(runtime, 0, sizeof(*runtime));
     datalab_frame_init(&runtime->frame);
     snprintf(runtime->input_root, sizeof(runtime->input_root), "%s", k_datalab_default_input_root);
+    runtime->workspace_authoring_theme_preset_id =
+        (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    runtime->workspace_authoring_custom_theme = (DatalabWorkspaceCustomTheme){
+        12, 14, 20,
+        54, 36, 74,
+        24, 28, 38,
+        112, 124, 146,
+        226, 234, 246,
+        178, 194, 220,
+        34, 40, 58,
+        48, 58, 84,
+        116, 136, 184
+    };
+    runtime->workspace_authoring_custom_theme_active_slot = 0u;
+    for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+        runtime->workspace_authoring_custom_theme_slots[i] = runtime->workspace_authoring_custom_theme;
+        (void)snprintf(runtime->workspace_authoring_custom_theme_slot_names[i],
+                       DATALAB_CUSTOM_THEME_NAME_CAP,
+                       "custom_%d",
+                       i + 1);
+    }
     runtime->input_root_from_cli = 0;
     runtime->selected_pack_path[0] = '\0';
 }
@@ -200,6 +222,12 @@ int datalab_app_bootstrap(int argc, char **argv, DatalabAppRuntime *runtime) {
 
 static int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
     int loaded_step = 0;
+    uint8_t loaded_theme_preset = 0u;
+    uint8_t loaded_custom_slot = 0u;
+    int i = 0;
+    DatalabWorkspaceCustomTheme loaded_custom_theme;
+    DatalabWorkspaceCustomTheme loaded_custom_slots[DATALAB_CUSTOM_THEME_SLOT_COUNT];
+    char loaded_custom_slot_names[DATALAB_CUSTOM_THEME_SLOT_COUNT][DATALAB_CUSTOM_THEME_NAME_CAP];
     char loaded_input_root[DATALAB_APP_PATH_CAP];
     DatalabAppRuntime *runtime = NULL;
     if (!ctx) {
@@ -216,6 +244,42 @@ static int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
     if (datalab_runtime_prefs_load_text_zoom_step(&loaded_step)) {
         runtime->text_zoom_step = loaded_step;
     }
+    runtime->workspace_authoring_theme_preset_id =
+        (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    loaded_custom_theme = runtime->workspace_authoring_custom_theme;
+    for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+        loaded_custom_slots[i] = runtime->workspace_authoring_custom_theme_slots[i];
+        (void)snprintf(loaded_custom_slot_names[i],
+                       DATALAB_CUSTOM_THEME_NAME_CAP,
+                       "%s",
+                       runtime->workspace_authoring_custom_theme_slot_names[i]);
+    }
+    if (datalab_runtime_prefs_load_theme_preset_id(&loaded_theme_preset)) {
+        runtime->workspace_authoring_theme_preset_id = loaded_theme_preset;
+    }
+    if (datalab_runtime_prefs_load_custom_theme_slots(loaded_custom_slots, DATALAB_CUSTOM_THEME_SLOT_COUNT)) {
+        for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+            runtime->workspace_authoring_custom_theme_slots[i] = loaded_custom_slots[i];
+        }
+    } else if (datalab_runtime_prefs_load_custom_theme(&loaded_custom_theme)) {
+        runtime->workspace_authoring_custom_theme_slots[0] = loaded_custom_theme;
+    }
+    if (datalab_runtime_prefs_load_custom_theme_slot_names(loaded_custom_slot_names, DATALAB_CUSTOM_THEME_SLOT_COUNT)) {
+        for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+            (void)snprintf(runtime->workspace_authoring_custom_theme_slot_names[i],
+                           DATALAB_CUSTOM_THEME_NAME_CAP,
+                           "%s",
+                           loaded_custom_slot_names[i]);
+        }
+    }
+    if (datalab_runtime_prefs_load_custom_theme_active_slot(&loaded_custom_slot)) {
+        runtime->workspace_authoring_custom_theme_active_slot = loaded_custom_slot;
+    }
+    if (runtime->workspace_authoring_custom_theme_active_slot >= DATALAB_CUSTOM_THEME_SLOT_COUNT) {
+        runtime->workspace_authoring_custom_theme_active_slot = 0u;
+    }
+    runtime->workspace_authoring_custom_theme =
+        runtime->workspace_authoring_custom_theme_slots[runtime->workspace_authoring_custom_theme_active_slot];
     if (runtime->input_root[0] == '\0') {
         snprintf(runtime->input_root, sizeof(runtime->input_root), "%s", k_datalab_default_input_root);
     }
@@ -310,6 +374,7 @@ int datalab_app_state_seed(DatalabAppRuntime *runtime) {
 }
 
 int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app_state) {
+    int i = 0;
     if (!runtime) {
         return 1;
     }
@@ -322,6 +387,30 @@ int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app
 
     datalab_app_state_init(app_state, runtime->pack_path, runtime->frame.profile);
     app_state->text_zoom_step = runtime->text_zoom_step;
+    app_state->workspace_authoring_theme_preset_id = runtime->workspace_authoring_theme_preset_id;
+    app_state->workspace_authoring_custom_theme_active_slot =
+        runtime->workspace_authoring_custom_theme_active_slot;
+    for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+        app_state->workspace_authoring_custom_theme_slots[i] =
+            runtime->workspace_authoring_custom_theme_slots[i];
+        (void)snprintf(app_state->workspace_authoring_custom_theme_slot_names[i],
+                       DATALAB_CUSTOM_THEME_NAME_CAP,
+                       "%s",
+                       runtime->workspace_authoring_custom_theme_slot_names[i]);
+    }
+    app_state->workspace_authoring_custom_theme = runtime->workspace_authoring_custom_theme;
+    app_state->workspace_authoring_entry_text_zoom_step = app_state->text_zoom_step;
+    app_state->workspace_authoring_entry_theme_preset_id = app_state->workspace_authoring_theme_preset_id;
+    app_state->workspace_authoring_entry_custom_theme_active_slot =
+        app_state->workspace_authoring_custom_theme_active_slot;
+    for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+        app_state->workspace_authoring_entry_custom_theme_slots[i] =
+            app_state->workspace_authoring_custom_theme_slots[i];
+        (void)snprintf(app_state->workspace_authoring_entry_custom_theme_slot_names[i],
+                       DATALAB_CUSTOM_THEME_NAME_CAP,
+                       "%s",
+                       app_state->workspace_authoring_custom_theme_slot_names[i]);
+    }
     snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", runtime->input_root);
     app_state->open_picker_requested = 0;
     return 0;
@@ -343,6 +432,8 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                                                       runtime->input_root,
                                                       sizeof(runtime->input_root),
                                                       &runtime->text_zoom_step,
+                                                      &runtime->workspace_authoring_theme_preset_id,
+                                                      &runtime->workspace_authoring_custom_theme,
                                                       &picker_enter_authoring,
                                                       runtime->selected_pack_path,
                                                       sizeof(runtime->selected_pack_path));
@@ -366,8 +457,34 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                 return 2;
             }
             if (app_state) {
+                int i = 0;
                 datalab_app_state_init(app_state, runtime->pack_path, runtime->frame.profile);
                 app_state->text_zoom_step = runtime->text_zoom_step;
+                app_state->workspace_authoring_theme_preset_id = runtime->workspace_authoring_theme_preset_id;
+                app_state->workspace_authoring_custom_theme_active_slot =
+                    runtime->workspace_authoring_custom_theme_active_slot;
+                for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+                    app_state->workspace_authoring_custom_theme_slots[i] =
+                        runtime->workspace_authoring_custom_theme_slots[i];
+                    (void)snprintf(app_state->workspace_authoring_custom_theme_slot_names[i],
+                                   DATALAB_CUSTOM_THEME_NAME_CAP,
+                                   "%s",
+                                   runtime->workspace_authoring_custom_theme_slot_names[i]);
+                }
+                app_state->workspace_authoring_custom_theme = runtime->workspace_authoring_custom_theme;
+                app_state->workspace_authoring_entry_text_zoom_step = app_state->text_zoom_step;
+                app_state->workspace_authoring_entry_theme_preset_id =
+                    app_state->workspace_authoring_theme_preset_id;
+                app_state->workspace_authoring_entry_custom_theme_active_slot =
+                    app_state->workspace_authoring_custom_theme_active_slot;
+                for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+                    app_state->workspace_authoring_entry_custom_theme_slots[i] =
+                        app_state->workspace_authoring_custom_theme_slots[i];
+                    (void)snprintf(app_state->workspace_authoring_entry_custom_theme_slot_names[i],
+                                   DATALAB_CUSTOM_THEME_NAME_CAP,
+                                   "%s",
+                                   app_state->workspace_authoring_custom_theme_slot_names[i]);
+                }
                 snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", runtime->input_root);
                 app_state->open_picker_requested = 0;
                 app_state->panel_rescan_requested = 1;
@@ -376,6 +493,8 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                     app_state->workspace_authoring_overlay_mode =
                         DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
                     app_state->workspace_authoring_pending_stub = 0u;
+                    app_state->workspace_authoring_entry_theme_preset_id =
+                        app_state->workspace_authoring_theme_preset_id;
                     app_state->workspace_authoring_entry_count += 1u;
                     picker_enter_authoring = 0;
                 }
@@ -383,7 +502,30 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
         }
 
         run_r = datalab_render_run(&runtime->frame, app_state);
+        if (app_state) {
+            int i = 0;
+            runtime->workspace_authoring_theme_preset_id = app_state->workspace_authoring_theme_preset_id;
+            runtime->workspace_authoring_custom_theme_active_slot =
+                app_state->workspace_authoring_custom_theme_active_slot;
+            runtime->workspace_authoring_custom_theme = app_state->workspace_authoring_custom_theme;
+            for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+                runtime->workspace_authoring_custom_theme_slots[i] =
+                    app_state->workspace_authoring_custom_theme_slots[i];
+                (void)snprintf(runtime->workspace_authoring_custom_theme_slot_names[i],
+                               DATALAB_CUSTOM_THEME_NAME_CAP,
+                               "%s",
+                               app_state->workspace_authoring_custom_theme_slot_names[i]);
+            }
+            runtime->text_zoom_step = app_state->text_zoom_step;
+        }
         datalab_runtime_prefs_save_text_zoom_step(app_state ? app_state->text_zoom_step : runtime->text_zoom_step);
+        datalab_runtime_prefs_save_theme_preset_id(runtime->workspace_authoring_theme_preset_id);
+        datalab_runtime_prefs_save_custom_theme(&runtime->workspace_authoring_custom_theme);
+        datalab_runtime_prefs_save_custom_theme_slots(runtime->workspace_authoring_custom_theme_slots,
+                                                      DATALAB_CUSTOM_THEME_SLOT_COUNT);
+        datalab_runtime_prefs_save_custom_theme_slot_names(runtime->workspace_authoring_custom_theme_slot_names,
+                                                           DATALAB_CUSTOM_THEME_SLOT_COUNT);
+        datalab_runtime_prefs_save_custom_theme_active_slot(runtime->workspace_authoring_custom_theme_active_slot);
         datalab_runtime_prefs_save_input_root(runtime->input_root);
         if (run_r.code != CORE_OK) {
             fprintf(stderr, "datalab: render failed: %s\n", run_r.message);

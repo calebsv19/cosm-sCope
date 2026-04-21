@@ -697,6 +697,100 @@ void datalab_physics_render_derive_frame(SDL_Renderer *renderer,
     calc_fit_rect(ww, wh, frame->width, frame->height, &out_derive->dst);
 }
 
+static void datalab_draw_workspace_authoring_overlay(SDL_Renderer *renderer,
+                                                     const DatalabAppState *app_state) {
+    SDL_Rect bar = {0};
+    SDL_Rect clip_rect = {0};
+    int ww = 0;
+    int wh = 0;
+    int line_h = 0;
+    int pad = 0;
+    int row_gap = 0;
+    int y = 0;
+    const char *mode_name = NULL;
+    char status_line[224];
+    const char *help_line = "ALT+C+V toggle | TAB overlay | ENTER apply | ESC cancel";
+
+    if (!renderer || !app_state) {
+        return;
+    }
+
+    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    if (ww <= 0 || wh <= 0) {
+        return;
+    }
+
+    line_h = datalab_text_line_height(1);
+    pad = datalab_scaled_px(4.0f);
+    row_gap = datalab_scaled_px(2.0f);
+    if (app_state->workspace_authoring_stub_active) {
+        bar.h = line_h + row_gap + line_h + (pad * 2);
+    } else {
+        bar.h = line_h + (pad * 2);
+    }
+    bar.x = 0;
+    bar.y = 0;
+    bar.w = ww;
+    if (bar.h > wh) {
+        bar.h = wh;
+    }
+
+    mode_name = datalab_workspace_authoring_overlay_mode_name(app_state->workspace_authoring_overlay_mode);
+    if (!mode_name) {
+        mode_name = "unknown";
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    if (app_state->workspace_authoring_stub_active) {
+        SDL_SetRenderDrawColor(renderer, 8, 14, 26, 224);
+    } else {
+        SDL_SetRenderDrawColor(renderer, 8, 12, 18, 148);
+    }
+    SDL_RenderFillRect(renderer, &bar);
+    if (app_state->workspace_authoring_stub_active) {
+        SDL_SetRenderDrawColor(renderer, 115, 186, 240, 235);
+    } else {
+        SDL_SetRenderDrawColor(renderer, 75, 90, 112, 210);
+    }
+    SDL_RenderDrawRect(renderer, &bar);
+
+    if (app_state->workspace_authoring_stub_active) {
+        SDL_Rect accent = {0, 0, datalab_scaled_px(5.0f), bar.h};
+        if (app_state->workspace_authoring_overlay_mode == DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME) {
+            SDL_SetRenderDrawColor(renderer, 176, 146, 255, 235);
+        } else {
+            SDL_SetRenderDrawColor(renderer, 84, 202, 168, 235);
+        }
+        SDL_RenderFillRect(renderer, &accent);
+    }
+
+    clip_rect.x = datalab_scaled_px(8.0f);
+    clip_rect.y = 1;
+    clip_rect.w = ww - (datalab_scaled_px(16.0f));
+    clip_rect.h = bar.h - 2;
+    if (clip_rect.w <= 0 || clip_rect.h <= 0) {
+        return;
+    }
+
+    y = bar.y + pad;
+    if (app_state->workspace_authoring_stub_active) {
+        snprintf(status_line,
+                 sizeof(status_line),
+                 "AUTHORING ON | OVERLAY:%s | PENDING:%u | APPLY:%u | CANCEL:%u | ENTRY:%u",
+                 mode_name,
+                 (unsigned int)app_state->workspace_authoring_pending_stub,
+                 (unsigned int)app_state->workspace_authoring_apply_count,
+                 (unsigned int)app_state->workspace_authoring_cancel_count,
+                 (unsigned int)app_state->workspace_authoring_entry_count);
+        draw_text_5x7_clipped(renderer, &clip_rect, clip_rect.x, y, status_line, 1, 215, 230, 245, 255);
+        y += line_h + row_gap;
+        draw_text_5x7_clipped(renderer, &clip_rect, clip_rect.x, y, help_line, 1, 170, 190, 220, 255);
+    } else {
+        snprintf(status_line, sizeof(status_line), "AUTHORING OFF | ALT+C+V enter runtime overlay");
+        draw_text_5x7_clipped(renderer, &clip_rect, clip_rect.x, y, status_line, 1, 160, 174, 192, 255);
+    }
+}
+
 void datalab_physics_render_submit_frame(SDL_Window *window,
                                          SDL_Renderer *renderer,
                                          SDL_Texture *texture,
@@ -716,6 +810,15 @@ void datalab_physics_render_submit_frame(SDL_Window *window,
     }
 
     datalab_sync_text_zoom(app_state);
+    if (app_state->workspace_authoring_stub_active) {
+        datalab_workspace_authoring_submit_takeover(window,
+                                                    renderer,
+                                                    frame,
+                                                    app_state,
+                                                    derive->common.title,
+                                                    outcome);
+        return;
+    }
     SDL_UpdateTexture(texture, NULL, derive->pixels, (int)frame->width * 4);
     SDL_SetRenderDrawColor(renderer, 10, 10, 14, 255);
     SDL_RenderClear(renderer);
@@ -746,6 +849,7 @@ void datalab_physics_render_submit_frame(SDL_Window *window,
     }
 
     datalab_draw_session_controls(renderer, app_state);
+    datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->common.title);
     SDL_RenderPresent(renderer);
     outcome->presented = 1u;
@@ -766,8 +870,18 @@ void datalab_daw_render_submit_frame(SDL_Window *window,
         outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid daw render submit request" };
         return;
     }
+    if (app_state->workspace_authoring_stub_active) {
+        datalab_workspace_authoring_submit_takeover(window,
+                                                    renderer,
+                                                    frame,
+                                                    app_state,
+                                                    derive->title,
+                                                    outcome);
+        return;
+    }
     render_daw_frame(renderer, frame, app_state);
     datalab_draw_session_controls(renderer, app_state);
+    datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->title);
     SDL_RenderPresent(renderer);
     outcome->presented = 1u;
@@ -788,8 +902,18 @@ void datalab_trace_render_submit_frame(SDL_Window *window,
         outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid trace render submit request" };
         return;
     }
+    if (app_state->workspace_authoring_stub_active) {
+        datalab_workspace_authoring_submit_takeover(window,
+                                                    renderer,
+                                                    frame,
+                                                    app_state,
+                                                    derive->title,
+                                                    outcome);
+        return;
+    }
     render_trace_frame(renderer, frame, app_state);
     datalab_draw_session_controls(renderer, app_state);
+    datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->title);
     SDL_RenderPresent(renderer);
     outcome->presented = 1u;

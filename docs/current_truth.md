@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-04-15
+Last updated: 2026-04-16
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -173,6 +173,13 @@ Legacy test lane:
 - Runtime-persisted mutable app state also includes input root:
   - `data/runtime/input_root.txt`
   - loaded at startup and saved on runtime exit
+- Runtime-persisted mutable app state also includes authoring theme state:
+  - `data/runtime/theme_preset_id.txt`
+  - `data/runtime/custom_theme_v1.txt`
+  - `data/runtime/custom_theme_slots_v1.txt`
+  - `data/runtime/custom_theme_slot_names_v1.txt`
+  - `data/runtime/custom_theme_active_slot.txt`
+  - startup loads selected preset + custom payload/slots and runtime shutdown saves all theme artifacts
 - Policy lock for future persistence work:
   - committed defaults go under `config/`
   - mutable runtime state goes under ignored `data/runtime/`
@@ -206,22 +213,71 @@ Legacy test lane:
   - `DL0` complete (baseline + attach-contract freeze, docs pass)
   - `DL1` complete (host adapter seam + entry-chord suppression path)
   - `DL2` complete (authoring-first `Tab`/`Enter`/`Esc` routing parity in host stub)
-  - `DL3` next (bridge host stub behavior to workspace runtime attach surface)
-- `DL1` + `DL2` implemented behavior:
-  - profile runtime loops now route `SDL_KEYDOWN` through a host authoring adapter before `datalab_handle_keydown(...)`
-  - `Alt+C+V` chord progression is consumed in adapter and no longer leaks `Alt+C` into Trace lane-cycle action
-  - successful chord sequence sets host authoring stub-active state (`workspace_authoring_stub_active`) and increments entry count
-  - startup picker now accepts `Alt+C+V` to open selected pack and enter authoring immediately
-  - while authoring stub is active, adapter consumes:
+  - `DL3` complete (shared authoring kit adapter attach in runtime + picker loops)
+  - `AR3` complete (authoring-active render takeover wired through shared derive/submit seam)
+  - `AR4` complete (cross-host parity/stress: strict entry-chord modifier policy + conflict matrix + packaged-host verification)
+  - `AR4b` complete (interactive font/theme controls + authoring mouse routing + apply/cancel baseline reactivity)
+  - `DL4` complete (closeout/docs + reusable host attach checklist publication)
+- `DL1` through `AR4b` implemented behavior:
+  - profile runtime loops route `SDL_KEYDOWN` through a host authoring adapter before `datalab_handle_keydown(...)`
+  - `Alt+C+V` chord progression is consumed in adapter and does not leak `Alt+C` into Trace lane-cycle action
+  - `Alt+C+V` now only matches with `Alt` as the sole modifier (`Shift`/`Ctrl`/`GUI` fail entry by contract)
+  - successful chord sequence toggles host authoring active state (`workspace_authoring_stub_active`) and increments entry count on entry
+  - startup picker uses the same shared chord detector for `Alt+C+V` open+author flow
+  - while authoring is active, adapter consumes:
     - `Tab` to cycle overlay mode (`pane` / `font-theme`)
-    - `Enter` to apply stub (clear pending draft)
-    - `Esc` to cancel stub and exit authoring mode
-  - while in profile runtime loops, `Alt+C+V` now toggles authoring mode on/off
-  - host state now tracks overlay mode + pending flag + cycle/apply/cancel counters
-  - window title now includes `auth=on/off`, overlay name, and pending flag
-- explicit `DL2` boundary:
-  - no pane/font-theme overlay rendering is attached yet
-  - authoring behavior is still host-stub parity (shared runtime attach bridge not landed yet)
+    - `Enter` to apply (clear pending draft)
+    - `Esc` to cancel and exit authoring mode
+  - while in profile runtime loops, `Alt+C+V` toggles authoring mode on/off
+  - profile runtime loops and picker now route authoring mouse events first while authoring is active
+    (overlay top buttons and font/theme controls consume click input before host handlers)
+  - host state tracks overlay mode + pending flag + cycle/apply/cancel counters
+  - font/theme overlay controls are now live-reactive in DataLab host:
+    - text size: `-`, `+`, `Reset`
+    - theme presets: `daw_default`, `standard_grey`, `midnight_contrast`, `soft_light`, `greyscale`
+  - startup + runtime re-open picker surface now reflects current theme preset selection:
+    - picker chrome/background/list selection colors derive from `workspace_authoring_theme_preset_id`
+    - picker function now round-trips theme preset via runtime handoff
+    - runtime preference persistence now includes `data/runtime/theme_preset_id.txt`
+  - apply/cancel semantics now include full draft baseline snapshots:
+    - `Apply` commits text-size/theme/custom-theme baseline state for the active session
+    - `Cancel` reverts text-size/theme/custom-theme payload to entry baseline and exits authoring mode
+  - adapter routing resolves entry/trigger/action paths through shared `kit_workspace_authoring` contracts
+  - window title includes `auth=on/off`, overlay name, and pending flag
+  - when authoring is active, render submit lanes now short-circuit to `datalab_workspace_authoring_submit_takeover(...)`
+    and submit via shared `kit_workspace_authoring_ui_derive_frame(...)` + `kit_workspace_authoring_ui_submit_frame(...)`
+  - non-authoring runtime render behavior remains unchanged
+- explicit post-`AR4b` boundary:
+  - shared-kit parity/stress pass is complete for the current DataLab host attach.
+  - reusable host attach checklist is published in shared public docs:
+    - `/Users/calebsv/Desktop/CodeWork/shared/docs/WORKSPACE_AUTHORING_HOST_ADOPTION_GUIDE.md`
+  - next split is now explicit:
+    - multi-host adoption track
+    - shared authoring capability expansion track
+  - custom-theme capability expansion is active:
+    - font/theme lane exposes full custom-theme popup lifecycle (open + close button + `Esc` close)
+    - popup now renders all token rows (`clear`, `pane_fill`, `shell_fill`, `shell_border`, `text_primary`,
+      `text_secondary`, `button_fill`, `button_hover`, `button_active`) with live RGB editing controls
+    - keyboard parity is wired while popup is open: `Up/Down` token, `Left/Right` or `Tab` channel, `+/-` adjust
+    - intelligent assist is now available in popup (`Assist` button or `A` key) and derives a readable full token set
+      from the currently selected token color with text-contrast guards for primary/secondary labels
+    - `C3` create/edit workflow is now live:
+      - `Create Custom` seeds a new custom draft from the currently active theme preset and opens the editor
+      - `Edit Custom` opens the selected custom slot editor and forces custom preset preview
+      - popup includes selected-token lane descriptions (not only token IDs)
+    - `C4` multi-slot custom-theme workflow is now live:
+      - `custom` remains the single public preset id, but host state now tracks three internal custom slots
+      - font/theme takeover panel now exposes slot-select buttons (`slot1..slot3`) + `Rename` (stub name cycle)
+      - popup editing reads/writes the active slot payload and shows active slot/name context
+      - apply/cancel baseline snapshots now include custom slot payload array, slot names, and active slot index
+      - runtime persistence now round-trips slot payloads + names + active slot via:
+        - `data/runtime/custom_theme_slots_v1.txt`
+        - `data/runtime/custom_theme_slot_names_v1.txt`
+        - `data/runtime/custom_theme_active_slot.txt`
+  - `C2` is now complete for host-pilot persistence/parity:
+    - `custom` preset is selectable in the font/theme overlay preset row
+    - overlay + startup/runtime picker now both derive chrome colors from custom payload when preset is `custom`
+    - runtime persistence now round-trips custom payload via `data/runtime/custom_theme_v1.txt`
 
 ## Lifecycle Stage Symbol Lock
 - `datalab_app_bootstrap`

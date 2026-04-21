@@ -99,6 +99,8 @@ void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event)
 void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
                                                DatalabAppState *app_state,
                                                DatalabWorkspaceAuthoringAdapterResult *outcome);
+int datalab_workspace_authoring_route_mouse_event(const SDL_Event *event, DatalabAppState *app_state);
+CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_state, const char *action_id);
 
 void datalab_sync_text_zoom(const DatalabAppState *app_state);
 void datalab_set_text_zoom_step(int step);
@@ -164,6 +166,12 @@ void datalab_trace_render_submit_frame(SDL_Window *window,
                                        DatalabAppState *app_state,
                                        const DatalabRenderDeriveFrame *derive,
                                        DatalabRenderSubmitOutcome *outcome);
+void datalab_workspace_authoring_submit_takeover(SDL_Window *window,
+                                                 SDL_Renderer *renderer,
+                                                 const DatalabFrame *frame,
+                                                 const DatalabAppState *app_state,
+                                                 const char *title,
+                                                 DatalabRenderSubmitOutcome *outcome);
 void datalab_rs1_diag_note(const char *lane,
                            DatalabRenderDiagTotals *totals,
                            const DatalabRenderSubmitOutcome *submit);

@@ -511,6 +511,9 @@ CoreResult render_physics_loop(SDL_Window *window,
         while (SDL_PollEvent(&e)) {
             datalab_input_apply_event(&input_frame, &e);
             if (e.type == SDL_QUIT) quit = 1;
+            if (datalab_workspace_authoring_route_mouse_event(&e, app_state)) {
+                continue;
+            }
             if (e.type == SDL_KEYDOWN) {
                 datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);
                 if (!authoring_route.consumed) {
@@ -597,6 +600,9 @@ CoreResult render_daw_loop(SDL_Window *window,
             if (e.type == SDL_QUIT) {
                 quit = 1;
             }
+            if (datalab_workspace_authoring_route_mouse_event(&e, app_state)) {
+                continue;
+            }
             if (e.type == SDL_KEYDOWN) {
                 datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);
                 if (!authoring_route.consumed) {
@@ -659,6 +665,9 @@ CoreResult render_trace_loop(SDL_Window *window,
             datalab_input_apply_event(&input_frame, &e);
             if (e.type == SDL_QUIT) {
                 quit = 1;
+            }
+            if (datalab_workspace_authoring_route_mouse_event(&e, app_state)) {
+                continue;
             }
             if (e.type == SDL_KEYDOWN) {
                 datalab_workspace_authoring_route_keydown(&e.key, app_state, &authoring_route);

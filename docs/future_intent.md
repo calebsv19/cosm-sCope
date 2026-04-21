@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-04-15
+Last updated: 2026-04-16
 
 ## Scaffold Alignment Intent
 1. Keep DataLab stable as a pack viewer while scaffold lanes are normalized.
@@ -149,14 +149,47 @@ Last updated: 2026-04-15
     - host state now tracks overlay mode + pending stub + cycle/apply/cancel counters
     - title observability now includes overlay mode and pending state (`auth=<on|off>/<overlay> pending=<0|1>`)
     - follow-up hardening: startup picker now supports `Alt+C+V` open+author, and runtime `Alt+C+V` toggles authoring on/off
+  - `DL3` complete:
+    - host adapter entry/trigger/action routing now uses shared `kit_workspace_authoring` contract functions
+    - startup picker `Alt+C+V` path now uses the same shared entry-chord detector as runtime loops
+    - authoring-reserved keys are suppressed from host fallback while authoring mode is active
+  - `AR3` complete:
+    - profile submit lanes now short-circuit to authoring takeover while `workspace_authoring_stub_active` is set
+    - takeover submit path is wired through shared derive/submit seams:
+      - `kit_workspace_authoring_ui_derive_frame(...)`
+      - `kit_workspace_authoring_ui_submit_frame(...)`
+    - non-authoring render behavior remains host-native
+  - `AR4` complete:
+    - cross-host parity/stress pass validated strict `Alt+C+V` modifier policy, reserved-key conflict handling,
+      and packaged-host behavior gates.
+  - `AR4b` complete:
+    - font/theme overlay lane is now interactive in host takeover mode (theme preset buttons + text size `-`/`+`/`Reset`)
+    - authoring mouse events route first in active sessions so overlay controls can be clicked directly
+    - apply/cancel now use entry baselines for theme + text-size draft reactivity
+    - startup/runtime picker chrome now reflects the active theme preset, including persisted relaunch behavior
   - plan: `../../docs/private_program_docs/datalab/2026-04-15_datalab_workspace_host_integration_execution_plan.md`
-- next (`DL3`):
-  - replace host stub internals with real workspace runtime bridge calls
-  - keep adapter ownership in render profile loops while shifting state authority to workspace runtime boundary
-  - keep startup picker explicitly out of authoring-entry scope unless promoted in a later phase
-- then (`DL4`):
-  - host smoke verification
-  - closeout with reusable attach contract for additional hosts
+- next:
+  - host-pilot closeout is complete (`DL4` + shared-lane `AR5`)
+  - proceed in two parallel tracks:
+    - adopt shared authoring host contract in additional programs
+    - extend shared authoring capabilities in `kit_workspace_authoring` while preserving host contract
+  - current capability track progress:
+    - `C1-S1` popup lifecycle landed in DataLab host overlay
+    - `C1-S2` token editor rows are now active in DataLab host overlay (mouse + keyboard control lane)
+    - `C1-S3` intelligent assist is now active (base-color derived readable palette suggestions)
+    - `C1-S4` complete: `Apply` now commits full custom-theme baseline state and `Cancel` restores full entry baseline state
+      (text-size/theme/custom payload + popup selection focus)
+    - `C1` outcome contract is now complete in the DataLab host pilot lane
+    - `C2` complete (runtime persistence + relaunch/picker parity for custom preset payload)
+    - `C3` complete (custom preset create/edit workflow baseline):
+      - `Create Custom` seeds from active preset and opens the custom editor
+      - `Edit Custom` opens existing custom slot and previews it immediately
+      - popup includes lane descriptions for selected tokens
+    - `C4` complete (multi-slot custom preset management):
+      - host state now tracks three custom slots with persisted payloads, names, and active slot
+      - font/theme takeover panel now exposes slot-select and rename controls
+      - popup edit lane is active-slot aware; apply/cancel baseline includes full slot set
+    - next capability slice: full custom-theme editor UX (`C5`) for explicit per-token value entry/color picker flows
 
 ## Non-Goals During Scaffold Migration
 - No broad feature expansion unrelated to scaffold normalization.

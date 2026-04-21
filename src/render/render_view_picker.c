@@ -8,15 +8,169 @@
 #include <strings.h>
 #include <sys/stat.h>
 
+#include "kit_workspace_authoring.h"
+
 #define DATALAB_PICKER_MAX_FILES 256
 
-enum {
-    DATALAB_AUTHORING_CHORD_C = 1 << 0,
-    DATALAB_AUTHORING_CHORD_V = 1 << 1
-};
+typedef struct DatalabPickerThemePalette {
+    uint8_t clear_r, clear_g, clear_b;
+    uint8_t top_fill_r, top_fill_g, top_fill_b;
+    uint8_t list_fill_r, list_fill_g, list_fill_b;
+    uint8_t frame_r, frame_g, frame_b;
+    uint8_t text_primary_r, text_primary_g, text_primary_b;
+    uint8_t text_secondary_r, text_secondary_g, text_secondary_b;
+    uint8_t text_muted_r, text_muted_g, text_muted_b;
+    uint8_t text_success_r, text_success_g, text_success_b;
+    uint8_t text_empty_r, text_empty_g, text_empty_b;
+    uint8_t selected_fill_r, selected_fill_g, selected_fill_b;
+    uint8_t selected_border_r, selected_border_g, selected_border_b;
+} DatalabPickerThemePalette;
+
+static uint8_t datalab_picker_theme_preset_clamp(int value) {
+    if (value < (int)DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT) {
+        return (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT;
+    }
+    if (value > (int)DATALAB_WORKSPACE_AUTHORING_THEME_CUSTOM) {
+        return (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_CUSTOM;
+    }
+    return (uint8_t)value;
+}
+
+static void datalab_picker_theme_palette(uint8_t theme_preset_id,
+                                         const DatalabWorkspaceCustomTheme *custom_theme,
+                                         DatalabPickerThemePalette *out_palette) {
+    DatalabPickerThemePalette palette = {
+        11, 12, 16,
+        22, 25, 35,
+        20, 23, 31,
+        82, 88, 106,
+        220, 230, 240,
+        170, 185, 205,
+        205, 215, 230,
+        150, 210, 160,
+        230, 150, 140,
+        42, 62, 86,
+        90, 130, 180
+    };
+
+    switch ((DatalabWorkspaceAuthoringThemePreset)datalab_picker_theme_preset_clamp((int)theme_preset_id)) {
+        case DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT:
+            palette = (DatalabPickerThemePalette){
+                10, 12, 22,
+                18, 28, 52,
+                16, 24, 44,
+                102, 132, 188,
+                232, 240, 252,
+                180, 198, 226,
+                204, 218, 236,
+                160, 226, 180,
+                238, 168, 158,
+                38, 64, 104,
+                78, 128, 206
+            };
+            break;
+        case DATALAB_WORKSPACE_AUTHORING_THEME_STANDARD_GREY:
+            palette = (DatalabPickerThemePalette){
+                20, 22, 26,
+                34, 36, 42,
+                30, 32, 38,
+                124, 128, 138,
+                236, 238, 244,
+                188, 194, 206,
+                206, 210, 220,
+                164, 198, 172,
+                224, 164, 156,
+                52, 60, 72,
+                150, 156, 170
+            };
+            break;
+        case DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT:
+            palette = (DatalabPickerThemePalette){
+                232, 236, 244,
+                220, 228, 242,
+                212, 224, 240,
+                148, 162, 186,
+                40, 48, 66,
+                76, 90, 116,
+                68, 80, 102,
+                84, 124, 96,
+                152, 92, 92,
+                186, 206, 236,
+                132, 166, 210
+            };
+            break;
+        case DATALAB_WORKSPACE_AUTHORING_THEME_GREYSCALE:
+            palette = (DatalabPickerThemePalette){
+                18, 18, 18,
+                28, 28, 28,
+                24, 24, 24,
+                122, 122, 122,
+                232, 232, 232,
+                184, 184, 184,
+                204, 204, 204,
+                166, 196, 170,
+                216, 162, 156,
+                52, 52, 52,
+                142, 142, 142
+            };
+            break;
+        case DATALAB_WORKSPACE_AUTHORING_THEME_CUSTOM:
+            if (custom_theme) {
+                palette = (DatalabPickerThemePalette){
+                    custom_theme->clear_r, custom_theme->clear_g, custom_theme->clear_b,
+                    custom_theme->shell_fill_r, custom_theme->shell_fill_g, custom_theme->shell_fill_b,
+                    custom_theme->pane_fill_r, custom_theme->pane_fill_g, custom_theme->pane_fill_b,
+                    custom_theme->shell_border_r, custom_theme->shell_border_g, custom_theme->shell_border_b,
+                    custom_theme->text_primary_r, custom_theme->text_primary_g, custom_theme->text_primary_b,
+                    custom_theme->text_secondary_r, custom_theme->text_secondary_g, custom_theme->text_secondary_b,
+                    custom_theme->text_secondary_r, custom_theme->text_secondary_g, custom_theme->text_secondary_b,
+                    custom_theme->text_primary_r, custom_theme->text_primary_g, custom_theme->text_primary_b,
+                    custom_theme->button_fill_r, custom_theme->button_fill_g, custom_theme->button_fill_b,
+                    custom_theme->button_hover_r, custom_theme->button_hover_g, custom_theme->button_hover_b,
+                    custom_theme->button_active_r, custom_theme->button_active_g, custom_theme->button_active_b
+                };
+            }
+            break;
+        case DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST:
+        default:
+            break;
+    }
+
+    if (out_palette) {
+        *out_palette = palette;
+    }
+}
 
 static int datalab_picker_zoom_modifier_active(SDL_Keymod mods) {
     return ((mods & KMOD_CTRL) != 0) || ((mods & KMOD_GUI) != 0);
+}
+
+static uint32_t datalab_picker_mod_bits_from_sdl(SDL_Keymod mods) {
+    uint32_t flags = 0u;
+    if ((mods & KMOD_SHIFT) != 0) {
+        flags |= KIT_WORKSPACE_AUTHORING_MOD_SHIFT;
+    }
+    if ((mods & KMOD_ALT) != 0) {
+        flags |= KIT_WORKSPACE_AUTHORING_MOD_ALT;
+    }
+    if ((mods & KMOD_CTRL) != 0) {
+        flags |= KIT_WORKSPACE_AUTHORING_MOD_CTRL;
+    }
+    if ((mods & KMOD_GUI) != 0) {
+        flags |= KIT_WORKSPACE_AUTHORING_MOD_GUI;
+    }
+    return flags;
+}
+
+static KitWorkspaceAuthoringKey datalab_picker_key_from_sdl(SDL_Keycode key) {
+    switch (key) {
+        case SDLK_c:
+            return KIT_WORKSPACE_AUTHORING_KEY_C;
+        case SDLK_v:
+            return KIT_WORKSPACE_AUTHORING_KEY_V;
+        default:
+            return KIT_WORKSPACE_AUTHORING_KEY_UNKNOWN;
+    }
 }
 
 static int datalab_has_pack_extension(const char *name) {
@@ -125,6 +279,8 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                                          char *io_input_root,
                                          size_t input_root_cap,
                                          int *io_text_zoom_step,
+                                         uint8_t *io_theme_preset_id,
+                                         DatalabWorkspaceCustomTheme *io_custom_theme,
                                          int *out_enter_authoring,
                                          char *out_pack_path,
                                          size_t out_pack_path_cap) {
@@ -134,7 +290,18 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     int canceled = 0;
     int edit_mode = 0;
     int picker_zoom_step = 0;
-    uint8_t authoring_entry_chord_mask = 0u;
+    uint8_t picker_theme_preset_id = (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    DatalabWorkspaceCustomTheme picker_custom_theme = {
+        12, 14, 20,
+        54, 36, 74,
+        24, 28, 38,
+        112, 124, 146,
+        226, 234, 246,
+        178, 194, 220,
+        34, 40, 58,
+        48, 58, 84,
+        116, 136, 184
+    };
     size_t file_count = 0u;
     int selected = 0;
     char input_root[DATALAB_APP_PATH_CAP];
@@ -148,6 +315,12 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     if (io_text_zoom_step) {
         picker_zoom_step = datalab_text_zoom_step_clamp(*io_text_zoom_step);
         datalab_set_text_zoom_step(picker_zoom_step);
+    }
+    if (io_theme_preset_id) {
+        picker_theme_preset_id = datalab_picker_theme_preset_clamp((int)(*io_theme_preset_id));
+    }
+    if (io_custom_theme) {
+        picker_custom_theme = *io_custom_theme;
     }
     out_pack_path[0] = '\0';
     if (out_enter_authoring) {
@@ -205,20 +378,22 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             if (e.type != SDL_KEYDOWN) {
                 continue;
             }
-            if (((SDL_Keymod)e.key.keysym.mod & KMOD_ALT) == 0 && authoring_entry_chord_mask != 0u) {
-                authoring_entry_chord_mask = 0u;
-            }
-            if (((SDL_Keymod)e.key.keysym.mod & KMOD_ALT) != 0) {
-                uint8_t chord_bit = 0u;
-                if (e.key.keysym.scancode == SDL_SCANCODE_C) {
-                    chord_bit = DATALAB_AUTHORING_CHORD_C;
-                } else if (e.key.keysym.scancode == SDL_SCANCODE_V) {
-                    chord_bit = DATALAB_AUTHORING_CHORD_V;
-                }
-                if (chord_bit != 0u) {
-                    authoring_entry_chord_mask |= chord_bit;
-                    if ((authoring_entry_chord_mask & (DATALAB_AUTHORING_CHORD_C | DATALAB_AUTHORING_CHORD_V)) ==
-                        (DATALAB_AUTHORING_CHORD_C | DATALAB_AUTHORING_CHORD_V)) {
+            {
+                const uint8_t *keyboard = SDL_GetKeyboardState(NULL);
+                const KitWorkspaceAuthoringKey authoring_key =
+                    datalab_picker_key_from_sdl(e.key.keysym.sym);
+                const uint32_t mod_bits =
+                    datalab_picker_mod_bits_from_sdl((SDL_Keymod)e.key.keysym.mod);
+                const int key_c_down = (keyboard && keyboard[SDL_SCANCODE_C] != 0) ? 1 : 0;
+                const int key_v_down = (keyboard && keyboard[SDL_SCANCODE_V] != 0) ? 1 : 0;
+
+                if ((mod_bits & KIT_WORKSPACE_AUTHORING_MOD_ALT) != 0u &&
+                    (authoring_key == KIT_WORKSPACE_AUTHORING_KEY_C ||
+                     authoring_key == KIT_WORKSPACE_AUTHORING_KEY_V)) {
+                    if (kit_workspace_authoring_entry_chord_pressed(authoring_key,
+                                                                    mod_bits,
+                                                                    key_c_down,
+                                                                    key_v_down)) {
                         if (file_count > 0u && selected >= 0 && selected < (int)file_count) {
                             snprintf(out_pack_path, out_pack_path_cap, "%s/%s", input_root, files[selected]);
                             if (out_enter_authoring) {
@@ -228,12 +403,8 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                         } else {
                             snprintf(status, sizeof(status), "authoring entry requires a selected .pack");
                         }
-                        authoring_entry_chord_mask = 0u;
                     }
                     continue;
-                }
-                if (authoring_entry_chord_mask != 0u) {
-                    authoring_entry_chord_mask = 0u;
                 }
             }
             if (datalab_picker_zoom_modifier_active((SDL_Keymod)e.key.keysym.mod)) {
@@ -341,6 +512,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
         {
             int ww = 0;
             int wh = 0;
+            DatalabPickerThemePalette palette = {0};
             SDL_Rect top = {0};
             SDL_Rect list = {0};
             SDL_Rect top_clip = {0};
@@ -360,6 +532,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             int visible_lines = 0;
             int start_idx = 0;
             SDL_GetRendererOutputSize(renderer, &ww, &wh);
+            datalab_picker_theme_palette(picker_theme_preset_id, &picker_custom_theme, &palette);
             line_h1 = datalab_text_line_height(1);
             line_h2 = datalab_text_line_height(2);
             pad = datalab_scaled_px(10.0f);
@@ -398,46 +571,47 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             list_clip.h = list.h - datalab_scaled_px(8.0f);
             list_start_y = list.y + list_gap;
 
-            SDL_SetRenderDrawColor(renderer, 11, 12, 16, 255);
+            SDL_SetRenderDrawColor(renderer, palette.clear_r, palette.clear_g, palette.clear_b, 255);
             SDL_RenderClear(renderer);
-            SDL_SetRenderDrawColor(renderer, 22, 25, 35, 255);
+            SDL_SetRenderDrawColor(renderer, palette.top_fill_r, palette.top_fill_g, palette.top_fill_b, 255);
             SDL_RenderFillRect(renderer, &top);
-            SDL_SetRenderDrawColor(renderer, 82, 88, 106, 255);
+            SDL_SetRenderDrawColor(renderer, palette.frame_r, palette.frame_g, palette.frame_b, 255);
             SDL_RenderDrawRect(renderer, &top);
-            SDL_SetRenderDrawColor(renderer, 20, 23, 31, 255);
+            SDL_SetRenderDrawColor(renderer, palette.list_fill_r, palette.list_fill_g, palette.list_fill_b, 255);
             SDL_RenderFillRect(renderer, &list);
-            SDL_SetRenderDrawColor(renderer, 82, 88, 106, 255);
+            SDL_SetRenderDrawColor(renderer, palette.frame_r, palette.frame_g, palette.frame_b, 255);
             SDL_RenderDrawRect(renderer, &list);
 
             draw_text_5x7(renderer, top.x + pad, y_title,
-                          "DATALAB INPUT ROOT + PACK PICKER", 2, 220, 230, 240, 255);
+                          "DATALAB INPUT ROOT + PACK PICKER", 2,
+                          palette.text_primary_r, palette.text_primary_g, palette.text_primary_b, 255);
             draw_text_5x7(renderer, top.x + pad, y_help,
                           "ALT+C+V OPEN+AUTHOR  E EDIT PATH  ENTER APPLY  B FOLDER DIALOG  UP/DOWN SELECT  ENTER OPEN  ESC CANCEL",
-                          1, 170, 185, 205, 255);
+                          1, palette.text_secondary_r, palette.text_secondary_g, palette.text_secondary_b, 255);
             draw_text_5x7(renderer, top.x + pad, y_path_label,
                           edit_mode ? "PATH (EDIT MODE):" : "PATH:",
-                          1, 205, 215, 230, 255);
+                          1, palette.text_muted_r, palette.text_muted_g, palette.text_muted_b, 255);
             draw_text_5x7_clipped(renderer,
                                   &top_clip,
                                   top.x + pad,
                                   y_path_value,
                                   edit_mode ? edit_root : input_root,
                                   1,
-                                  230,
-                                  230,
-                                  235,
+                                  palette.text_primary_r,
+                                  palette.text_primary_g,
+                                  palette.text_primary_b,
                                   255);
             draw_text_5x7(renderer, top.x + pad, y_status,
-                          "STATUS:", 1, 200, 210, 225, 255);
+                          "STATUS:", 1, palette.text_muted_r, palette.text_muted_g, palette.text_muted_b, 255);
             draw_text_5x7_clipped(renderer,
                                   &top_clip,
                                   top.x + pad + datalab_scaled_px(58.0f),
                                   y_status,
                                   status,
                                   1,
-                                  150,
-                                  210,
-                                  160,
+                                  palette.text_success_r,
+                                  palette.text_success_g,
+                                  palette.text_success_b,
                                   255);
 
             visible_lines = (list.h - (list_gap * 2)) / row_h;
@@ -463,9 +637,17 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                 }
                 if (idx == selected) {
                     SDL_Rect hi = { list_clip.x, row_y, list_clip.w, row_h };
-                    SDL_SetRenderDrawColor(renderer, 42, 62, 86, 190);
+                    SDL_SetRenderDrawColor(renderer,
+                                           palette.selected_fill_r,
+                                           palette.selected_fill_g,
+                                           palette.selected_fill_b,
+                                           190);
                     SDL_RenderFillRect(renderer, &hi);
-                    SDL_SetRenderDrawColor(renderer, 90, 130, 180, 255);
+                    SDL_SetRenderDrawColor(renderer,
+                                           palette.selected_border_r,
+                                           palette.selected_border_g,
+                                           palette.selected_border_b,
+                                           255);
                     SDL_RenderDrawRect(renderer, &hi);
                 }
                 draw_text_5x7_clipped(renderer,
@@ -474,9 +656,9 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                                       text_y,
                                       files[idx],
                                       1,
-                                      220,
-                                      230,
-                                      240,
+                                      palette.text_primary_r,
+                                      palette.text_primary_g,
+                                      palette.text_primary_b,
                                       255);
             }
 
@@ -487,9 +669,9 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                                       list_start_y + ((row_h - line_h1) / 2),
                                       "NO .PACK FILES FOUND IN INPUT ROOT",
                                       1,
-                                      230,
-                                      150,
-                                      140,
+                                      palette.text_empty_r,
+                                      palette.text_empty_g,
+                                      palette.text_empty_b,
                                       255);
             }
             SDL_RenderPresent(renderer);
@@ -504,6 +686,12 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     snprintf(io_input_root, input_root_cap, "%s", input_root);
     if (io_text_zoom_step) {
         *io_text_zoom_step = picker_zoom_step;
+    }
+    if (io_theme_preset_id) {
+        *io_theme_preset_id = picker_theme_preset_id;
+    }
+    if (io_custom_theme) {
+        *io_custom_theme = picker_custom_theme;
     }
     if (canceled) {
         out_pack_path[0] = '\0';

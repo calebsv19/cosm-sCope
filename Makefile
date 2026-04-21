@@ -44,12 +44,22 @@ CORE_BASE_DIR := $(SHARED_ROOT)/core/core_base
 CORE_IO_DIR := $(SHARED_ROOT)/core/core_io
 CORE_DATA_DIR := $(SHARED_ROOT)/core/core_data
 CORE_PACK_DIR := $(SHARED_ROOT)/core/core_pack
+CORE_LAYOUT_DIR := $(SHARED_ROOT)/core/core_layout
+CORE_PANE_DIR := $(SHARED_ROOT)/core/core_pane
 KIT_VIZ_DIR := $(SHARED_ROOT)/kit/kit_viz
 KIT_GRAPH_TS_DIR := $(SHARED_ROOT)/kit/kit_graph_timeseries
 KIT_RENDER_DIR := $(SHARED_ROOT)/kit/kit_render
 VK_RENDERER_DIR := $(SHARED_ROOT)/vk_renderer
 CORE_THEME_DIR := $(SHARED_ROOT)/core/core_theme
 CORE_FONT_DIR := $(SHARED_ROOT)/core/core_font
+KIT_WORKSPACE_AUTHORING_DIR_VENDORED := $(SHARED_ROOT)/kit/kit_workspace_authoring
+KIT_WORKSPACE_AUTHORING_DIR_SHARED := ../shared/kit/kit_workspace_authoring
+ifneq ($(wildcard $(KIT_WORKSPACE_AUTHORING_DIR_VENDORED)/include/kit_workspace_authoring.h),)
+KIT_WORKSPACE_AUTHORING_DIR := $(KIT_WORKSPACE_AUTHORING_DIR_VENDORED)
+else
+KIT_WORKSPACE_AUTHORING_DIR := $(KIT_WORKSPACE_AUTHORING_DIR_SHARED)
+endif
+KIT_WORKSPACE_AUTHORING_LIB := $(KIT_WORKSPACE_AUTHORING_DIR)/build/libkit_workspace_authoring.a
 
 SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
 SDL_LIBS := $(shell sdl2-config --libs 2>/dev/null)
@@ -61,8 +71,10 @@ UNAME_S := $(shell uname -s)
 
 CFLAGS := $(CSTD) $(WARN) $(DEBUG) -I$(INC_DIR) -I$(SRC_DIR) \
 	-I$(CORE_BASE_DIR)/include -I$(CORE_IO_DIR)/include -I$(CORE_DATA_DIR)/include \
+	-I$(CORE_LAYOUT_DIR)/include -I$(CORE_PANE_DIR)/include \
 	-I$(CORE_PACK_DIR)/include -I$(KIT_VIZ_DIR)/include -I$(KIT_GRAPH_TS_DIR)/include \
-	-I$(KIT_RENDER_DIR)/include -I$(CORE_THEME_DIR)/include -I$(CORE_FONT_DIR)/include
+	-I$(KIT_RENDER_DIR)/include -I$(CORE_THEME_DIR)/include -I$(CORE_FONT_DIR)/include \
+	-I$(KIT_WORKSPACE_AUTHORING_DIR)/include
 
 LIBS := -lm
 ifeq ($(UNAME_S),Darwin)
@@ -124,11 +136,14 @@ DEFAULT_PACK := $(BUILD_DIR)/default_preview.pack
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(LIBS)
+$(TARGET): $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(LIBS)
 
 $(KIT_GRAPH_TS_LIB):
 	$(MAKE) -C $(KIT_GRAPH_TS_DIR)
+
+$(KIT_WORKSPACE_AUTHORING_LIB):
+	$(MAKE) -C $(KIT_WORKSPACE_AUTHORING_DIR)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)

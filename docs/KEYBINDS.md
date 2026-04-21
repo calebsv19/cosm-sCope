@@ -39,12 +39,24 @@
 - `C`: cycle lane visibility.
 
 ## Host Integration Pilot Notes
-- `Alt+C+V` now enters the host authoring stub state in active profile runtime loops (`DL1`).
-- `Alt+C` / `Alt+V` are consumed during entry-chord progression and do not route to Trace `C` lane-cycle behavior.
-- Entry chord is now supported in both startup picker and active profile loops.
+- `Alt+C+V` is routed through shared `kit_workspace_authoring` chord detection in both startup picker and active profile loops (`DL3`).
+  - chord requires `Alt` without `Shift/Ctrl/Cmd` modifiers.
+- `Alt+C` / `Alt+V` are consumed during chord progression and do not route to Trace `C` lane-cycle behavior.
 - In active profile loops, `Alt+C+V` toggles authoring mode on/off.
-- While host authoring stub is active (`DL2`), first-right-of-refusal keys are:
-  - `Tab`: cycle overlay stub (`pane` -> `font/theme` -> `pane`)
-  - `Enter`: apply stub changes (clear pending draft flag)
-  - `Esc`: cancel stub changes and exit authoring stub mode
-- This is host-side parity plumbing only in `DL2`; DataLab is not yet calling full workspace overlay runtime render/command lanes.
+- While authoring is active, first-right-of-refusal keys are:
+  - `Tab`: cycle overlay (`pane` -> `font/theme` -> `pane`)
+  - `Enter`: apply pending draft state
+  - `Esc`: cancel draft state and exit authoring mode
+- Additional reserved authoring keys are suppressed from host fallback while authoring is active (prevents profile-key collisions during authoring sessions).
+- Authoring-active render now takes over the host surface (`AR3`), and cross-host parity/stress
+  validation for this path is complete (`AR4`).
+
+## Keybind Conflict Matrix
+
+| Input | Startup Picker | Active Runtime | Authoring Active | Collision Policy |
+|---|---|---|---|---|
+| `Alt+C+V` | open selected `.pack` and enter authoring | toggle authoring on/off | toggle authoring off | Reserved chord; consumed before profile/runtime key handlers |
+| `Alt+C` / `Alt+V` (partial chord) | no picker action | no Trace `C` lane-cycle side effect | no pane/font action side effect | chord progression keys are consumed |
+| `Tab` | normal picker focus/navigation behavior | host/runtime behavior | cycle overlay | authoring-first when authoring is active |
+| `Enter` | apply path edit or open selected `.pack` | load selected `.pack` from Data Panel | apply authoring draft | authoring-first when authoring is active |
+| `Esc` | cancel edit mode or exit picker | quit app | cancel draft + exit authoring | authoring-first when authoring is active |
