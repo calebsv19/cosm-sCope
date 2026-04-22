@@ -414,6 +414,66 @@ static double datalab_loop_elapsed_sec(Uint64 begin_counter,
     return (double)(end_counter - begin_counter) / (double)perf_freq;
 }
 
+enum {
+    DATALAB_LOOP_RENDER_HEARTBEAT_MS = 250u,
+    DATALAB_LOOP_RENDER_REASON_FORCE = 1u << 0,
+    DATALAB_LOOP_RENDER_REASON_INPUT_INVALIDATE = 1u << 1,
+    DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN = 1u << 2,
+    DATALAB_LOOP_RENDER_REASON_ASYNC_AUTHORING = 1u << 3,
+    DATALAB_LOOP_RENDER_REASON_RESIZE = 1u << 4,
+    DATALAB_LOOP_RENDER_REASON_HEARTBEAT = 1u << 5
+};
+
+typedef struct DatalabLoopBoundarySignals {
+    uint8_t sync_input_invalidated;
+    uint8_t async_panel_rescan_pending;
+    uint8_t async_authoring_pending;
+} DatalabLoopBoundarySignals;
+
+typedef struct DatalabLoopFramePhases {
+    DatalabInputFrame input_frame;
+    DatalabLoopBoundarySignals boundary_signals;
+    int panel_rescan_pending;
+    int resize_pending;
+    int wait_timeout_ms;
+    uint32_t wait_blocked_ms;
+    uint32_t wait_call_count;
+    Uint64 frame_begin_counter;
+    double frame_elapsed_sec;
+    uint32_t render_reason_bits;
+    uint8_t should_render;
+} DatalabLoopFramePhases;
+
+typedef struct DatalabLoopRunState {
+    int quit;
+    Uint64 perf_freq;
+    uint32_t last_present_ticks;
+    DatalabLoopWaitPolicyInput wait_policy_input;
+    DatalabInputDiagTotals ir1_diag_totals;
+    DatalabRenderDiagTotals rs1_diag_totals;
+} DatalabLoopRunState;
+
+typedef CoreResult (*DatalabLoopRenderStepFn)(SDL_Window *window,
+                                              SDL_Renderer *renderer,
+                                              const DatalabFrame *frame,
+                                              DatalabAppState *app_state,
+                                              void *lane_ctx,
+                                              DatalabRenderSubmitOutcome *out_submit);
+
+typedef struct DatalabLoopProfileOps {
+    const char *lane_tag;
+    void *lane_ctx;
+    DatalabLoopRenderStepFn render_step;
+} DatalabLoopProfileOps;
+
+typedef struct DatalabPhysicsLoopContext {
+    SDL_Texture *texture;
+    uint8_t *density_rgba;
+    uint8_t *speed_rgba;
+    KitVizVecSegment *segments;
+    size_t sample_count;
+} DatalabPhysicsLoopContext;
+
 static void datalab_loop_handle_event(const SDL_Event *event,
                                       DatalabInputFrame *input_frame,
                                       DatalabAppState *app_state,
@@ -480,6 +540,227 @@ static void datalab_loop_update_wait_policy(DatalabLoopWaitPolicyInput *policy,
     policy->resize_pending = resize_pending ? 1u : 0u;
 }
 
+static void datalab_loop_note_input_diag(const char *lane_tag,
+                                         DatalabInputDiagTotals *totals,
+                                         const DatalabInputFrame *input_frame) {
+    if (!totals || !input_frame) {
+        return;
+    }
+    totals->frame_count += 1u;
+    totals->event_count_total += input_frame->raw.sdl_event_count;
+    totals->routed_global_total += input_frame->route.routed_global_count;
+    totals->routed_fallback_total += input_frame->route.routed_fallback_count;
+    totals->invalidation_reason_bits_total += input_frame->invalidation.invalidation_reason_bits;
+    if (datalab_ir1_diag_enabled()) {
+        printf("[ir1] datalab-%s frame=%llu events=%u route(global=%u fallback=%u target=%d) "
+               "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
+               lane_tag ? lane_tag : "unknown",
+               (unsigned long long)totals->frame_count,
+               (unsigned int)input_frame->raw.sdl_event_count,
+               (unsigned int)input_frame->route.routed_global_count,
+               (unsigned int)input_frame->route.routed_fallback_count,
+               (int)input_frame->route.target_policy,
+               (unsigned int)input_frame->invalidation.invalidation_reason_bits,
+               (unsigned int)input_frame->invalidation.target_invalidation_count,
+               (unsigned int)input_frame->invalidation.full_invalidation_count,
+               (unsigned long long)totals->frame_count,
+               (unsigned long long)totals->event_count_total,
+               (unsigned long long)totals->routed_global_total,
+               (unsigned long long)totals->routed_fallback_total,
+               (unsigned long long)totals->invalidation_reason_bits_total);
+    }
+}
+
+static void datalab_loop_frame_phase_wait_and_input(DatalabLoopFramePhases *phase,
+                                                    DatalabLoopRunState *run_state,
+                                                    DatalabAppState *app_state) {
+    if (!phase || !run_state || !app_state) {
+        return;
+    }
+    memset(phase, 0, sizeof(*phase));
+    phase->frame_begin_counter = SDL_GetPerformanceCounter();
+    phase->wait_timeout_ms = datalab_loop_compute_wait_timeout_ms(&run_state->wait_policy_input);
+    datalab_input_frame_begin(&phase->input_frame);
+    datalab_loop_input_wait_and_drain(&phase->input_frame,
+                                      app_state,
+                                      &run_state->quit,
+                                      phase->wait_timeout_ms,
+                                      &phase->wait_blocked_ms,
+                                      &phase->wait_call_count,
+                                      &phase->resize_pending);
+}
+
+static int datalab_loop_frame_phase_runtime_tick(DatalabLoopFramePhases *phase,
+                                                 DatalabAppState *app_state) {
+    if (!phase || !app_state) {
+        return 0;
+    }
+    phase->panel_rescan_pending = app_state->panel_rescan_requested;
+    datalab_panel_tick(app_state);
+    phase->boundary_signals.sync_input_invalidated =
+        phase->input_frame.invalidation.invalidation_reason_bits ? 1u : 0u;
+    phase->boundary_signals.async_panel_rescan_pending =
+        phase->panel_rescan_pending ? 1u : 0u;
+    phase->boundary_signals.async_authoring_pending =
+        app_state->workspace_authoring_pending_stub ? 1u : 0u;
+    return app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0';
+}
+
+static uint32_t datalab_loop_frame_phase_render_decision(const DatalabLoopFramePhases *phase,
+                                                         uint32_t last_present_ticks) {
+    uint32_t reason_bits = 0u;
+    uint32_t now_ticks = SDL_GetTicks();
+    if (!phase) {
+        return 0u;
+    }
+    if (last_present_ticks == 0u) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_FORCE;
+    }
+    if (phase->boundary_signals.sync_input_invalidated) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_INPUT_INVALIDATE;
+    }
+    if (phase->boundary_signals.async_panel_rescan_pending) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN;
+    }
+    if (phase->boundary_signals.async_authoring_pending) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_ASYNC_AUTHORING;
+    }
+    if (phase->resize_pending) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_RESIZE;
+    }
+    if (last_present_ticks == 0u ||
+        (uint32_t)(now_ticks - last_present_ticks) >= DATALAB_LOOP_RENDER_HEARTBEAT_MS) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_HEARTBEAT;
+    }
+    return reason_bits;
+}
+
+static void datalab_loop_frame_phase_finalize(DatalabLoopFramePhases *phase,
+                                              DatalabLoopRunState *run_state,
+                                              DatalabAppState *app_state) {
+    if (!phase || !run_state || !app_state) {
+        return;
+    }
+    phase->frame_elapsed_sec = datalab_loop_elapsed_sec(phase->frame_begin_counter,
+                                                        SDL_GetPerformanceCounter(),
+                                                        run_state->perf_freq);
+    datalab_loop_diag_tick(phase->frame_elapsed_sec, phase->wait_blocked_ms, phase->wait_call_count);
+    datalab_loop_update_wait_policy(&run_state->wait_policy_input,
+                                    &phase->input_frame,
+                                    app_state,
+                                    phase->panel_rescan_pending,
+                                    phase->resize_pending);
+}
+
+static CoreResult datalab_loop_render_step_physics(SDL_Window *window,
+                                                   SDL_Renderer *renderer,
+                                                   const DatalabFrame *frame,
+                                                   DatalabAppState *app_state,
+                                                   void *lane_ctx,
+                                                   DatalabRenderSubmitOutcome *out_submit) {
+    DatalabPhysicsLoopContext *ctx = (DatalabPhysicsLoopContext *)lane_ctx;
+    DatalabPhysicsRenderDeriveFrame render_derive;
+    if (!ctx || !out_submit) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid physics loop context" };
+    }
+    datalab_physics_render_derive_frame(renderer,
+                                        frame,
+                                        app_state,
+                                        ctx->density_rgba,
+                                        ctx->speed_rgba,
+                                        &render_derive);
+    datalab_physics_render_submit_frame(window,
+                                        renderer,
+                                        ctx->texture,
+                                        frame,
+                                        app_state,
+                                        ctx->segments,
+                                        ctx->sample_count,
+                                        &render_derive,
+                                        out_submit);
+    return out_submit->result;
+}
+
+static CoreResult datalab_loop_render_step_daw(SDL_Window *window,
+                                               SDL_Renderer *renderer,
+                                               const DatalabFrame *frame,
+                                               DatalabAppState *app_state,
+                                               void *lane_ctx,
+                                               DatalabRenderSubmitOutcome *out_submit) {
+    DatalabRenderDeriveFrame render_derive;
+    (void)lane_ctx;
+    if (!out_submit) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid daw loop outcome" };
+    }
+    datalab_render_derive_frame(frame, app_state, &render_derive);
+    datalab_daw_render_submit_frame(window, renderer, frame, app_state, &render_derive, out_submit);
+    return out_submit->result;
+}
+
+static CoreResult datalab_loop_render_step_trace(SDL_Window *window,
+                                                 SDL_Renderer *renderer,
+                                                 const DatalabFrame *frame,
+                                                 DatalabAppState *app_state,
+                                                 void *lane_ctx,
+                                                 DatalabRenderSubmitOutcome *out_submit) {
+    DatalabRenderDeriveFrame render_derive;
+    (void)lane_ctx;
+    if (!out_submit) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid trace loop outcome" };
+    }
+    datalab_render_derive_frame(frame, app_state, &render_derive);
+    datalab_trace_render_submit_frame(window, renderer, frame, app_state, &render_derive, out_submit);
+    return out_submit->result;
+}
+
+static CoreResult datalab_loop_run_profile(SDL_Window *window,
+                                           SDL_Renderer *renderer,
+                                           const DatalabFrame *frame,
+                                           DatalabAppState *app_state,
+                                           const DatalabLoopProfileOps *ops) {
+    DatalabLoopRunState run_state = {0};
+    if (!window || !renderer || !frame || !app_state || !ops || !ops->render_step) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid datalab loop profile request" };
+    }
+    run_state.perf_freq = SDL_GetPerformanceFrequency();
+    run_state.wait_policy_input.interaction_active = 1u;
+    while (!run_state.quit) {
+        DatalabLoopFramePhases phase;
+        DatalabRenderSubmitOutcome render_submit = {0};
+        CoreResult render_result = core_result_ok();
+
+        datalab_loop_frame_phase_wait_and_input(&phase, &run_state, app_state);
+        if (datalab_loop_frame_phase_runtime_tick(&phase, app_state)) {
+            break;
+        }
+        datalab_loop_note_input_diag(ops->lane_tag, &run_state.ir1_diag_totals, &phase.input_frame);
+
+        phase.render_reason_bits = datalab_loop_frame_phase_render_decision(&phase, run_state.last_present_ticks);
+        phase.should_render = phase.render_reason_bits ? 1u : 0u;
+        if (phase.should_render) {
+            render_result = ops->render_step(window,
+                                             renderer,
+                                             frame,
+                                             app_state,
+                                             ops->lane_ctx,
+                                             &render_submit);
+            if (render_submit.result.code == CORE_OK && render_result.code != CORE_OK) {
+                render_submit.result = render_result;
+            }
+            datalab_rs1_diag_note(ops->lane_tag, &run_state.rs1_diag_totals, &render_submit);
+            if (render_submit.result.code != CORE_OK) {
+                return render_submit.result;
+            }
+            if (render_submit.presented) {
+                run_state.last_present_ticks = SDL_GetTicks();
+            }
+        }
+
+        datalab_loop_frame_phase_finalize(&phase, &run_state, app_state);
+    }
+    return core_result_ok();
+}
+
 CoreResult render_physics_loop(SDL_Window *window,
                                SDL_Renderer *renderer,
                                const DatalabFrame *frame,
@@ -489,338 +770,114 @@ CoreResult render_physics_loop(SDL_Window *window,
                                              SDL_TEXTUREACCESS_STREAMING,
                                              (int)frame->width,
                                              (int)frame->height);
-    if (!texture) {
-        CoreResult r = { CORE_ERR_IO, SDL_GetError() };
-        return r;
-    }
-
     const size_t sample_count = (size_t)frame->width * (size_t)frame->height;
     const size_t rgba_size = sample_count * 4u;
+    uint8_t *density_rgba = NULL;
+    uint8_t *speed_rgba = NULL;
+    float *speed = NULL;
+    KitVizVecSegment *segments = NULL;
+    DatalabPhysicsLoopContext physics_ctx;
+    DatalabLoopProfileOps ops;
+    CoreResult loop_result = core_result_ok();
+    if (!texture) {
+        return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
+    }
 
-    uint8_t *density_rgba = (uint8_t *)core_alloc(rgba_size);
-    uint8_t *speed_rgba = (uint8_t *)core_alloc(rgba_size);
-    float *speed = (float *)core_alloc(sample_count * sizeof(float));
-    KitVizVecSegment *segments = (KitVizVecSegment *)core_alloc(sample_count * sizeof(KitVizVecSegment));
+    density_rgba = (uint8_t *)core_alloc(rgba_size);
+    speed_rgba = (uint8_t *)core_alloc(rgba_size);
+    speed = (float *)core_alloc(sample_count * sizeof(float));
+    segments = (KitVizVecSegment *)core_alloc(sample_count * sizeof(KitVizVecSegment));
     if (!density_rgba || !speed_rgba || !speed || !segments) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        CoreResult r = { CORE_ERR_OUT_OF_MEMORY, "out of memory" };
-        return r;
+        loop_result = (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "out of memory" };
+        goto cleanup;
     }
 
-    KitVizFieldStats dens_stats;
-    CoreResult rs = kit_viz_compute_field_stats(frame->density, frame->width, frame->height, &dens_stats);
-    if (rs.code != CORE_OK) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        return rs;
-    }
-
-    for (size_t i = 0; i < sample_count; ++i) {
-        const float x = frame->velx[i];
-        const float y = frame->vely[i];
-        speed[i] = sqrtf((x * x) + (y * y));
-    }
-
-    KitVizFieldStats speed_stats;
-    rs = kit_viz_compute_field_stats(speed, frame->width, frame->height, &speed_stats);
-    if (rs.code != CORE_OK) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        return rs;
-    }
-
-    rs = kit_viz_build_heatmap_rgba(frame->density,
-                                    frame->width,
-                                    frame->height,
-                                    dens_stats.min_value,
-                                    dens_stats.max_value,
-                                    KIT_VIZ_COLORMAP_HEAT,
-                                    density_rgba,
-                                    rgba_size);
-    if (rs.code != CORE_OK) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        return rs;
-    }
-
-    rs = kit_viz_build_heatmap_rgba(speed,
-                                    frame->width,
-                                    frame->height,
-                                    speed_stats.min_value,
-                                    speed_stats.max_value,
-                                    KIT_VIZ_COLORMAP_HEAT,
-                                    speed_rgba,
-                                    rgba_size);
-    if (rs.code != CORE_OK) {
-        core_free(density_rgba);
-        core_free(speed_rgba);
-        core_free(speed);
-        core_free(segments);
-        SDL_DestroyTexture(texture);
-        return rs;
-    }
-
-    int quit = 0;
-    Uint64 perf_freq = SDL_GetPerformanceFrequency();
-    DatalabLoopWaitPolicyInput wait_policy_input = {0};
-    DatalabInputDiagTotals ir1_diag_totals = {0};
-    DatalabRenderDiagTotals rs1_diag_totals = {0};
-    wait_policy_input.interaction_active = 1u;
-    while (!quit) {
-        DatalabInputFrame input_frame;
-        int panel_rescan_pending = 0;
-        int resize_pending = 0;
-        int wait_timeout_ms = 0;
-        uint32_t wait_blocked_ms = 0u;
-        uint32_t wait_call_count = 0u;
-        Uint64 frame_begin_counter = SDL_GetPerformanceCounter();
-        double frame_elapsed_sec = 0.0;
-        DatalabPhysicsRenderDeriveFrame render_derive;
-        DatalabRenderSubmitOutcome render_submit;
-
-        wait_timeout_ms = datalab_loop_compute_wait_timeout_ms(&wait_policy_input);
-        datalab_input_frame_begin(&input_frame);
-        datalab_loop_input_wait_and_drain(&input_frame,
-                                          app_state,
-                                          &quit,
-                                          wait_timeout_ms,
-                                          &wait_blocked_ms,
-                                          &wait_call_count,
-                                          &resize_pending);
-        panel_rescan_pending = app_state->panel_rescan_requested;
-        datalab_panel_tick(app_state);
-        if (app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0') {
-            break;
+    {
+        KitVizFieldStats dens_stats;
+        CoreResult rs = kit_viz_compute_field_stats(frame->density, frame->width, frame->height, &dens_stats);
+        if (rs.code != CORE_OK) {
+            loop_result = rs;
+            goto cleanup;
         }
-        ir1_diag_totals.frame_count += 1u;
-        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
-        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
-        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
-        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
-        if (datalab_ir1_diag_enabled()) {
-            printf("[ir1] datalab-physics frame=%llu events=%u route(global=%u fallback=%u target=%d) "
-                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned int)input_frame.raw.sdl_event_count,
-                   (unsigned int)input_frame.route.routed_global_count,
-                   (unsigned int)input_frame.route.routed_fallback_count,
-                   (int)input_frame.route.target_policy,
-                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
-                   (unsigned int)input_frame.invalidation.target_invalidation_count,
-                   (unsigned int)input_frame.invalidation.full_invalidation_count,
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned long long)ir1_diag_totals.event_count_total,
-                   (unsigned long long)ir1_diag_totals.routed_global_total,
-                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
-                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
+        for (size_t i = 0; i < sample_count; ++i) {
+            const float x = frame->velx[i];
+            const float y = frame->vely[i];
+            speed[i] = sqrtf((x * x) + (y * y));
         }
-        datalab_physics_render_derive_frame(renderer,
-                                            frame,
-                                            app_state,
+        {
+            KitVizFieldStats speed_stats;
+            rs = kit_viz_compute_field_stats(speed, frame->width, frame->height, &speed_stats);
+            if (rs.code != CORE_OK) {
+                loop_result = rs;
+                goto cleanup;
+            }
+            rs = kit_viz_build_heatmap_rgba(frame->density,
+                                            frame->width,
+                                            frame->height,
+                                            dens_stats.min_value,
+                                            dens_stats.max_value,
+                                            KIT_VIZ_COLORMAP_HEAT,
                                             density_rgba,
+                                            rgba_size);
+            if (rs.code != CORE_OK) {
+                loop_result = rs;
+                goto cleanup;
+            }
+            rs = kit_viz_build_heatmap_rgba(speed,
+                                            frame->width,
+                                            frame->height,
+                                            speed_stats.min_value,
+                                            speed_stats.max_value,
+                                            KIT_VIZ_COLORMAP_HEAT,
                                             speed_rgba,
-                                            &render_derive);
-        datalab_physics_render_submit_frame(window,
-                                            renderer,
-                                            texture,
-                                            frame,
-                                            app_state,
-                                            segments,
-                                            sample_count,
-                                            &render_derive,
-                                            &render_submit);
-        datalab_rs1_diag_note("physics", &rs1_diag_totals, &render_submit);
-        frame_elapsed_sec = datalab_loop_elapsed_sec(frame_begin_counter,
-                                                     SDL_GetPerformanceCounter(),
-                                                     perf_freq);
-        datalab_loop_diag_tick(frame_elapsed_sec, wait_blocked_ms, wait_call_count);
-        datalab_loop_update_wait_policy(&wait_policy_input,
-                                        &input_frame,
-                                        app_state,
-                                        panel_rescan_pending,
-                                        resize_pending);
-        if (render_submit.result.code != CORE_OK) {
-            core_free(density_rgba);
-            core_free(speed_rgba);
-            core_free(speed);
-            core_free(segments);
-            SDL_DestroyTexture(texture);
-            return render_submit.result;
+                                            rgba_size);
+            if (rs.code != CORE_OK) {
+                loop_result = rs;
+                goto cleanup;
+            }
         }
     }
 
+    physics_ctx.texture = texture;
+    physics_ctx.density_rgba = density_rgba;
+    physics_ctx.speed_rgba = speed_rgba;
+    physics_ctx.segments = segments;
+    physics_ctx.sample_count = sample_count;
+
+    ops.lane_tag = "physics";
+    ops.lane_ctx = &physics_ctx;
+    ops.render_step = datalab_loop_render_step_physics;
+    loop_result = datalab_loop_run_profile(window, renderer, frame, app_state, &ops);
+
+cleanup:
     core_free(density_rgba);
     core_free(speed_rgba);
     core_free(speed);
     core_free(segments);
     SDL_DestroyTexture(texture);
-    return core_result_ok();
+    return loop_result;
 }
 
 CoreResult render_daw_loop(SDL_Window *window,
                            SDL_Renderer *renderer,
                            const DatalabFrame *frame,
                            DatalabAppState *app_state) {
-    int quit = 0;
-    Uint64 perf_freq = SDL_GetPerformanceFrequency();
-    DatalabLoopWaitPolicyInput wait_policy_input = {0};
-    DatalabInputDiagTotals ir1_diag_totals = {0};
-    DatalabRenderDiagTotals rs1_diag_totals = {0};
-    wait_policy_input.interaction_active = 1u;
-    while (!quit) {
-        DatalabInputFrame input_frame;
-        int panel_rescan_pending = 0;
-        int resize_pending = 0;
-        int wait_timeout_ms = 0;
-        uint32_t wait_blocked_ms = 0u;
-        uint32_t wait_call_count = 0u;
-        Uint64 frame_begin_counter = SDL_GetPerformanceCounter();
-        double frame_elapsed_sec = 0.0;
-        DatalabRenderDeriveFrame render_derive;
-        DatalabRenderSubmitOutcome render_submit;
-
-        wait_timeout_ms = datalab_loop_compute_wait_timeout_ms(&wait_policy_input);
-        datalab_input_frame_begin(&input_frame);
-        datalab_loop_input_wait_and_drain(&input_frame,
-                                          app_state,
-                                          &quit,
-                                          wait_timeout_ms,
-                                          &wait_blocked_ms,
-                                          &wait_call_count,
-                                          &resize_pending);
-        panel_rescan_pending = app_state->panel_rescan_requested;
-        datalab_panel_tick(app_state);
-        if (app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0') {
-            break;
-        }
-        ir1_diag_totals.frame_count += 1u;
-        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
-        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
-        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
-        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
-        if (datalab_ir1_diag_enabled()) {
-            printf("[ir1] datalab-daw frame=%llu events=%u route(global=%u fallback=%u target=%d) "
-                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned int)input_frame.raw.sdl_event_count,
-                   (unsigned int)input_frame.route.routed_global_count,
-                   (unsigned int)input_frame.route.routed_fallback_count,
-                   (int)input_frame.route.target_policy,
-                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
-                   (unsigned int)input_frame.invalidation.target_invalidation_count,
-                   (unsigned int)input_frame.invalidation.full_invalidation_count,
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned long long)ir1_diag_totals.event_count_total,
-                   (unsigned long long)ir1_diag_totals.routed_global_total,
-                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
-                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
-        }
-        datalab_render_derive_frame(frame, app_state, &render_derive);
-        datalab_daw_render_submit_frame(window, renderer, frame, app_state, &render_derive, &render_submit);
-        datalab_rs1_diag_note("daw", &rs1_diag_totals, &render_submit);
-        frame_elapsed_sec = datalab_loop_elapsed_sec(frame_begin_counter,
-                                                     SDL_GetPerformanceCounter(),
-                                                     perf_freq);
-        datalab_loop_diag_tick(frame_elapsed_sec, wait_blocked_ms, wait_call_count);
-        datalab_loop_update_wait_policy(&wait_policy_input,
-                                        &input_frame,
-                                        app_state,
-                                        panel_rescan_pending,
-                                        resize_pending);
-        if (render_submit.result.code != CORE_OK) {
-            return render_submit.result;
-        }
-    }
-
-    return core_result_ok();
+    const DatalabLoopProfileOps ops = {
+        .lane_tag = "daw",
+        .lane_ctx = NULL,
+        .render_step = datalab_loop_render_step_daw
+    };
+    return datalab_loop_run_profile(window, renderer, frame, app_state, &ops);
 }
 
 CoreResult render_trace_loop(SDL_Window *window,
                              SDL_Renderer *renderer,
                              const DatalabFrame *frame,
                              DatalabAppState *app_state) {
-    int quit = 0;
-    Uint64 perf_freq = SDL_GetPerformanceFrequency();
-    DatalabLoopWaitPolicyInput wait_policy_input = {0};
-    DatalabInputDiagTotals ir1_diag_totals = {0};
-    DatalabRenderDiagTotals rs1_diag_totals = {0};
-    wait_policy_input.interaction_active = 1u;
-    while (!quit) {
-        DatalabInputFrame input_frame;
-        int panel_rescan_pending = 0;
-        int resize_pending = 0;
-        int wait_timeout_ms = 0;
-        uint32_t wait_blocked_ms = 0u;
-        uint32_t wait_call_count = 0u;
-        Uint64 frame_begin_counter = SDL_GetPerformanceCounter();
-        double frame_elapsed_sec = 0.0;
-        DatalabRenderDeriveFrame render_derive;
-        DatalabRenderSubmitOutcome render_submit;
-
-        wait_timeout_ms = datalab_loop_compute_wait_timeout_ms(&wait_policy_input);
-        datalab_input_frame_begin(&input_frame);
-        datalab_loop_input_wait_and_drain(&input_frame,
-                                          app_state,
-                                          &quit,
-                                          wait_timeout_ms,
-                                          &wait_blocked_ms,
-                                          &wait_call_count,
-                                          &resize_pending);
-        panel_rescan_pending = app_state->panel_rescan_requested;
-        datalab_panel_tick(app_state);
-        if (app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0') {
-            break;
-        }
-        ir1_diag_totals.frame_count += 1u;
-        ir1_diag_totals.event_count_total += input_frame.raw.sdl_event_count;
-        ir1_diag_totals.routed_global_total += input_frame.route.routed_global_count;
-        ir1_diag_totals.routed_fallback_total += input_frame.route.routed_fallback_count;
-        ir1_diag_totals.invalidation_reason_bits_total += input_frame.invalidation.invalidation_reason_bits;
-        if (datalab_ir1_diag_enabled()) {
-            printf("[ir1] datalab-trace frame=%llu events=%u route(global=%u fallback=%u target=%d) "
-                   "invalidate(bits=0x%x target=%u full=%u) totals(frames=%llu events=%llu global=%llu fallback=%llu invalid_bits_sum=%llu)\n",
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned int)input_frame.raw.sdl_event_count,
-                   (unsigned int)input_frame.route.routed_global_count,
-                   (unsigned int)input_frame.route.routed_fallback_count,
-                   (int)input_frame.route.target_policy,
-                   (unsigned int)input_frame.invalidation.invalidation_reason_bits,
-                   (unsigned int)input_frame.invalidation.target_invalidation_count,
-                   (unsigned int)input_frame.invalidation.full_invalidation_count,
-                   (unsigned long long)ir1_diag_totals.frame_count,
-                   (unsigned long long)ir1_diag_totals.event_count_total,
-                   (unsigned long long)ir1_diag_totals.routed_global_total,
-                   (unsigned long long)ir1_diag_totals.routed_fallback_total,
-                   (unsigned long long)ir1_diag_totals.invalidation_reason_bits_total);
-        }
-        datalab_render_derive_frame(frame, app_state, &render_derive);
-        datalab_trace_render_submit_frame(window, renderer, frame, app_state, &render_derive, &render_submit);
-        datalab_rs1_diag_note("trace", &rs1_diag_totals, &render_submit);
-        frame_elapsed_sec = datalab_loop_elapsed_sec(frame_begin_counter,
-                                                     SDL_GetPerformanceCounter(),
-                                                     perf_freq);
-        datalab_loop_diag_tick(frame_elapsed_sec, wait_blocked_ms, wait_call_count);
-        datalab_loop_update_wait_policy(&wait_policy_input,
-                                        &input_frame,
-                                        app_state,
-                                        panel_rescan_pending,
-                                        resize_pending);
-        if (render_submit.result.code != CORE_OK) {
-            return render_submit.result;
-        }
-    }
-    return core_result_ok();
+    const DatalabLoopProfileOps ops = {
+        .lane_tag = "trace",
+        .lane_ctx = NULL,
+        .render_step = datalab_loop_render_step_trace
+    };
+    return datalab_loop_run_profile(window, renderer, frame, app_state, &ops);
 }
