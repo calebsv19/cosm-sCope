@@ -244,6 +244,7 @@ Legacy test lane:
     (overlay top buttons and font/theme controls consume click input before host handlers)
   - host state tracks overlay mode + pending flag + cycle/apply/cancel counters
   - font/theme overlay controls are now live-reactive in DataLab host:
+    - shared font baseline now defaults to `ide` (`DATALAB_FONT_PRESET=ide` unless overridden)
     - text size: `-`, `+`, `Reset`
     - theme presets: `daw_default`, `standard_grey`, `midnight_contrast`, `soft_light`, `greyscale`
   - startup + runtime re-open picker surface now reflects current theme preset selection:

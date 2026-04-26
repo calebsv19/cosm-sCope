@@ -1,6 +1,6 @@
 # DataLab Desktop Packaging
 
-Last updated: 2026-04-09
+Last updated: 2026-04-25
 
 ## Bundle Contract
 - output app: `dist/sCope.app`
@@ -40,6 +40,8 @@ Last updated: 2026-04-09
   - `DATALAB_RUNTIME_DIR=~/Library/Application Support/DataLab/runtime` (tmp fallback)
 - launcher input-root default:
   - `DATALAB_INPUT_ROOT=<runtime>/data/import`
+- launcher font baseline:
+  - `DATALAB_FONT_PRESET=ide` unless explicitly overridden
 - Vulkan runtime env:
   - `VK_RENDERER_SHADER_ROOT=<runtime>/vk_renderer`
   - `VK_ICD_FILENAMES=<runtime>/vk/MoltenVK_icd.json`

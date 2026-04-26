@@ -121,6 +121,8 @@ CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_stat
 void datalab_sync_text_zoom(const DatalabAppState *app_state);
 void datalab_set_text_zoom_step(int step);
 int datalab_scaled_px(float px);
+int datalab_text_renderer_init(void);
+void datalab_text_renderer_shutdown(void);
 int lane_name_eq(const char *a, const char *b);
 void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *title, size_t title_cap);
 void calc_fit_rect(int ww, int wh, uint32_t fw, uint32_t fh, SDL_Rect *out_rect);

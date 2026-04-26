@@ -52,13 +52,7 @@ KIT_RENDER_DIR := $(SHARED_ROOT)/kit/kit_render
 VK_RENDERER_DIR := $(SHARED_ROOT)/vk_renderer
 CORE_THEME_DIR := $(SHARED_ROOT)/core/core_theme
 CORE_FONT_DIR := $(SHARED_ROOT)/core/core_font
-KIT_WORKSPACE_AUTHORING_DIR_VENDORED := $(SHARED_ROOT)/kit/kit_workspace_authoring
-KIT_WORKSPACE_AUTHORING_DIR_SHARED := ../shared/kit/kit_workspace_authoring
-ifneq ($(wildcard $(KIT_WORKSPACE_AUTHORING_DIR_VENDORED)/include/kit_workspace_authoring.h),)
-KIT_WORKSPACE_AUTHORING_DIR := $(KIT_WORKSPACE_AUTHORING_DIR_VENDORED)
-else
-KIT_WORKSPACE_AUTHORING_DIR := $(KIT_WORKSPACE_AUTHORING_DIR_SHARED)
-endif
+KIT_WORKSPACE_AUTHORING_DIR := $(SHARED_ROOT)/kit/kit_workspace_authoring
 KIT_WORKSPACE_AUTHORING_LIB := $(KIT_WORKSPACE_AUTHORING_DIR)/build/libkit_workspace_authoring.a
 
 SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)

@@ -41,6 +41,7 @@ cat >"$ICD_FILE" <<EOF
 EOF
 export DATALAB_RUNTIME_DIR="$RUNTIME_DIR"
 export DATALAB_INPUT_ROOT="${DATALAB_INPUT_ROOT:-$RUNTIME_DIR/data/import}"
+export DATALAB_FONT_PRESET="${DATALAB_FONT_PRESET:-ide}"
 export VK_RENDERER_SHADER_ROOT="${VK_RENDERER_SHADER_ROOT:-$RUNTIME_DIR/vk_renderer}"
 export VK_ICD_FILENAMES="${VK_ICD_FILENAMES:-$ICD_FILE}"
 export VK_DRIVER_FILES="${VK_DRIVER_FILES:-$ICD_FILE}"
@@ -54,6 +55,7 @@ if [ "${1:-}" = "--print-config" ]; then
     echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
     echo "APP_DATA_HOME=$APP_DATA_HOME"
     echo "DATALAB_INPUT_ROOT=$DATALAB_INPUT_ROOT"
+    echo "DATALAB_FONT_PRESET=$DATALAB_FONT_PRESET"
     echo "VK_RENDERER_SHADER_ROOT=$VK_RENDERER_SHADER_ROOT"
     echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
     echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
@@ -66,7 +68,7 @@ if [ "${1:-}" = "--self-test" ]; then
     [ -f "$APP_CONTENTS_DIR/Info.plist" ] || { echo "missing: Info.plist" >&2; exit 1; }
     [ -d "$RES_DIR/data/runtime" ] || { echo "missing: runtime dir" >&2; exit 1; }
     [ -d "$DATALAB_INPUT_ROOT" ] || { echo "missing: runtime input root" >&2; exit 1; }
-    [ -f "$RES_DIR/shared/assets/fonts/Montserrat-Regular.ttf" ] || { echo "missing: shared font" >&2; exit 1; }
+    [ -f "$RES_DIR/shared/assets/fonts/Lato-Regular.ttf" ] || { echo "missing: ide baseline font" >&2; exit 1; }
     [ -f "$RES_DIR/vk_renderer/shaders/textured.vert.spv" ] || { echo "missing: bundled vk shader" >&2; exit 1; }
     [ -f "$RES_DIR/shaders/textured.vert.spv" ] || { echo "missing: bundled runtime shader" >&2; exit 1; }
     [ -f "$MOLTENVK_DYLIB" ] || { echo "missing: bundled MoltenVK dylib" >&2; exit 1; }
@@ -76,6 +78,7 @@ if [ "${1:-}" = "--self-test" ]; then
     echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
     echo "APP_DATA_HOME=$APP_DATA_HOME"
     echo "DATALAB_INPUT_ROOT=$DATALAB_INPUT_ROOT"
+    echo "DATALAB_FONT_PRESET=$DATALAB_FONT_PRESET"
     echo "VK_RENDERER_SHADER_ROOT=$VK_RENDERER_SHADER_ROOT"
     echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
     echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
