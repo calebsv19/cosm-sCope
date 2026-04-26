@@ -10,9 +10,14 @@ int datalab_runtime_load_frame(DatalabAppRuntime *runtime) {
     if (!runtime || !runtime->pack_path || runtime->pack_path[0] == '\0') {
         return 1;
     }
+    runtime->last_load_error[0] = '\0';
     load_r = datalab_load_pack(runtime->pack_path, &runtime->frame);
     if (load_r.code != CORE_OK) {
         fprintf(stderr, "datalab: failed to load pack: %s\n", load_r.message);
+        snprintf(runtime->last_load_error,
+                 sizeof(runtime->last_load_error),
+                 "%s",
+                 load_r.message ? load_r.message : "load failed");
         return 2;
     }
     runtime->frame_loaded = 1;

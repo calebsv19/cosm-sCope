@@ -167,6 +167,7 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
     }
     runtime->input_root_from_cli = 0;
     runtime->selected_pack_path[0] = '\0';
+    runtime->last_load_error[0] = '\0';
 }
 
 static int datalab_app_bootstrap_ctx(DatalabAppContext *ctx, int argc, char **argv) {
@@ -429,6 +430,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
         if (!runtime->frame_loaded) {
             if (!runtime->pack_path || runtime->pack_path[0] == '\0') {
                 run_r = datalab_render_pick_pack_path(runtime->input_root,
+                                                      runtime->last_load_error,
                                                       runtime->input_root,
                                                       sizeof(runtime->input_root),
                                                       &runtime->text_zoom_step,
@@ -441,6 +443,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                     fprintf(stderr, "datalab: pack picker failed: %s\n", run_r.message);
                     return 4;
                 }
+                runtime->last_load_error[0] = '\0';
                 runtime->pack_path = runtime->selected_pack_path;
             }
             if (!runtime->pack_path || runtime->pack_path[0] == '\0') {
@@ -450,7 +453,16 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             {
                 int load_rc = datalab_runtime_load_frame(runtime);
                 if (load_rc != 0) {
-                    return 2;
+                    snprintf(runtime->last_load_error,
+                             sizeof(runtime->last_load_error),
+                             "load failed: %s",
+                             runtime->last_load_error[0] ? runtime->last_load_error : "unsupported or invalid pack");
+                    runtime->pack_path = NULL;
+                    runtime->selected_pack_path[0] = '\0';
+                    datalab_frame_free(&runtime->frame);
+                    datalab_frame_init(&runtime->frame);
+                    runtime->frame_loaded = 0;
+                    continue;
                 }
             }
             if (!runtime->frame_loaded) {

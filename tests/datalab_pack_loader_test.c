@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -57,6 +58,85 @@ typedef struct TraceMarkerDisk {
     char lane[32];
     char label[64];
 } TraceMarkerDisk;
+
+typedef struct DrawingLayerDisk {
+    uint32_t layer_id;
+    char name[32];
+    uint8_t visible;
+    uint8_t locked;
+} DrawingLayerDisk;
+
+typedef struct DrawingDocumentDisk {
+    uint32_t schema_version;
+    uint32_t logical_width;
+    uint32_t logical_height;
+    uint32_t sample_density;
+    uint32_t layer_count;
+    uint32_t next_layer_id;
+    uint32_t raster_width;
+    uint32_t raster_height;
+    uint32_t raster_sample_count;
+    DrawingLayerDisk layers[16];
+    uint8_t raster_samples[1048576];
+} DrawingDocumentDisk;
+
+typedef struct DrawingSnapshotPrefixDisk {
+    uint32_t version;
+    uint32_t reserved0;
+    uint32_t node_count;
+    uint32_t binding_count;
+    uint32_t history_count;
+    uint32_t history_cursor;
+    DrawingDocumentDisk document;
+} DrawingSnapshotPrefixDisk;
+
+typedef struct DrawingLayerRasterChunkHeaderDisk {
+    uint32_t version;
+    uint32_t raster_width;
+    uint32_t raster_height;
+    uint32_t sample_count;
+    uint32_t layer_count;
+} DrawingLayerRasterChunkHeaderDisk;
+
+typedef struct DrawingPathPointDisk {
+    int32_t x;
+    int32_t y;
+    int32_t handle_in_dx;
+    int32_t handle_in_dy;
+    int32_t handle_out_dx;
+    int32_t handle_out_dy;
+    uint8_t bezier_enabled;
+    uint8_t handle_linked;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} DrawingPathPointDisk;
+
+typedef struct DrawingObjectChunkHeaderDisk {
+    uint32_t version;
+    uint32_t object_count;
+    uint32_t next_object_id;
+    uint32_t reserved0;
+} DrawingObjectChunkHeaderDisk;
+
+typedef struct DrawingObjectChunkEntryV3Disk {
+    uint32_t object_id;
+    uint32_t layer_id;
+    uint8_t type;
+    uint8_t visible;
+    uint8_t locked;
+    uint8_t stroke_color_index;
+    uint8_t fill_color_index;
+    uint8_t stroke_width;
+    uint8_t style_mode;
+    uint8_t path_closed;
+    uint16_t path_point_count;
+    int32_t origin_x;
+    int32_t origin_y;
+    uint32_t width;
+    uint32_t height;
+    char name[32];
+    DrawingPathPointDisk path_points[128];
+} DrawingObjectChunkEntryV3Disk;
 
 static void write_physics_pack_with_unknown_chunk(const char *path) {
     CorePackWriter w = {0};
@@ -155,14 +235,109 @@ static void write_trace_pack_with_unknown_chunk(const char *path) {
     assert(core_pack_writer_close(&w).code == CORE_OK);
 }
 
+static void write_sketch_pack(const char *path) {
+    CorePackWriter w = {0};
+    DrawingSnapshotPrefixDisk *prefix = NULL;
+    DrawingLayerRasterChunkHeaderDisk layer_hdr = {0};
+    DrawingObjectChunkHeaderDisk object_hdr = {0};
+    DrawingObjectChunkEntryV3Disk objects[2];
+    uint8_t *object_chunk = NULL;
+    uint8_t layer_chunk[20u + (2u * (8u + 256u))];
+    uint8_t *cursor = layer_chunk;
+    uint8_t eraser = 244u;
+    uint8_t layer_samples[2][256];
+    CoreResult r = core_pack_writer_open(path, &w);
+    assert(r.code == CORE_OK);
+
+    prefix = (DrawingSnapshotPrefixDisk *)calloc(1u, sizeof(*prefix));
+    assert(prefix != NULL);
+    prefix->version = 1u;
+    prefix->document.schema_version = 3u;
+    prefix->document.logical_width = 16u;
+    prefix->document.logical_height = 16u;
+    prefix->document.sample_density = 1u;
+    prefix->document.layer_count = 2u;
+    prefix->document.next_layer_id = 3u;
+    prefix->document.raster_width = 16u;
+    prefix->document.raster_height = 16u;
+    prefix->document.raster_sample_count = 256u;
+    prefix->document.layers[0].layer_id = 1u;
+    snprintf(prefix->document.layers[0].name, sizeof(prefix->document.layers[0].name), "Base Layer");
+    prefix->document.layers[0].visible = 1u;
+    prefix->document.layers[1].layer_id = 2u;
+    snprintf(prefix->document.layers[1].name, sizeof(prefix->document.layers[1].name), "Layer 2");
+    prefix->document.layers[1].visible = 1u;
+    memset(prefix->document.raster_samples, (int)eraser, sizeof(prefix->document.raster_samples));
+
+    memset(layer_samples, (int)eraser, sizeof(layer_samples));
+    layer_hdr.version = 1u;
+    layer_hdr.raster_width = 16u;
+    layer_hdr.raster_height = 16u;
+    layer_hdr.sample_count = 256u;
+    layer_hdr.layer_count = 2u;
+    memcpy(cursor, &layer_hdr, sizeof(layer_hdr));
+    cursor += sizeof(layer_hdr);
+    memcpy(cursor, &(uint32_t){ 1u }, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(cursor, &(uint32_t){ 256u }, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(cursor, layer_samples[0], sizeof(layer_samples[0]));
+    cursor += sizeof(layer_samples[0]);
+    memcpy(cursor, &(uint32_t){ 2u }, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(cursor, &(uint32_t){ 256u }, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(cursor, layer_samples[1], sizeof(layer_samples[1]));
+
+    memset(objects, 0, sizeof(objects));
+    object_hdr.version = 3u;
+    object_hdr.object_count = 2u;
+    object_hdr.next_object_id = 3u;
+    objects[0].object_id = 1u;
+    objects[0].layer_id = 2u;
+    objects[0].type = 1u;
+    objects[0].visible = 1u;
+    objects[0].fill_color_index = 7u;
+    objects[0].style_mode = 1u;
+    objects[0].origin_x = 2;
+    objects[0].origin_y = 3;
+    objects[0].width = 5u;
+    objects[0].height = 4u;
+    objects[1].object_id = 2u;
+    objects[1].layer_id = 2u;
+    objects[1].type = 1u;
+    objects[1].visible = 1u;
+    objects[1].fill_color_index = 0u;
+    objects[1].style_mode = 1u;
+    objects[1].origin_x = 9;
+    objects[1].origin_y = 8;
+    objects[1].width = 3u;
+    objects[1].height = 5u;
+    object_chunk = (uint8_t *)malloc(sizeof(object_hdr) + sizeof(objects));
+    assert(object_chunk != NULL);
+    memcpy(object_chunk, &object_hdr, sizeof(object_hdr));
+    memcpy(object_chunk + sizeof(object_hdr), objects, sizeof(objects));
+
+    assert(core_pack_writer_add_chunk(&w, "DPS2", prefix, sizeof(*prefix)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "DPLR", layer_chunk, sizeof(layer_chunk)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "DPOB", object_chunk, sizeof(object_hdr) + sizeof(objects)).code == CORE_OK);
+    free(object_chunk);
+    object_chunk = NULL;
+    free(prefix);
+    prefix = NULL;
+    assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
 int main(void) {
     const char *physics_path = "/tmp/datalab_unknown_physics.pack";
     const char *daw_path = "/tmp/datalab_unknown_daw.pack";
     const char *trace_path = "/tmp/datalab_unknown_trace.pack";
+    const char *sketch_path = "/tmp/datalab_sketch_rects.pack";
 
     write_physics_pack_with_unknown_chunk(physics_path);
     write_daw_pack_with_unknown_chunk(daw_path);
     write_trace_pack_with_unknown_chunk(trace_path);
+    write_sketch_pack(sketch_path);
 
     DatalabFrame physics = {0};
     CoreResult r = datalab_load_pack(physics_path, &physics);
@@ -193,6 +368,31 @@ int main(void) {
     assert(trace.trace_samples != NULL && trace.trace_markers != NULL);
     assert(trace.chunk_count == 4);
     datalab_frame_free(&trace);
+
+    DatalabFrame sketch = {0};
+    r = datalab_load_pack(sketch_path, &sketch);
+    assert(r.code == CORE_OK);
+    assert(sketch.profile == DATALAB_PROFILE_SKETCH);
+    assert(sketch.width == 16u && sketch.height == 16u);
+    assert(sketch.drawing_object_count == 2u);
+    assert(sketch.drawing_rendered_object_count == 2u);
+    assert(sketch.drawing_unsupported_object_count == 0u);
+    assert(sketch.drawing_rgba != NULL);
+    {
+        size_t bg = ((size_t)0u * 16u + (size_t)0u) * 4u;
+        size_t rect_a = ((size_t)4u * 16u + (size_t)3u) * 4u;
+        size_t rect_b = ((size_t)9u * 16u + (size_t)10u) * 4u;
+        assert(sketch.drawing_rgba[bg + 3u] == 0u);
+        assert(sketch.drawing_rgba[rect_a + 0u] == 232u);
+        assert(sketch.drawing_rgba[rect_a + 1u] == 232u);
+        assert(sketch.drawing_rgba[rect_a + 2u] == 232u);
+        assert(sketch.drawing_rgba[rect_a + 3u] == 255u);
+        assert(sketch.drawing_rgba[rect_b + 0u] == 24u);
+        assert(sketch.drawing_rgba[rect_b + 1u] == 24u);
+        assert(sketch.drawing_rgba[rect_b + 2u] == 24u);
+        assert(sketch.drawing_rgba[rect_b + 3u] == 255u);
+    }
+    datalab_frame_free(&sketch);
 
     puts("datalab pack loader test passed");
     return 0;

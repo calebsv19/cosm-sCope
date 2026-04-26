@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-04-16
+Last updated: 2026-04-24
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -54,6 +54,11 @@ Data-path contract behavior:
 - no-arg launch opens a startup picker UI for:
   - input-root selection (`Choose Folder` hotkey on macOS + direct path edit)
   - `.pack` discovery list from selected root
+- pack loader now supports these profile roots:
+  - Physics (`VFHD` + fields)
+  - DAW (`DAWH` + waveform/marker chunks)
+  - Trace (`TRHD` + sample/marker chunks)
+  - sketCh canvas snapshots (`DPS2`/`DPLR`/`DPOB`)
 - active visualization supports runtime picker reopen:
   - press `O` to reopen picker and switch dataset without relaunching
 - active visualization shows a persistent left data panel with:
@@ -70,10 +75,16 @@ Data-path contract behavior:
   - panel selection list now window-scrolls to keep current selection visible for long directories
   - empty/missing input-root status is explicit (`no input root selected (press O)` / unavailable-root message)
   - CLI `--input-root` now correctly takes precedence over persisted runtime prefs
+- sketch import hardening (`2026-04-24`):
+  - selecting an unsupported/bad `.pack` from the picker no longer exits the app; load failure returns to picker with the last error surfaced in the status row
+  - sketCh canvas snapshots now derive a renderable RGBA frame from `DPS2`/`DPLR`/`DPOB` payloads
+  - current object support is bounded to rectangle/ellipse rasterization; unsupported object types are counted for follow-up
 - implementation anchors:
   - CLI + runtime-prefs precedence: `src/app/datalab_app_main.c`
   - runtime prefs persistence (`text_zoom_step`, `input_root`): `src/app/datalab_runtime_prefs.c`
   - picker + in-session data panel controls: `src/render/render_view_picker.c`, `src/render/render_view_profiles_loops.c`
+  - sketch pack parsing: `src/data/pack_loader.c`
+  - sketch render loop/submit path: `src/render/render_view.c`, `src/render/render_view_profiles_loops.c`, `src/render/render_view_profiles_ui.c`
 - headless mode still requires explicit `--pack`.
 
 Stable test lane:

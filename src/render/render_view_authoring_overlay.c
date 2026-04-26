@@ -42,6 +42,8 @@ static const char *datalab_overlay_profile_name(const DatalabFrame *frame) {
             return "daw";
         case DATALAB_PROFILE_TRACE:
             return "trace";
+        case DATALAB_PROFILE_SKETCH:
+            return "sketch";
         default:
             return "unknown";
     }

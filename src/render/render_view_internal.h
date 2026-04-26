@@ -98,6 +98,11 @@ typedef struct DatalabPhysicsRenderDeriveFrame {
     uint8_t draw_vectors;
 } DatalabPhysicsRenderDeriveFrame;
 
+typedef struct DatalabSketchRenderDeriveFrame {
+    DatalabRenderDeriveFrame common;
+    SDL_Rect dst;
+} DatalabSketchRenderDeriveFrame;
+
 int datalab_ir1_diag_enabled(void);
 int datalab_rs1_diag_enabled(void);
 int datalab_loop_compute_wait_timeout_ms(const DatalabLoopWaitPolicyInput *input);
@@ -156,6 +161,10 @@ void datalab_physics_render_derive_frame(SDL_Renderer *renderer,
                                          const uint8_t *density_rgba,
                                          const uint8_t *speed_rgba,
                                          DatalabPhysicsRenderDeriveFrame *out_derive);
+void datalab_sketch_render_derive_frame(SDL_Renderer *renderer,
+                                        const DatalabFrame *frame,
+                                        const DatalabAppState *app_state,
+                                        DatalabSketchRenderDeriveFrame *out_derive);
 void datalab_physics_render_submit_frame(SDL_Window *window,
                                          SDL_Renderer *renderer,
                                          SDL_Texture *texture,
@@ -165,6 +174,13 @@ void datalab_physics_render_submit_frame(SDL_Window *window,
                                          size_t sample_count,
                                          const DatalabPhysicsRenderDeriveFrame *derive,
                                          DatalabRenderSubmitOutcome *outcome);
+void datalab_sketch_render_submit_frame(SDL_Window *window,
+                                        SDL_Renderer *renderer,
+                                        SDL_Texture *texture,
+                                        const DatalabFrame *frame,
+                                        const DatalabAppState *app_state,
+                                        const DatalabSketchRenderDeriveFrame *derive,
+                                        DatalabRenderSubmitOutcome *outcome);
 void datalab_daw_render_submit_frame(SDL_Window *window,
                                      SDL_Renderer *renderer,
                                      const DatalabFrame *frame,
@@ -191,6 +207,10 @@ CoreResult render_physics_loop(SDL_Window *window,
                                SDL_Renderer *renderer,
                                const DatalabFrame *frame,
                                DatalabAppState *app_state);
+CoreResult render_sketch_loop(SDL_Window *window,
+                              SDL_Renderer *renderer,
+                              const DatalabFrame *frame,
+                              DatalabAppState *app_state);
 CoreResult render_daw_loop(SDL_Window *window,
                            SDL_Renderer *renderer,
                            const DatalabFrame *frame,

@@ -697,6 +697,21 @@ void datalab_physics_render_derive_frame(SDL_Renderer *renderer,
     calc_fit_rect(ww, wh, frame->width, frame->height, &out_derive->dst);
 }
 
+void datalab_sketch_render_derive_frame(SDL_Renderer *renderer,
+                                        const DatalabFrame *frame,
+                                        const DatalabAppState *app_state,
+                                        DatalabSketchRenderDeriveFrame *out_derive) {
+    int ww = 0;
+    int wh = 0;
+    if (!renderer || !frame || !app_state || !out_derive) {
+        return;
+    }
+    memset(out_derive, 0, sizeof(*out_derive));
+    datalab_render_derive_frame(frame, app_state, &out_derive->common);
+    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    calc_fit_rect(ww, wh, frame->width, frame->height, &out_derive->dst);
+}
+
 static void datalab_draw_workspace_authoring_overlay(SDL_Renderer *renderer,
                                                      const DatalabAppState *app_state) {
     SDL_Rect bar = {0};
@@ -883,6 +898,43 @@ void datalab_daw_render_submit_frame(SDL_Window *window,
     datalab_draw_session_controls(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->title);
+    SDL_RenderPresent(renderer);
+    outcome->presented = 1u;
+    outcome->result = core_result_ok();
+}
+
+void datalab_sketch_render_submit_frame(SDL_Window *window,
+                                        SDL_Renderer *renderer,
+                                        SDL_Texture *texture,
+                                        const DatalabFrame *frame,
+                                        const DatalabAppState *app_state,
+                                        const DatalabSketchRenderDeriveFrame *derive,
+                                        DatalabRenderSubmitOutcome *outcome) {
+    if (!outcome) {
+        return;
+    }
+    memset(outcome, 0, sizeof(*outcome));
+    if (!window || !renderer || !texture || !frame || !app_state || !derive || !frame->drawing_rgba) {
+        outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid sketch render submit request" };
+        return;
+    }
+    datalab_sync_text_zoom(app_state);
+    if (app_state->workspace_authoring_stub_active) {
+        datalab_workspace_authoring_submit_takeover(window,
+                                                    renderer,
+                                                    frame,
+                                                    app_state,
+                                                    derive->common.title,
+                                                    outcome);
+        return;
+    }
+    SDL_UpdateTexture(texture, NULL, frame->drawing_rgba, (int)frame->width * 4);
+    SDL_SetRenderDrawColor(renderer, 12, 12, 16, 255);
+    SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer, texture, NULL, &derive->dst);
+    datalab_draw_session_controls(renderer, app_state);
+    datalab_draw_workspace_authoring_overlay(renderer, app_state);
+    SDL_SetWindowTitle(window, derive->common.title);
     SDL_RenderPresent(renderer);
     outcome->presented = 1u;
     outcome->result = core_result_ok();

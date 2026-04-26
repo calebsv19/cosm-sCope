@@ -5,7 +5,7 @@ DataLab is a lightweight C-based `.pack` visualizer used to validate and inspect
 ## Current Scope
 
 - Loads `.pack` frames via `core_pack`.
-- Supports profile-aware parsing for Physics, DAW, and Trace-oriented payloads.
+- Supports profile-aware parsing for Physics, DAW, Trace, and sketCh canvas snapshot payloads.
 - Provides a simple SDL2 viewer for quick inspection.
 - Supports headless validation mode for CLI checks.
 
@@ -19,9 +19,11 @@ This project is currently focused on reliability and observability, not feature 
 - No-arg GUI launch opens startup picker for input-root and `.pack` selection.
 - Frame summary output to terminal.
 - Physics dataset mapping (`density`, `velocity`) through shared `core_data`.
+- sketCh snapshot (`DPS2`/`DPLR`/`DPOB`) loading for rasterized rectangle/ellipse canvas content.
 - Basic interactive view modes and input controls for visual inspection, including in-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan).
 - Runtime text zoom controls (`Cmd/Ctrl +`, `Cmd/Ctrl -`, `Cmd/Ctrl 0`) with persisted zoom step in `data/runtime/text_zoom_step.txt`.
 - Runtime input-root persistence in `data/runtime/input_root.txt`.
+- Picker load failures now return to the picker with a status message instead of exiting the app.
 
 ## Build and Run
 
@@ -82,6 +84,7 @@ Scaffold test lanes:
 - UI is intentionally minimal and geared toward developer inspection.
 - No editing/export pipeline; this is a viewer/validator, not a full analysis suite.
 - Support depth depends on emitted `.pack` profile content from upstream programs.
+- sketCh object rendering is currently limited to rasterized rectangle/ellipse content; unsupported object types are counted but not yet rendered.
 
 See `KNOWN_ISSUES.md` for release-facing caveats.
 

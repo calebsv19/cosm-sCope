@@ -10,7 +10,8 @@ typedef enum DatalabProfile {
     DATALAB_PROFILE_UNKNOWN = 0,
     DATALAB_PROFILE_PHYSICS = 1,
     DATALAB_PROFILE_DAW = 2,
-    DATALAB_PROFILE_TRACE = 3
+    DATALAB_PROFILE_TRACE = 3,
+    DATALAB_PROFILE_SKETCH = 4
 } DatalabProfile;
 
 typedef struct DatalabDawMarker {
@@ -70,6 +71,16 @@ typedef struct DatalabFrame {
     size_t trace_sample_count;
     DatalabTraceMarker *trace_markers;
     size_t trace_marker_count;
+
+    uint32_t drawing_schema_version;
+    uint32_t logical_width;
+    uint32_t logical_height;
+    uint32_t sample_density;
+    uint32_t drawing_layer_count;
+    uint32_t drawing_object_count;
+    uint32_t drawing_rendered_object_count;
+    uint32_t drawing_unsupported_object_count;
+    uint8_t *drawing_rgba;
 
     char *manifest_json;
     size_t manifest_size;

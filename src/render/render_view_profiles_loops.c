@@ -474,6 +474,10 @@ typedef struct DatalabPhysicsLoopContext {
     size_t sample_count;
 } DatalabPhysicsLoopContext;
 
+typedef struct DatalabSketchLoopContext {
+    SDL_Texture *texture;
+} DatalabSketchLoopContext;
+
 static void datalab_loop_handle_event(const SDL_Event *event,
                                       DatalabInputFrame *input_frame,
                                       DatalabAppState *app_state,
@@ -713,6 +717,28 @@ static CoreResult datalab_loop_render_step_trace(SDL_Window *window,
     return out_submit->result;
 }
 
+static CoreResult datalab_loop_render_step_sketch(SDL_Window *window,
+                                                  SDL_Renderer *renderer,
+                                                  const DatalabFrame *frame,
+                                                  DatalabAppState *app_state,
+                                                  void *lane_ctx,
+                                                  DatalabRenderSubmitOutcome *out_submit) {
+    DatalabSketchLoopContext *ctx = (DatalabSketchLoopContext *)lane_ctx;
+    DatalabSketchRenderDeriveFrame render_derive;
+    if (!ctx || !out_submit) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid sketch loop context" };
+    }
+    datalab_sketch_render_derive_frame(renderer, frame, app_state, &render_derive);
+    datalab_sketch_render_submit_frame(window,
+                                       renderer,
+                                       ctx->texture,
+                                       frame,
+                                       app_state,
+                                       &render_derive,
+                                       out_submit);
+    return out_submit->result;
+}
+
 static CoreResult datalab_loop_run_profile(SDL_Window *window,
                                            SDL_Renderer *renderer,
                                            const DatalabFrame *frame,
@@ -868,6 +894,30 @@ CoreResult render_daw_loop(SDL_Window *window,
         .render_step = datalab_loop_render_step_daw
     };
     return datalab_loop_run_profile(window, renderer, frame, app_state, &ops);
+}
+
+CoreResult render_sketch_loop(SDL_Window *window,
+                              SDL_Renderer *renderer,
+                              const DatalabFrame *frame,
+                              DatalabAppState *app_state) {
+    DatalabSketchLoopContext sketch_ctx;
+    DatalabLoopProfileOps ops;
+    CoreResult loop_result = core_result_ok();
+    memset(&sketch_ctx, 0, sizeof(sketch_ctx));
+    sketch_ctx.texture = SDL_CreateTexture(renderer,
+                                           SDL_PIXELFORMAT_RGBA32,
+                                           SDL_TEXTUREACCESS_STREAMING,
+                                           (int)frame->width,
+                                           (int)frame->height);
+    if (!sketch_ctx.texture) {
+        return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
+    }
+    ops.lane_tag = "sketch";
+    ops.lane_ctx = &sketch_ctx;
+    ops.render_step = datalab_loop_render_step_sketch;
+    loop_result = datalab_loop_run_profile(window, renderer, frame, app_state, &ops);
+    SDL_DestroyTexture(sketch_ctx.texture);
+    return loop_result;
 }
 
 CoreResult render_trace_loop(SDL_Window *window,

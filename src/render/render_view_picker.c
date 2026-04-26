@@ -276,6 +276,7 @@ static int datalab_pick_folder_macos(char *out_path, size_t out_cap) {
 }
 
 CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
+                                         const char *initial_status,
                                          char *io_input_root,
                                          size_t input_root_cap,
                                          int *io_text_zoom_step,
@@ -335,8 +336,15 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     }
     snprintf(edit_root, sizeof(edit_root), "%s", input_root);
     status[0] = '\0';
+    if (initial_status && initial_status[0] != '\0') {
+        snprintf(status, sizeof(status), "%s", initial_status);
+    }
 
-    file_count = datalab_scan_pack_files(input_root, files, DATALAB_PICKER_MAX_FILES, status, sizeof(status));
+    file_count = datalab_scan_pack_files(input_root,
+                                         files,
+                                         DATALAB_PICKER_MAX_FILES,
+                                         status[0] ? NULL : status,
+                                         status[0] ? 0u : sizeof(status));
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };

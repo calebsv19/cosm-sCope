@@ -19,6 +19,7 @@ typedef struct DatalabAppRuntime {
     int input_root_from_cli;
     char input_root[DATALAB_APP_PATH_CAP];
     char selected_pack_path[DATALAB_APP_PATH_CAP];
+    char last_load_error[256];
     DatalabFrame frame;
 } DatalabAppRuntime;
 

@@ -7,6 +7,7 @@
 
 CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_state);
 CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
+                                         const char *initial_status,
                                          char *io_input_root,
                                          size_t input_root_cap,
                                          int *io_text_zoom_step,

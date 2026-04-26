@@ -112,6 +112,26 @@ void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *t
         return;
     }
 
+    if (frame->profile == DATALAB_PROFILE_SKETCH) {
+        snprintf(title,
+                 title_cap,
+                 "DataLab | SKETCH raster=%ux%u logical=%ux%u layers=%u objects=%u rendered=%u unsupported=%u text=%+d auth=%s/%s pending=%u entry=%u",
+                 frame->width,
+                 frame->height,
+                 frame->logical_width,
+                 frame->logical_height,
+                 frame->drawing_layer_count,
+                 frame->drawing_object_count,
+                 frame->drawing_rendered_object_count,
+                 frame->drawing_unsupported_object_count,
+                 state->text_zoom_step,
+                 state->workspace_authoring_stub_active ? "on" : "off",
+                 authoring_overlay,
+                 (unsigned int)state->workspace_authoring_pending_stub,
+                 (unsigned int)state->workspace_authoring_entry_count);
+        return;
+    }
+
     snprintf(title,
              title_cap,
              "DataLab | frame=%llu grid=%ux%u t=%.3f dt=%.3f mode=%s stride=%u text=%+d auth=%s/%s pending=%u entry=%u",
@@ -775,6 +795,11 @@ CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_st
             CoreResult r = { CORE_ERR_INVALID_ARG, "invalid trace frame" };
             return r;
         }
+    } else if (frame->profile == DATALAB_PROFILE_SKETCH) {
+        if (!frame->drawing_rgba || frame->width == 0 || frame->height == 0) {
+            CoreResult r = { CORE_ERR_INVALID_ARG, "invalid sketch frame" };
+            return r;
+        }
     } else {
         CoreResult r = { CORE_ERR_INVALID_ARG, "unknown frame profile" };
         return r;
@@ -813,6 +838,8 @@ CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_st
         run_r = render_daw_loop(window, renderer, frame, app_state);
     } else if (frame->profile == DATALAB_PROFILE_TRACE) {
         run_r = render_trace_loop(window, renderer, frame, app_state);
+    } else if (frame->profile == DATALAB_PROFILE_SKETCH) {
+        run_r = render_sketch_loop(window, renderer, frame, app_state);
     } else {
         run_r = render_physics_loop(window, renderer, frame, app_state);
     }
