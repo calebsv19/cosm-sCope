@@ -90,6 +90,29 @@ typedef struct DrawingSnapshotPrefixDisk {
     DrawingDocumentDisk document;
 } DrawingSnapshotPrefixDisk;
 
+typedef struct DrawingSnapshotShellHeaderDisk {
+    uint32_t version;
+    uint32_t reserved0;
+    uint32_t node_count;
+    uint32_t binding_count;
+    uint32_t history_count;
+    uint32_t history_cursor;
+    uint32_t schema_version;
+    uint32_t logical_width;
+    uint32_t logical_height;
+    uint32_t sample_density;
+    uint32_t layer_count;
+    uint32_t next_layer_id;
+    uint32_t raster_width;
+    uint32_t raster_height;
+    uint32_t raster_sample_count;
+} DrawingSnapshotShellHeaderDisk;
+
+typedef struct DrawingSnapshotShellPrefixDisk {
+    DrawingSnapshotShellHeaderDisk header;
+    DrawingLayerDisk layers[16];
+} DrawingSnapshotShellPrefixDisk;
+
 typedef struct DrawingLayerRasterChunkHeaderDisk {
     uint32_t version;
     uint32_t raster_width;
@@ -137,6 +160,34 @@ typedef struct DrawingObjectChunkEntryV3Disk {
     char name[32];
     DrawingPathPointDisk path_points[128];
 } DrawingObjectChunkEntryV3Disk;
+
+typedef struct DrawingObjectChunkEntryV4Disk {
+    uint32_t object_id;
+    uint32_t layer_id;
+    uint8_t type;
+    uint8_t visible;
+    uint8_t locked;
+    uint8_t stroke_width;
+    uint8_t style_mode;
+    uint8_t path_closed;
+    uint16_t path_point_count;
+    uint16_t reserved0;
+    uint32_t stroke_color_value;
+    uint32_t fill_color_value;
+    int32_t origin_x;
+    int32_t origin_y;
+    uint32_t width;
+    uint32_t height;
+    char name[32];
+    DrawingPathPointDisk path_points[128];
+} DrawingObjectChunkEntryV4Disk;
+
+static uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    return ((uint32_t)r << 16u) |
+           ((uint32_t)g << 8u) |
+           (uint32_t)b |
+           ((uint32_t)a << 24u);
+}
 
 static void write_physics_pack_with_unknown_chunk(const char *path) {
     CorePackWriter w = {0};
@@ -328,16 +379,134 @@ static void write_sketch_pack(const char *path) {
     assert(core_pack_writer_close(&w).code == CORE_OK);
 }
 
+static void write_sketch_true_color_pack(const char *path) {
+    CorePackWriter w = {0};
+    DrawingSnapshotPrefixDisk *legacy = NULL;
+    DrawingSnapshotShellPrefixDisk shell;
+    DrawingLayerRasterChunkHeaderDisk layer_hdr = {0};
+    DrawingObjectChunkHeaderDisk object_hdr = {0};
+    DrawingObjectChunkEntryV4Disk object_entry;
+    uint32_t *base_samples = NULL;
+    uint32_t overlay_samples[16];
+    uint8_t *layer_chunk = NULL;
+    uint8_t *object_chunk = NULL;
+    uint8_t *cursor = NULL;
+    uint64_t layer_chunk_size = 0u;
+    uint64_t object_chunk_size = 0u;
+    CoreResult r = core_pack_writer_open(path, &w);
+    assert(r.code == CORE_OK);
+
+    legacy = (DrawingSnapshotPrefixDisk *)calloc(1u, sizeof(*legacy));
+    assert(legacy != NULL);
+    legacy->version = 1u;
+    legacy->document.schema_version = 4u;
+    legacy->document.logical_width = 4u;
+    legacy->document.logical_height = 4u;
+    legacy->document.sample_density = 1u;
+    legacy->document.layer_count = 2u;
+    legacy->document.next_layer_id = 3u;
+    legacy->document.raster_width = 4u;
+    legacy->document.raster_height = 4u;
+    legacy->document.raster_sample_count = 16u;
+    legacy->document.layers[0].layer_id = 1u;
+    snprintf(legacy->document.layers[0].name, sizeof(legacy->document.layers[0].name), "Base Layer");
+    legacy->document.layers[0].visible = 1u;
+    legacy->document.layers[1].layer_id = 2u;
+    snprintf(legacy->document.layers[1].name, sizeof(legacy->document.layers[1].name), "Overlay");
+    legacy->document.layers[1].visible = 1u;
+
+    memset(&shell, 0, sizeof(shell));
+    shell.header.version = 2u;
+    shell.header.schema_version = 4u;
+    shell.header.logical_width = 4u;
+    shell.header.logical_height = 4u;
+    shell.header.sample_density = 1u;
+    shell.header.layer_count = 2u;
+    shell.header.next_layer_id = 3u;
+    shell.header.raster_width = 4u;
+    shell.header.raster_height = 4u;
+    shell.header.raster_sample_count = 16u;
+    shell.layers[0] = legacy->document.layers[0];
+    shell.layers[1] = legacy->document.layers[1];
+
+    base_samples = (uint32_t *)&legacy->document.raster_samples[0];
+    for (size_t i = 0; i < 16u; ++i) {
+        base_samples[i] = 0u;
+        overlay_samples[i] = 0u;
+    }
+    base_samples[5] = pack_rgba(10u, 20u, 30u, 255u);
+    base_samples[10] = pack_rgba(40u, 50u, 60u, 255u);
+
+    layer_hdr.version = 2u;
+    layer_hdr.raster_width = 4u;
+    layer_hdr.raster_height = 4u;
+    layer_hdr.sample_count = 16u;
+    layer_hdr.layer_count = 2u;
+    layer_chunk_size = 20u + 2u * (8u + 16u * sizeof(uint32_t));
+    layer_chunk = (uint8_t *)calloc(1u, (size_t)layer_chunk_size);
+    assert(layer_chunk != NULL);
+    cursor = layer_chunk;
+    memcpy(cursor, &layer_hdr, sizeof(layer_hdr));
+    cursor += sizeof(layer_hdr);
+    memcpy(cursor, &(uint32_t){ 1u }, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(cursor, &(uint32_t){ 16u }, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(cursor, base_samples, 16u * sizeof(uint32_t));
+    cursor += 16u * sizeof(uint32_t);
+    memcpy(cursor, &(uint32_t){ 2u }, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(cursor, &(uint32_t){ 16u }, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    overlay_samples[0] = pack_rgba(220u, 100u, 10u, 255u);
+    memcpy(cursor, overlay_samples, 16u * sizeof(uint32_t));
+
+    memset(&object_hdr, 0, sizeof(object_hdr));
+    object_hdr.version = 4u;
+    object_hdr.object_count = 1u;
+    object_hdr.next_object_id = 2u;
+    memset(&object_entry, 0, sizeof(object_entry));
+    object_entry.object_id = 1u;
+    object_entry.layer_id = 2u;
+    object_entry.type = 1u;
+    object_entry.visible = 1u;
+    object_entry.style_mode = 1u;
+    object_entry.fill_color_value = pack_rgba(0u, 200u, 255u, 255u);
+    object_entry.origin_x = 2;
+    object_entry.origin_y = 2;
+    object_entry.width = 2u;
+    object_entry.height = 2u;
+    object_chunk_size = sizeof(object_hdr) + sizeof(object_entry);
+    object_chunk = (uint8_t *)calloc(1u, (size_t)object_chunk_size);
+    assert(object_chunk != NULL);
+    memcpy(object_chunk, &object_hdr, sizeof(object_hdr));
+    memcpy(object_chunk + sizeof(object_hdr), &object_entry, sizeof(object_entry));
+
+    assert(core_pack_writer_add_chunk(&w, "DPS3", &shell, sizeof(shell)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "DPS2", legacy, sizeof(*legacy)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "DPLR", layer_chunk, layer_chunk_size).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "DPOB", object_chunk, object_chunk_size).code == CORE_OK);
+    free(object_chunk);
+    object_chunk = NULL;
+    free(layer_chunk);
+    layer_chunk = NULL;
+    free(legacy);
+    legacy = NULL;
+    assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
 int main(void) {
     const char *physics_path = "/tmp/datalab_unknown_physics.pack";
     const char *daw_path = "/tmp/datalab_unknown_daw.pack";
     const char *trace_path = "/tmp/datalab_unknown_trace.pack";
     const char *sketch_path = "/tmp/datalab_sketch_rects.pack";
+    const char *sketch_true_color_path = "/tmp/datalab_sketch_true_color.pack";
 
     write_physics_pack_with_unknown_chunk(physics_path);
     write_daw_pack_with_unknown_chunk(daw_path);
     write_trace_pack_with_unknown_chunk(trace_path);
     write_sketch_pack(sketch_path);
+    write_sketch_true_color_pack(sketch_true_color_path);
 
     DatalabFrame physics = {0};
     CoreResult r = datalab_load_pack(physics_path, &physics);
@@ -393,6 +562,36 @@ int main(void) {
         assert(sketch.drawing_rgba[rect_b + 3u] == 255u);
     }
     datalab_frame_free(&sketch);
+
+    DatalabFrame sketch_true_color = {0};
+    r = datalab_load_pack(sketch_true_color_path, &sketch_true_color);
+    assert(r.code == CORE_OK);
+    assert(sketch_true_color.profile == DATALAB_PROFILE_SKETCH);
+    assert(sketch_true_color.width == 4u && sketch_true_color.height == 4u);
+    assert(sketch_true_color.drawing_schema_version == 4u);
+    assert(sketch_true_color.drawing_layer_count == 2u);
+    assert(sketch_true_color.drawing_object_count == 1u);
+    assert(sketch_true_color.drawing_rendered_object_count == 1u);
+    assert(sketch_true_color.drawing_unsupported_object_count == 0u);
+    assert(sketch_true_color.drawing_rgba != NULL);
+    {
+        size_t overlay = ((size_t)0u * 4u + (size_t)0u) * 4u;
+        size_t base = ((size_t)1u * 4u + (size_t)1u) * 4u;
+        size_t object = ((size_t)2u * 4u + (size_t)2u) * 4u;
+        assert(sketch_true_color.drawing_rgba[overlay + 0u] == 220u);
+        assert(sketch_true_color.drawing_rgba[overlay + 1u] == 100u);
+        assert(sketch_true_color.drawing_rgba[overlay + 2u] == 10u);
+        assert(sketch_true_color.drawing_rgba[overlay + 3u] == 255u);
+        assert(sketch_true_color.drawing_rgba[base + 0u] == 10u);
+        assert(sketch_true_color.drawing_rgba[base + 1u] == 20u);
+        assert(sketch_true_color.drawing_rgba[base + 2u] == 30u);
+        assert(sketch_true_color.drawing_rgba[base + 3u] == 255u);
+        assert(sketch_true_color.drawing_rgba[object + 0u] == 0u);
+        assert(sketch_true_color.drawing_rgba[object + 1u] == 200u);
+        assert(sketch_true_color.drawing_rgba[object + 2u] == 255u);
+        assert(sketch_true_color.drawing_rgba[object + 3u] == 255u);
+    }
+    datalab_frame_free(&sketch_true_color);
 
     puts("datalab pack loader test passed");
     return 0;

@@ -53,7 +53,7 @@ Data-path contract behavior:
 - GUI launch no longer requires `--pack`.
 - no-arg launch opens a startup picker UI for:
   - input-root selection (`Choose Folder` hotkey on macOS + direct path edit)
-  - `.pack` discovery list from selected root
+  - supported-file discovery list (`.pack`, `.bmp`) from selected root
 - pack loader now supports these profile roots:
   - Physics (`VFHD` + fields)
   - DAW (`DAWH` + waveform/marker chunks)
@@ -64,11 +64,12 @@ Data-path contract behavior:
 - active visualization shows a persistent left data panel with:
   - picker hint (`O`)
   - current input root
-  - active pack path
-  - discovered `.pack` list in the selected root (active pack highlighted when present)
+  - active input file path
+  - discovered supported-file list in the selected root (active file highlighted when present)
   - in-panel controls:
     - `U` / `J` move list selection
-    - `Enter` loads selected `.pack` directly
+    - `Enter` loads selected file directly
+    - `Left` / `Right` cycle to previous/next file while viewing `.bmp` image lanes
     - `F5` forces root rescan
 - refinement hardening (`P5`, 2026-04-09):
   - panel and picker list text now render with clip rect bounds (no text bleed/overlap outside panel/list lanes)
@@ -79,6 +80,10 @@ Data-path contract behavior:
   - selecting an unsupported/bad `.pack` from the picker no longer exits the app; load failure returns to picker with the last error surfaced in the status row
   - sketCh canvas snapshots now derive a renderable RGBA frame from `DPS2`/`DPLR`/`DPOB` payloads
   - current object support is bounded to rectangle/ellipse rasterization; unsupported object types are counted for follow-up
+- bmp input lane (`2026-04-27`):
+  - startup picker + session panel now accept `.bmp` inputs alongside `.pack`
+  - BMP inputs route to an image profile that reuses sketch raster rendering
+  - adjacent BMP frames are prefetched (prev/next/next+1) to reduce hitching while stepping through frame directories
 - implementation anchors:
   - CLI + runtime-prefs precedence: `src/app/datalab_app_main.c`
   - runtime prefs persistence (`text_zoom_step`, `input_root`): `src/app/datalab_runtime_prefs.c`

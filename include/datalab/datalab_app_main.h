@@ -4,6 +4,14 @@
 #include "app/app_state.h"
 #include "data/pack_loader.h"
 
+#define DATALAB_FRAME_PREFETCH_SLOT_COUNT 3
+
+typedef struct DatalabFramePrefetchSlot {
+    int valid;
+    char path[DATALAB_APP_PATH_CAP];
+    DatalabFrame frame;
+} DatalabFramePrefetchSlot;
+
 typedef struct DatalabAppRuntime {
     const char *argv0;
     const char *pack_path;
@@ -21,6 +29,7 @@ typedef struct DatalabAppRuntime {
     char selected_pack_path[DATALAB_APP_PATH_CAP];
     char last_load_error[256];
     DatalabFrame frame;
+    DatalabFramePrefetchSlot prefetch_slots[DATALAB_FRAME_PREFETCH_SLOT_COUNT];
 } DatalabAppRuntime;
 
 void datalab_app_runtime_init(DatalabAppRuntime *runtime);

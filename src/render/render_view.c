@@ -101,6 +101,19 @@ void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *t
                  (unsigned int)state->workspace_authoring_entry_count);
         return;
     }
+    if (frame->profile == DATALAB_PROFILE_IMAGE) {
+        snprintf(title,
+                 title_cap,
+                 "DataLab | IMAGE raster=%ux%u text=%+d auth=%s/%s pending=%u entry=%u",
+                 frame->width,
+                 frame->height,
+                 state->text_zoom_step,
+                 state->workspace_authoring_stub_active ? "on" : "off",
+                 authoring_overlay,
+                 (unsigned int)state->workspace_authoring_pending_stub,
+                 (unsigned int)state->workspace_authoring_entry_count);
+        return;
+    }
 
     snprintf(title,
              title_cap,
@@ -166,6 +179,11 @@ CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_st
             CoreResult r = { CORE_ERR_INVALID_ARG, "invalid sketch frame" };
             return r;
         }
+    } else if (frame->profile == DATALAB_PROFILE_IMAGE) {
+        if (!frame->drawing_rgba || frame->width == 0 || frame->height == 0) {
+            CoreResult r = { CORE_ERR_INVALID_ARG, "invalid image frame" };
+            return r;
+        }
     } else {
         CoreResult r = { CORE_ERR_INVALID_ARG, "unknown frame profile" };
         return r;
@@ -204,7 +222,7 @@ CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_st
         run_r = render_daw_loop(window, renderer, frame, app_state);
     } else if (frame->profile == DATALAB_PROFILE_TRACE) {
         run_r = render_trace_loop(window, renderer, frame, app_state);
-    } else if (frame->profile == DATALAB_PROFILE_SKETCH) {
+    } else if (frame->profile == DATALAB_PROFILE_SKETCH || frame->profile == DATALAB_PROFILE_IMAGE) {
         run_r = render_sketch_loop(window, renderer, frame, app_state);
     } else {
         run_r = render_physics_loop(window, renderer, frame, app_state);

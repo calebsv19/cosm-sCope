@@ -7,6 +7,7 @@
 #include <string.h>
 #include <strings.h>
 
+#include "data/input_file_loader.h"
 #include "ui/input.h"
 
 #define DATALAB_PANEL_MAX_FILES 160
@@ -23,15 +24,7 @@ typedef struct DatalabPackPanelCache {
 static DatalabPackPanelCache g_pack_panel_cache;
 
 static int datalab_pack_ext(const char *name) {
-    size_t len = 0u;
-    if (!name) {
-        return 0;
-    }
-    len = strlen(name);
-    if (len < 5u) {
-        return 0;
-    }
-    return strcasecmp(name + len - 5u, ".pack") == 0;
+    return datalab_input_file_is_supported(name);
 }
 
 static int datalab_name_ci_cmp(const void *a, const void *b) {
@@ -56,6 +49,24 @@ static const char *datalab_path_basename(const char *path) {
         base = strrchr(path, '\\');
     }
     return base ? (base + 1) : path;
+}
+
+static size_t datalab_panel_find_active_index(const DatalabPackPanelCache *cache, const char *active_path) {
+    const char *active_name = NULL;
+    size_t i = 0u;
+    if (!cache || !active_path || active_path[0] == '\0') {
+        return (size_t)-1;
+    }
+    active_name = datalab_path_basename(active_path);
+    if (!active_name || active_name[0] == '\0') {
+        return (size_t)-1;
+    }
+    for (i = 0u; i < cache->file_count; ++i) {
+        if (strcasecmp(cache->files[i], active_name) == 0) {
+            return i;
+        }
+    }
+    return (size_t)-1;
 }
 
 static void datalab_panel_rescan(const char *root, DatalabPackPanelCache *cache) {
@@ -93,15 +104,16 @@ static void datalab_panel_rescan(const char *root, DatalabPackPanelCache *cache)
         qsort(cache->files, cache->file_count, sizeof(cache->files[0]), datalab_name_ci_cmp);
     }
     if (cache->file_count == 0u) {
-        snprintf(cache->status, sizeof(cache->status), "found 0 .pack files");
+        snprintf(cache->status, sizeof(cache->status), "found 0 supported files (.pack/.bmp)");
     } else {
-        snprintf(cache->status, sizeof(cache->status), "found %zu .pack files", cache->file_count);
+        snprintf(cache->status, sizeof(cache->status), "found %zu supported files (.pack/.bmp)", cache->file_count);
     }
 }
 
 static void datalab_panel_tick(DatalabAppState *app_state) {
     const char *root = NULL;
     uint32_t now_ticks = 0u;
+    int rescanned = 0;
     if (!app_state) {
         return;
     }
@@ -123,6 +135,14 @@ static void datalab_panel_tick(DatalabAppState *app_state) {
         datalab_panel_rescan(root, &g_pack_panel_cache);
         g_pack_panel_cache.last_scan_ticks = now_ticks;
         app_state->panel_rescan_requested = 0;
+        rescanned = 1;
+    }
+
+    if (rescanned && g_pack_panel_cache.file_count > 0u) {
+        size_t active_index = datalab_panel_find_active_index(&g_pack_panel_cache, app_state->pack_path);
+        if (active_index != (size_t)-1) {
+            app_state->panel_selected_index = active_index;
+        }
     }
 
     if (g_pack_panel_cache.file_count == 0u) {
@@ -155,7 +175,7 @@ static void datalab_panel_tick(DatalabAppState *app_state) {
                      root,
                      g_pack_panel_cache.files[app_state->panel_selected_index]);
         } else {
-            snprintf(g_pack_panel_cache.status, sizeof(g_pack_panel_cache.status), "no .pack file selected");
+            snprintf(g_pack_panel_cache.status, sizeof(g_pack_panel_cache.status), "no file selected");
         }
     }
 }
@@ -204,7 +224,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     max_panel_h = datalab_clamp_int((wh * 50) / 100, datalab_scaled_px(220.0f), datalab_scaled_px(380.0f));
 
     (void)datalab_measure_text(1, "SESSION DATA", &content_w, &measured_h);
-    (void)datalab_measure_text(1, "O picker | U/J nav | Enter load | F5 rescan", &measured_w, &measured_h);
+    (void)datalab_measure_text(1, "O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan", &measured_w, &measured_h);
     if (measured_w > content_w) content_w = measured_w;
     (void)datalab_measure_text(1, "ROOT", &measured_w, &measured_h);
     if (measured_w > content_w) content_w = measured_w;
@@ -216,7 +236,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     if (measured_w > content_w) content_w = measured_w;
     (void)datalab_measure_text(1, g_pack_panel_cache.status[0] ? g_pack_panel_cache.status : "scanning...", &measured_w, &measured_h);
     if (measured_w > content_w) content_w = measured_w;
-    (void)datalab_measure_text(1, "NO .PACK FILES IN INPUT ROOT", &measured_w, &measured_h);
+    (void)datalab_measure_text(1, "NO SUPPORTED FILES (.PACK/.BMP) IN INPUT ROOT", &measured_w, &measured_h);
     if (measured_w > content_w) content_w = measured_w;
 
     panel.x = datalab_scaled_px(10.0f);
@@ -247,7 +267,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     draw_text_5x7(renderer,
                   panel.x + pad,
                   y_cursor,
-                  "O picker | U/J nav | Enter load | F5 rescan",
+                  "O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan",
                   1,
                   210,
                   220,
@@ -352,7 +372,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                                   &list_clip,
                                   list_box.x + datalab_scaled_px(6.0f),
                                   start_y,
-                                  "NO .PACK FILES IN INPUT ROOT",
+                                  "NO SUPPORTED FILES (.PACK/.BMP) IN INPUT ROOT",
                                   1,
                                   230,
                                   150,

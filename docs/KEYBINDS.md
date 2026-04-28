@@ -7,18 +7,18 @@
 - `Cmd/Ctrl +` `0`: reset text size.
 - `R`: reset local view controls for the active profile.
 - `O`: reopen startup picker and switch dataset.
-- `F5`: rescan `.pack` files in the active input root.
+- `F5`: rescan supported files (`.pack`, `.bmp`) in the active input root.
 - `U` / `J`: move Data Panel selection up/down.
-- `Enter`: load selected `.pack` from the Data Panel list.
+- `Enter`: load selected file from the Data Panel list.
 
 ## Startup Picker
 - `E`: toggle path edit mode.
 - `B`: open native folder chooser (macOS).
 - `Backspace`: remove one character while editing path.
-- `Enter`: apply edited path in edit mode, or open selected `.pack`.
+- `Enter`: apply edited path in edit mode, or open selected file.
 - `Up` / `Down`: move file selection.
 - `Esc`: cancel edit mode or exit picker.
-- `Alt+C+V`: open selected `.pack` and enter authoring mode immediately.
+- `Alt+C+V`: open selected file and enter authoring mode immediately.
 
 ## Physics Profile
 - `1`: density view.
@@ -38,6 +38,9 @@
 - `X`: trace stats-stub toggle.
 - `C`: cycle lane visibility.
 
+## Image Profile (`.bmp`)
+- `Left` / `Right`: load previous/next file from the active directory list.
+
 ## Host Integration Pilot Notes
 - `Alt+C+V` is routed through shared `kit_workspace_authoring` chord detection in both startup picker and active profile loops (`DL3`).
   - chord requires `Alt` without `Shift/Ctrl/Cmd` modifiers.
@@ -55,8 +58,8 @@
 
 | Input | Startup Picker | Active Runtime | Authoring Active | Collision Policy |
 |---|---|---|---|---|
-| `Alt+C+V` | open selected `.pack` and enter authoring | toggle authoring on/off | toggle authoring off | Reserved chord; consumed before profile/runtime key handlers |
+| `Alt+C+V` | open selected file and enter authoring | toggle authoring on/off | toggle authoring off | Reserved chord; consumed before profile/runtime key handlers |
 | `Alt+C` / `Alt+V` (partial chord) | no picker action | no Trace `C` lane-cycle side effect | no pane/font action side effect | chord progression keys are consumed |
 | `Tab` | normal picker focus/navigation behavior | host/runtime behavior | cycle overlay | authoring-first when authoring is active |
-| `Enter` | apply path edit or open selected `.pack` | load selected `.pack` from Data Panel | apply authoring draft | authoring-first when authoring is active |
+| `Enter` | apply path edit or open selected file | load selected file from Data Panel | apply authoring draft | authoring-first when authoring is active |
 | `Esc` | cancel edit mode or exit picker | quit app | cancel draft + exit authoring | authoring-first when authoring is active |

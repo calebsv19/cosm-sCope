@@ -11,7 +11,8 @@ typedef enum DatalabProfile {
     DATALAB_PROFILE_PHYSICS = 1,
     DATALAB_PROFILE_DAW = 2,
     DATALAB_PROFILE_TRACE = 3,
-    DATALAB_PROFILE_SKETCH = 4
+    DATALAB_PROFILE_SKETCH = 4,
+    DATALAB_PROFILE_IMAGE = 5
 } DatalabProfile;
 
 typedef struct DatalabDawMarker {

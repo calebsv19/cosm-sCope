@@ -1,10 +1,10 @@
 # DataLab (Alpha)
 
-DataLab is a lightweight C-based `.pack` visualizer used to validate and inspect data artifacts produced by other programs in the CodeWork ecosystem.
+DataLab is a lightweight C-based data visualizer for `.pack` and `.bmp` artifacts produced by other programs in the CodeWork ecosystem.
 
 ## Current Scope
 
-- Loads `.pack` frames via `core_pack`.
+- Loads `.pack` frames via `core_pack` and raster `.bmp` frames for image-sequence inspection.
 - Supports profile-aware parsing for Physics, DAW, Trace, and sketCh canvas snapshot payloads.
 - Provides a simple SDL2 viewer for quick inspection.
 - Supports headless validation mode for CLI checks.
@@ -13,14 +13,14 @@ This project is currently focused on reliability and observability, not feature 
 
 ## Implemented Today
 
-- CLI pack loading (`--pack /path/to/file.pack`).
+- CLI file loading (`--pack /path/to/file.pack` or `--pack /path/to/frame.bmp`).
 - CLI input-root override (`--input-root /path/to/folder`), with CLI precedence over persisted runtime root.
 - Optional headless mode (`--no-gui`).
-- No-arg GUI launch opens startup picker for input-root and `.pack` selection.
+- No-arg GUI launch opens startup picker for input-root and file selection (`.pack` / `.bmp`).
 - Frame summary output to terminal.
 - Physics dataset mapping (`density`, `velocity`) through shared `core_data`.
 - sketCh snapshot (`DPS2`/`DPLR`/`DPOB`) loading for rasterized rectangle/ellipse canvas content.
-- Basic interactive view modes and input controls for visual inspection, including in-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan).
+- Basic interactive view modes and input controls for visual inspection, including in-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan), plus left/right cycling for `.bmp` frame sequences.
 - Runtime text zoom controls (`Cmd/Ctrl +`, `Cmd/Ctrl -`, `Cmd/Ctrl 0`) with persisted zoom step in `data/runtime/text_zoom_step.txt`.
 - Runtime input-root persistence in `data/runtime/input_root.txt`.
 - Picker load failures now return to the picker with a status message instead of exiting the app.
@@ -49,11 +49,12 @@ make -C datalab visual-harness
 make -C datalab test-stable
 ```
 
-With an explicit pack path:
+With an explicit input path:
 
 ```bash
 ./datalab/datalab --pack /absolute/path/to/frame.pack
-./datalab/datalab --pack /absolute/path/to/frame.pack --no-gui
+./datalab/datalab --pack /absolute/path/to/frame.bmp
+./datalab/datalab --pack /absolute/path/to/frame.bmp --no-gui
 ```
 
 Picker and input-root examples:
@@ -115,7 +116,7 @@ Scaffold path policy:
 ## Security and Data Hygiene
 
 - Treat DataLab as trusted-local tooling.
-- Do not open untrusted `.pack` files from unknown sources.
+- Do not open untrusted `.pack`/`.bmp` files from unknown sources.
 - Runtime/build outputs are excluded from source control.
 
 See `SECURITY.md` for details.

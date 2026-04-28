@@ -8,6 +8,7 @@
 #include "app/datalab_runtime_prefs.h"
 #include "core_data.h"
 #include "data/dataset_builders.h"
+#include "data/input_file_loader.h"
 #include "render/render_view.h"
 
 static const char *k_datalab_default_input_root = "data/import";
@@ -133,7 +134,7 @@ static int datalab_app_transition_stage(DatalabAppContext *ctx,
 }
 
 static void datalab_print_usage(const char *argv0) {
-    printf("usage: %s [--pack /path/to/frame.pack] [--input-root /path/to/folder] [--no-gui]\n", argv0);
+    printf("usage: %s [--pack /path/to/frame.pack|frame.bmp] [--input-root /path/to/folder] [--no-gui]\n", argv0);
 }
 
 void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
@@ -168,6 +169,11 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
     runtime->input_root_from_cli = 0;
     runtime->selected_pack_path[0] = '\0';
     runtime->last_load_error[0] = '\0';
+    for (i = 0; i < DATALAB_FRAME_PREFETCH_SLOT_COUNT; ++i) {
+        runtime->prefetch_slots[i].valid = 0;
+        runtime->prefetch_slots[i].path[0] = '\0';
+        datalab_frame_init(&runtime->prefetch_slots[i].frame);
+    }
 }
 
 static int datalab_app_bootstrap_ctx(DatalabAppContext *ctx, int argc, char **argv) {
@@ -456,7 +462,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                     snprintf(runtime->last_load_error,
                              sizeof(runtime->last_load_error),
                              "load failed: %s",
-                             runtime->last_load_error[0] ? runtime->last_load_error : "unsupported or invalid pack");
+                             runtime->last_load_error[0] ? runtime->last_load_error : "unsupported or invalid file");
                     runtime->pack_path = NULL;
                     runtime->selected_pack_path[0] = '\0';
                     datalab_frame_free(&runtime->frame);
@@ -773,6 +779,7 @@ static void datalab_app_shutdown_ctx(DatalabAppContext *ctx) {
         datalab_frame_free(&runtime->frame);
         runtime->frame_loaded = 0;
     }
+    datalab_runtime_reset_prefetch(runtime);
     datalab_app_release_ownership_ctx(ctx);
     ctx->ownership.shutdown_owned = 1;
     ctx->stage = DATALAB_APP_STAGE_SHUTDOWN_COMPLETED;
@@ -867,13 +874,18 @@ int datalab_app_main_legacy(int argc, char **argv) {
     }
 
     DatalabFrame frame;
-    CoreResult load_r = datalab_load_pack(pack_path, &frame);
+    CoreResult load_r = datalab_load_input_file(pack_path, &frame);
     if (load_r.code != CORE_OK) {
-        fprintf(stderr, "datalab: failed to load pack: %s\n", load_r.message);
+        fprintf(stderr, "datalab: failed to load input file: %s\n", load_r.message);
         return 2;
     }
 
-    datalab_print_frame_summary(pack_path, &frame);
+    if (frame.profile == DATALAB_PROFILE_IMAGE) {
+        printf("input=%s\n", pack_path);
+        printf("  profile=image raster=%ux%u\n", frame.width, frame.height);
+    } else {
+        datalab_print_frame_summary(pack_path, &frame);
+    }
 
     if (frame.profile == DATALAB_PROFILE_PHYSICS) {
         CoreDataset dataset;

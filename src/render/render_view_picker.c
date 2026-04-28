@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 
 #include "kit_workspace_authoring.h"
+#include "data/input_file_loader.h"
 
 #define DATALAB_PICKER_MAX_FILES 256
 
@@ -173,16 +174,8 @@ static KitWorkspaceAuthoringKey datalab_picker_key_from_sdl(SDL_Keycode key) {
     }
 }
 
-static int datalab_has_pack_extension(const char *name) {
-    size_t len = 0u;
-    if (!name) {
-        return 0;
-    }
-    len = strlen(name);
-    if (len < 5u) {
-        return 0;
-    }
-    return strcasecmp(name + len - 5u, ".pack") == 0;
+static int datalab_has_supported_extension(const char *name) {
+    return datalab_input_file_is_supported(name);
 }
 
 static int datalab_is_directory(const char *path) {
@@ -227,7 +220,7 @@ static size_t datalab_scan_pack_files(const char *root,
         if (entry->d_name[0] == '.') {
             continue;
         }
-        if (!datalab_has_pack_extension(entry->d_name)) {
+        if (!datalab_has_supported_extension(entry->d_name)) {
             continue;
         }
         if (count >= max_files) {
@@ -241,7 +234,7 @@ static size_t datalab_scan_pack_files(const char *root,
         qsort(files, count, sizeof(files[0]), datalab_cmp_names);
     }
     if (status && status_cap > 0u) {
-        snprintf(status, status_cap, "found %zu .pack files", count);
+        snprintf(status, status_cap, "found %zu supported files (.pack/.bmp)", count);
     }
     return count;
 }
@@ -409,7 +402,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                             }
                             done = 1;
                         } else {
-                            snprintf(status, sizeof(status), "authoring entry requires a selected .pack");
+                            snprintf(status, sizeof(status), "authoring entry requires a selected file");
                         }
                     }
                     continue;
@@ -509,7 +502,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                         snprintf(out_pack_path, out_pack_path_cap, "%s/%s", input_root, files[selected]);
                         done = 1;
                     } else {
-                        snprintf(status, sizeof(status), "no .pack file selected");
+                        snprintf(status, sizeof(status), "no file selected");
                     }
                     break;
                 default:
@@ -591,10 +584,10 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             SDL_RenderDrawRect(renderer, &list);
 
             draw_text_5x7(renderer, top.x + pad, y_title,
-                          "DATALAB INPUT ROOT + PACK PICKER", 2,
+                          "DATALAB INPUT ROOT + DATA PICKER", 2,
                           palette.text_primary_r, palette.text_primary_g, palette.text_primary_b, 255);
             draw_text_5x7(renderer, top.x + pad, y_help,
-                          "ALT+C+V OPEN+AUTHOR  E EDIT PATH  ENTER APPLY  B FOLDER DIALOG  UP/DOWN SELECT  ENTER OPEN  ESC CANCEL",
+                          "ALT+C+V OPEN+AUTHOR  E EDIT PATH  ENTER APPLY  B FOLDER DIALOG  UP/DOWN SELECT  ENTER OPEN FILE  ESC CANCEL",
                           1, palette.text_secondary_r, palette.text_secondary_g, palette.text_secondary_b, 255);
             draw_text_5x7(renderer, top.x + pad, y_path_label,
                           edit_mode ? "PATH (EDIT MODE):" : "PATH:",
@@ -675,7 +668,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                                       &list_clip,
                                       list_clip.x + datalab_scaled_px(6.0f),
                                       list_start_y + ((row_h - line_h1) / 2),
-                                      "NO .PACK FILES FOUND IN INPUT ROOT",
+                                      "NO SUPPORTED FILES (.PACK/.BMP) FOUND IN INPUT ROOT",
                                       1,
                                       palette.text_empty_r,
                                       palette.text_empty_g,

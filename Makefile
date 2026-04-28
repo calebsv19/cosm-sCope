@@ -1,4 +1,7 @@
-CC ?= cc
+HOST_CC ?= cc
+FISICS_CC ?= /Users/calebsv/Desktop/CodeWork/fisiCs/fisics
+BUILD_TOOLCHAIN ?= clang
+PACKAGE_TOOLCHAIN ?= $(BUILD_TOOLCHAIN)
 CSTD ?= -std=c11
 WARN ?= -Wall -Wextra -Wpedantic
 DEBUG ?= -g
@@ -6,7 +9,12 @@ DEBUG ?= -g
 SRC_DIR := src
 INC_DIR := include
 BUILD_DIR := build
-TARGET := datalab
+HOST_BUILD_DIR := $(BUILD_DIR)/host
+PROGRAM_BUILD_DIR := $(BUILD_DIR)/toolchains/$(BUILD_TOOLCHAIN)
+PROGRAM_OBJ_DIR := $(PROGRAM_BUILD_DIR)/obj
+PROGRAM_BIN_DIR := $(PROGRAM_BUILD_DIR)/bin
+TARGET_NAME := datalab
+TARGET := $(PROGRAM_BIN_DIR)/$(TARGET_NAME)
 SHARED_ROOT ?= third_party/codework_shared
 DIST_DIR := dist
 PACKAGE_APP_NAME := sCope.app
@@ -18,6 +26,12 @@ PACKAGE_FRAMEWORKS_DIR := $(PACKAGE_CONTENTS_DIR)/Frameworks
 PACKAGE_INFO_PLIST_SRC := tools/packaging/macos/Info.plist
 PACKAGE_LAUNCHER_SRC := tools/packaging/macos/datalab-launcher
 PACKAGE_DYLIB_BUNDLER := tools/packaging/macos/bundle-dylibs.sh
+PACKAGE_APP_ICON_NAME := AppIcon
+PACKAGE_APP_ICON_FILE := $(PACKAGE_APP_ICON_NAME).icns
+PACKAGE_LOCAL_ICON_DIR := tools/packaging/macos/local_app_icon
+PACKAGE_APP_ICON_SRC ?= $(PACKAGE_LOCAL_ICON_DIR)/$(PACKAGE_APP_ICON_FILE)
+PACKAGE_APP_ICONSET_SRC ?= $(PACKAGE_LOCAL_ICON_DIR)/$(PACKAGE_APP_ICON_NAME).iconset
+PACKAGE_BUNDLED_ICON_PATH := $(PACKAGE_RESOURCES_DIR)/$(PACKAGE_APP_ICON_FILE)
 DESKTOP_APP_DIR ?= $(HOME)/Desktop/$(PACKAGE_APP_NAME)
 PACKAGE_ADHOC_SIGN_IDENTITY ?= -
 RELEASE_VERSION_FILE ?= VERSION
@@ -33,6 +47,7 @@ RELEASE_ARTIFACT_BASENAME := $(RELEASE_PRODUCT_NAME)-$(RELEASE_VERSION)-macOS-$(
 RELEASE_DIR := build/release
 RELEASE_APP_ZIP := $(RELEASE_DIR)/$(RELEASE_ARTIFACT_BASENAME).zip
 RELEASE_MANIFEST := $(RELEASE_DIR)/$(RELEASE_ARTIFACT_BASENAME).manifest.txt
+RELEASE_TOOLCHAIN := clang
 RELEASE_CODESIGN_IDENTITY ?= $(if $(strip $(APPLE_SIGN_IDENTITY)),$(APPLE_SIGN_IDENTITY),$(PACKAGE_ADHOC_SIGN_IDENTITY))
 APPLE_SIGN_IDENTITY ?=
 APPLE_NOTARY_PROFILE ?=
@@ -54,6 +69,24 @@ CORE_THEME_DIR := $(SHARED_ROOT)/core/core_theme
 CORE_FONT_DIR := $(SHARED_ROOT)/core/core_font
 KIT_WORKSPACE_AUTHORING_DIR := $(SHARED_ROOT)/kit/kit_workspace_authoring
 KIT_WORKSPACE_AUTHORING_LIB := $(KIT_WORKSPACE_AUTHORING_DIR)/build/libkit_workspace_authoring.a
+
+ifeq ($(BUILD_TOOLCHAIN),clang)
+PROGRAM_CC := $(HOST_CC)
+else ifeq ($(BUILD_TOOLCHAIN),fisics)
+PROGRAM_CC := $(FISICS_CC)
+else
+$(error Unsupported BUILD_TOOLCHAIN '$(BUILD_TOOLCHAIN)'; expected clang or fisics)
+endif
+
+ifneq ($(filter $(PACKAGE_TOOLCHAIN),clang fisics),$(PACKAGE_TOOLCHAIN))
+$(error Unsupported PACKAGE_TOOLCHAIN '$(PACKAGE_TOOLCHAIN)'; expected clang or fisics)
+endif
+
+define program_bin_for
+$(BUILD_DIR)/toolchains/$(1)/bin/$(TARGET_NAME)
+endef
+
+PACKAGE_SOURCE_BIN := $(call program_bin_for,$(PACKAGE_TOOLCHAIN))
 
 SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
 SDL_LIBS := $(shell sdl2-config --libs 2>/dev/null)
@@ -102,7 +135,7 @@ else
 endif
 
 SRCS := $(shell find $(SRC_DIR) -name '*.c')
-OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRCS))
+OBJS := $(patsubst $(SRC_DIR)/%.c,$(PROGRAM_OBJ_DIR)/%.o,$(SRCS))
 CORE_PACK_SRCS := $(CORE_PACK_DIR)/src/core_pack.c
 CORE_IO_SRCS := $(CORE_IO_DIR)/src/core_io.c
 CORE_BASE_SRCS := $(CORE_BASE_DIR)/src/core_base.c
@@ -110,75 +143,77 @@ CORE_DATA_SRCS := $(CORE_DATA_DIR)/src/core_data.c
 CORE_FONT_SRCS := $(CORE_FONT_DIR)/src/core_font.c
 KIT_VIZ_SRCS := $(KIT_VIZ_DIR)/src/kit_viz.c
 
-CORE_PACK_OBJS := $(patsubst $(CORE_PACK_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_pack/%.o,$(CORE_PACK_SRCS))
-CORE_IO_OBJS := $(patsubst $(CORE_IO_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_io/%.o,$(CORE_IO_SRCS))
-CORE_BASE_OBJS := $(patsubst $(CORE_BASE_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_base/%.o,$(CORE_BASE_SRCS))
-CORE_DATA_OBJS := $(patsubst $(CORE_DATA_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_data/%.o,$(CORE_DATA_SRCS))
-CORE_FONT_OBJS := $(patsubst $(CORE_FONT_DIR)/src/%.c,$(BUILD_DIR)/shared/core/core_font/%.o,$(CORE_FONT_SRCS))
-KIT_VIZ_OBJS := $(patsubst $(KIT_VIZ_DIR)/src/%.c,$(BUILD_DIR)/shared/kit/kit_viz/%.o,$(KIT_VIZ_SRCS))
+CORE_PACK_OBJS := $(patsubst $(CORE_PACK_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_pack/%.o,$(CORE_PACK_SRCS))
+CORE_IO_OBJS := $(patsubst $(CORE_IO_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_io/%.o,$(CORE_IO_SRCS))
+CORE_BASE_OBJS := $(patsubst $(CORE_BASE_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_base/%.o,$(CORE_BASE_SRCS))
+CORE_DATA_OBJS := $(patsubst $(CORE_DATA_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_data/%.o,$(CORE_DATA_SRCS))
+CORE_FONT_OBJS := $(patsubst $(CORE_FONT_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_font/%.o,$(CORE_FONT_SRCS))
+KIT_VIZ_OBJS := $(patsubst $(KIT_VIZ_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/kit/kit_viz/%.o,$(KIT_VIZ_SRCS))
 CORE_OBJS := $(CORE_PACK_OBJS) $(CORE_IO_OBJS) $(CORE_BASE_OBJS) $(CORE_DATA_OBJS) $(CORE_FONT_OBJS) $(KIT_VIZ_OBJS)
 DEPS := $(OBJS:.o=.d)
 DEPS += $(CORE_OBJS:.o=.d)
 
-TEST_BIN := $(BUILD_DIR)/datalab_smoke_test
-PACK_LOADER_TEST_BIN := $(BUILD_DIR)/datalab_pack_loader_test
+TEST_BUILD_DIR := $(HOST_BUILD_DIR)/tests
+TEST_BIN := $(TEST_BUILD_DIR)/datalab_smoke_test
+PACK_LOADER_TEST_BIN := $(TEST_BUILD_DIR)/datalab_pack_loader_test
 KIT_GRAPH_TS_LIB := $(KIT_GRAPH_TS_DIR)/build/libkit_graph_timeseries.a
 DEFAULT_PACK_SRC := $(SHARED_ROOT)/core/core_pack/tests/fixtures/physics_v1_sample.pack
-DEFAULT_PACK := $(BUILD_DIR)/default_preview.pack
+DEFAULT_PACK := $(HOST_BUILD_DIR)/default_preview.pack
 
 .PHONY: all clean test run run-headless run-headless-smoke visual-harness test-stable test-legacy package-desktop package-desktop-smoke package-desktop-self-test package-desktop-copy-desktop package-desktop-sync package-desktop-open package-desktop-remove package-desktop-refresh release-contract release-clean release-build release-bundle-audit release-sign release-verify release-verify-signed release-notarize release-staple release-verify-notarized release-artifact release-distribute release-desktop-refresh
 
 all: $(TARGET)
 
 $(TARGET): $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(LIBS)
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(LDFLAGS) -o $@ $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(LIBS)
 
 $(KIT_GRAPH_TS_LIB):
-	$(MAKE) -C $(KIT_GRAPH_TS_DIR)
+	$(MAKE) -C $(KIT_GRAPH_TS_DIR) CC="$(HOST_CC)"
 
 $(KIT_WORKSPACE_AUTHORING_LIB):
-	$(MAKE) -C $(KIT_WORKSPACE_AUTHORING_DIR)
+	$(MAKE) -C $(KIT_WORKSPACE_AUTHORING_DIR) CC="$(HOST_CC)"
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+$(PROGRAM_OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(PROGRAM_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD_DIR)/shared/core/core_pack/%.o: $(CORE_PACK_DIR)/src/%.c
+$(HOST_BUILD_DIR)/shared/core/core_pack/%.o: $(CORE_PACK_DIR)/src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD_DIR)/shared/core/core_io/%.o: $(CORE_IO_DIR)/src/%.c
+$(HOST_BUILD_DIR)/shared/core/core_io/%.o: $(CORE_IO_DIR)/src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD_DIR)/shared/core/core_base/%.o: $(CORE_BASE_DIR)/src/%.c
+$(HOST_BUILD_DIR)/shared/core/core_base/%.o: $(CORE_BASE_DIR)/src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD_DIR)/shared/core/core_data/%.o: $(CORE_DATA_DIR)/src/%.c
+$(HOST_BUILD_DIR)/shared/core/core_data/%.o: $(CORE_DATA_DIR)/src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD_DIR)/shared/core/core_font/%.o: $(CORE_FONT_DIR)/src/%.c
+$(HOST_BUILD_DIR)/shared/core/core_font/%.o: $(CORE_FONT_DIR)/src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD_DIR)/shared/kit/kit_viz/%.o: $(KIT_VIZ_DIR)/src/%.c
+$(HOST_BUILD_DIR)/shared/kit/kit_viz/%.o: $(KIT_VIZ_DIR)/src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 $(TEST_BIN): tests/datalab_smoke_test.c src/data/dataset_builders.c
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ tests/datalab_smoke_test.c src/data/dataset_builders.c \
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(CFLAGS) -o $@ tests/datalab_smoke_test.c src/data/dataset_builders.c \
 		$(CORE_DATA_DIR)/src/core_data.c $(CORE_BASE_DIR)/src/core_base.c -lm
 
-$(PACK_LOADER_TEST_BIN): tests/datalab_pack_loader_test.c src/data/pack_loader.c
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ tests/datalab_pack_loader_test.c src/data/pack_loader.c \
+$(PACK_LOADER_TEST_BIN): tests/datalab_pack_loader_test.c src/data/pack_loader.c src/data/pack_loader_sketch.c
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(CFLAGS) -o $@ tests/datalab_pack_loader_test.c src/data/pack_loader.c src/data/pack_loader_sketch.c \
 		$(CORE_PACK_DIR)/src/core_pack.c $(CORE_IO_DIR)/src/core_io.c $(CORE_BASE_DIR)/src/core_base.c -lm
 
 $(DEFAULT_PACK): $(DEFAULT_PACK_SRC)
-	@mkdir -p $(BUILD_DIR)
+	@mkdir -p $(dir $@)
 	cp $(DEFAULT_PACK_SRC) $@
 
 test: $(TEST_BIN) $(PACK_LOADER_TEST_BIN)
@@ -192,29 +227,39 @@ test-legacy:
 
 run: $(TARGET)
 	@if [ -n "$(PACK)" ]; then \
-		./$(TARGET) --pack "$(PACK)"; \
+		"$(TARGET)" --pack "$(PACK)"; \
 	else \
-		./$(TARGET); \
+		"$(TARGET)"; \
 	fi
 
 run-headless: $(TARGET) $(DEFAULT_PACK)
-	./$(TARGET) --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
+	"$(TARGET)" --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
 
 run-headless-smoke: all test-stable $(DEFAULT_PACK)
-	./$(TARGET) --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
+	"$(TARGET)" --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
 
 visual-harness: $(TARGET)
 	@echo "visual harness build gate ready: $(TARGET)"
 	@echo "launch manual UI validation with: make -C datalab run"
 
-package-desktop: $(TARGET)
+package-desktop:
+	@$(MAKE) BUILD_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" "$(PACKAGE_SOURCE_BIN)"
 	@echo "Preparing desktop package..."
 	@rm -rf "$(PACKAGE_APP_DIR)"
 	@mkdir -p "$(PACKAGE_MACOS_DIR)" "$(PACKAGE_RESOURCES_DIR)" "$(PACKAGE_FRAMEWORKS_DIR)"
 	@cp "$(PACKAGE_INFO_PLIST_SRC)" "$(PACKAGE_CONTENTS_DIR)/Info.plist"
-	@cp "$(TARGET)" "$(PACKAGE_MACOS_DIR)/datalab-bin"
+	@cp "$(PACKAGE_SOURCE_BIN)" "$(PACKAGE_MACOS_DIR)/datalab-bin"
 	@cp "$(PACKAGE_LAUNCHER_SRC)" "$(PACKAGE_MACOS_DIR)/datalab-launcher"
 	@chmod +x "$(PACKAGE_MACOS_DIR)/datalab-bin" "$(PACKAGE_MACOS_DIR)/datalab-launcher"
+	@if [ -f "$(PACKAGE_APP_ICON_SRC)" ]; then \
+		cp "$(PACKAGE_APP_ICON_SRC)" "$(PACKAGE_BUNDLED_ICON_PATH)"; \
+		echo "Bundled app icon from $(PACKAGE_APP_ICON_SRC)"; \
+	elif [ -d "$(PACKAGE_APP_ICONSET_SRC)" ]; then \
+		/usr/bin/iconutil -c icns -o "$(PACKAGE_BUNDLED_ICON_PATH)" "$(PACKAGE_APP_ICONSET_SRC)" || exit 1; \
+		echo "Bundled app icon from $(PACKAGE_APP_ICONSET_SRC)"; \
+	else \
+		echo "warning: no app icon source found at $(PACKAGE_APP_ICON_SRC) or $(PACKAGE_APP_ICONSET_SRC)"; \
+	fi
 	@"$(PACKAGE_DYLIB_BUNDLER)" "$(PACKAGE_MACOS_DIR)/datalab-bin" "$(PACKAGE_FRAMEWORKS_DIR)"
 	@mkdir -p "$(PACKAGE_RESOURCES_DIR)/data" "$(PACKAGE_RESOURCES_DIR)/shared/assets/fonts"
 	@if [ -d "data/runtime" ]; then cp -R data/runtime "$(PACKAGE_RESOURCES_DIR)/data/"; else mkdir -p "$(PACKAGE_RESOURCES_DIR)/data/runtime"; fi
@@ -235,6 +280,9 @@ package-desktop-smoke: package-desktop
 	@test -x "$(PACKAGE_MACOS_DIR)/datalab-launcher" || (echo "Missing launcher"; exit 1)
 	@test -x "$(PACKAGE_MACOS_DIR)/datalab-bin" || (echo "Missing app binary"; exit 1)
 	@test -f "$(PACKAGE_CONTENTS_DIR)/Info.plist" || (echo "Missing Info.plist"; exit 1)
+	@if [ -f "$(PACKAGE_APP_ICON_SRC)" ] || [ -d "$(PACKAGE_APP_ICONSET_SRC)" ]; then \
+		test -f "$(PACKAGE_BUNDLED_ICON_PATH)" || (echo "Missing bundled AppIcon.icns"; exit 1); \
+	fi
 	@test -f "$(PACKAGE_FRAMEWORKS_DIR)/libvulkan.1.dylib" || (echo "Missing bundled libvulkan"; exit 1)
 	@test -f "$(PACKAGE_FRAMEWORKS_DIR)/libMoltenVK.dylib" || (echo "Missing bundled libMoltenVK"; exit 1)
 	@test -d "$(PACKAGE_RESOURCES_DIR)/data/runtime" || (echo "Missing runtime data dir"; exit 1)
@@ -286,7 +334,7 @@ release-clean:
 	@echo "release-clean complete."
 
 release-build:
-	@$(MAKE) package-desktop-self-test
+	@$(MAKE) BUILD_TOOLCHAIN="$(RELEASE_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(RELEASE_TOOLCHAIN)" package-desktop-self-test
 	@echo "release-build complete."
 
 release-bundle-audit: release-build
@@ -387,6 +435,6 @@ release-desktop-refresh: release-distribute
 	@echo "release-desktop-refresh passed."
 
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR)
 
 -include $(DEPS)

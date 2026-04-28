@@ -61,11 +61,17 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
         case SDLK_LEFT:
             if (state->profile == DATALAB_PROFILE_TRACE && state->trace_cursor_index > 0u) {
                 state->trace_cursor_index--;
+            } else if (state->profile == DATALAB_PROFILE_IMAGE) {
+                state->panel_selection_delta -= 1;
+                state->panel_open_selected_requested = 1;
             }
             break;
         case SDLK_RIGHT:
             if (state->profile == DATALAB_PROFILE_TRACE) {
                 state->trace_cursor_index++;
+            } else if (state->profile == DATALAB_PROFILE_IMAGE) {
+                state->panel_selection_delta += 1;
+                state->panel_open_selected_requested = 1;
             }
             break;
         case SDLK_HOME:
