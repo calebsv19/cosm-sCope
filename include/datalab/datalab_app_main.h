@@ -25,6 +25,9 @@ typedef struct DatalabAppRuntime {
     char workspace_authoring_custom_theme_slot_names[DATALAB_CUSTOM_THEME_SLOT_COUNT][DATALAB_CUSTOM_THEME_NAME_CAP];
     int frame_loaded;
     int input_root_from_cli;
+    int playback_active;
+    uint32_t playback_interval_ms;
+    DatalabRasterViewportState raster_viewport;
     char input_root[DATALAB_APP_PATH_CAP];
     char selected_pack_path[DATALAB_APP_PATH_CAP];
     char last_load_error[256];

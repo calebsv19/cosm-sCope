@@ -21,6 +21,8 @@ This project is currently focused on reliability and observability, not feature 
 - Physics dataset mapping (`density`, `velocity`) through shared `core_data`.
 - sketCh snapshot (`DPS2`/`DPLR`/`DPOB`) loading for rasterized rectangle/ellipse canvas content.
 - Basic interactive view modes and input controls for visual inspection, including in-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan), plus left/right cycling for `.bmp` frame sequences.
+- `Space`-toggle autoplay for stepping through the active directory file list (`.pack`/`.bmp`) at a fixed default cadence.
+- Shared `core_viewport2d`-backed raster inspection for sketch/image lanes: mouse-wheel cursor-anchor zoom, left-drag pan, and `R` reset-to-fit.
 - Runtime text zoom controls (`Cmd/Ctrl +`, `Cmd/Ctrl -`, `Cmd/Ctrl 0`) with persisted zoom step in `data/runtime/text_zoom_step.txt`.
 - Runtime input-root persistence in `data/runtime/input_root.txt`.
 - Picker load failures now return to the picker with a status message instead of exiting the app.

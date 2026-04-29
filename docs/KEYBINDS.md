@@ -10,6 +10,7 @@
 - `F5`: rescan supported files (`.pack`, `.bmp`) in the active input root.
 - `U` / `J`: move Data Panel selection up/down.
 - `Enter`: load selected file from the Data Panel list.
+- `Space`: toggle directory autoplay (play/pause through current file list at default speed).
 
 ## Startup Picker
 - `E`: toggle path edit mode.
@@ -40,6 +41,14 @@
 
 ## Image Profile (`.bmp`)
 - `Left` / `Right`: load previous/next file from the active directory list.
+- `Mouse Wheel`: zoom at cursor anchor.
+- `Left Drag`: pan the raster viewport.
+- `R`: reset image/sketch viewport to fit.
+
+## Sketch Profile
+- `Mouse Wheel`: zoom at cursor anchor.
+- `Left Drag`: pan the raster viewport.
+- `R`: reset image/sketch viewport to fit.
 
 ## Host Integration Pilot Notes
 - `Alt+C+V` is routed through shared `kit_workspace_authoring` chord detection in both startup picker and active profile loops (`DL3`).

@@ -56,6 +56,7 @@ STAPLE_MAX_ATTEMPTS ?= 6
 STAPLE_RETRY_DELAY_SEC ?= 15
 
 CORE_BASE_DIR := $(SHARED_ROOT)/core/core_base
+CORE_VIEWPORT2D_DIR := $(SHARED_ROOT)/core/core_viewport2d
 CORE_IO_DIR := $(SHARED_ROOT)/core/core_io
 CORE_DATA_DIR := $(SHARED_ROOT)/core/core_data
 CORE_PACK_DIR := $(SHARED_ROOT)/core/core_pack
@@ -97,7 +98,7 @@ SDL_TTF_LIBS := $(shell $(PKG_CONFIG) --libs sdl2_ttf 2>/dev/null)
 UNAME_S := $(shell uname -s)
 
 CFLAGS := $(CSTD) $(WARN) $(DEBUG) -I$(INC_DIR) -I$(SRC_DIR) \
-	-I$(CORE_BASE_DIR)/include -I$(CORE_IO_DIR)/include -I$(CORE_DATA_DIR)/include \
+	-I$(CORE_BASE_DIR)/include -I$(CORE_VIEWPORT2D_DIR)/include -I$(CORE_IO_DIR)/include -I$(CORE_DATA_DIR)/include \
 	-I$(CORE_LAYOUT_DIR)/include -I$(CORE_PANE_DIR)/include \
 	-I$(CORE_PACK_DIR)/include -I$(KIT_VIZ_DIR)/include -I$(KIT_GRAPH_TS_DIR)/include \
 	-I$(KIT_RENDER_DIR)/include -I$(CORE_THEME_DIR)/include -I$(CORE_FONT_DIR)/include \
@@ -139,6 +140,7 @@ OBJS := $(patsubst $(SRC_DIR)/%.c,$(PROGRAM_OBJ_DIR)/%.o,$(SRCS))
 CORE_PACK_SRCS := $(CORE_PACK_DIR)/src/core_pack.c
 CORE_IO_SRCS := $(CORE_IO_DIR)/src/core_io.c
 CORE_BASE_SRCS := $(CORE_BASE_DIR)/src/core_base.c
+CORE_VIEWPORT2D_SRCS := $(CORE_VIEWPORT2D_DIR)/src/core_viewport2d.c
 CORE_DATA_SRCS := $(CORE_DATA_DIR)/src/core_data.c
 CORE_FONT_SRCS := $(CORE_FONT_DIR)/src/core_font.c
 KIT_VIZ_SRCS := $(KIT_VIZ_DIR)/src/kit_viz.c
@@ -146,10 +148,11 @@ KIT_VIZ_SRCS := $(KIT_VIZ_DIR)/src/kit_viz.c
 CORE_PACK_OBJS := $(patsubst $(CORE_PACK_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_pack/%.o,$(CORE_PACK_SRCS))
 CORE_IO_OBJS := $(patsubst $(CORE_IO_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_io/%.o,$(CORE_IO_SRCS))
 CORE_BASE_OBJS := $(patsubst $(CORE_BASE_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_base/%.o,$(CORE_BASE_SRCS))
+CORE_VIEWPORT2D_OBJS := $(patsubst $(CORE_VIEWPORT2D_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_viewport2d/%.o,$(CORE_VIEWPORT2D_SRCS))
 CORE_DATA_OBJS := $(patsubst $(CORE_DATA_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_data/%.o,$(CORE_DATA_SRCS))
 CORE_FONT_OBJS := $(patsubst $(CORE_FONT_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_font/%.o,$(CORE_FONT_SRCS))
 KIT_VIZ_OBJS := $(patsubst $(KIT_VIZ_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/kit/kit_viz/%.o,$(KIT_VIZ_SRCS))
-CORE_OBJS := $(CORE_PACK_OBJS) $(CORE_IO_OBJS) $(CORE_BASE_OBJS) $(CORE_DATA_OBJS) $(CORE_FONT_OBJS) $(KIT_VIZ_OBJS)
+CORE_OBJS := $(CORE_PACK_OBJS) $(CORE_IO_OBJS) $(CORE_BASE_OBJS) $(CORE_VIEWPORT2D_OBJS) $(CORE_DATA_OBJS) $(CORE_FONT_OBJS) $(KIT_VIZ_OBJS)
 DEPS := $(OBJS:.o=.d)
 DEPS += $(CORE_OBJS:.o=.d)
 
@@ -187,6 +190,10 @@ $(HOST_BUILD_DIR)/shared/core/core_io/%.o: $(CORE_IO_DIR)/src/%.c
 	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 $(HOST_BUILD_DIR)/shared/core/core_base/%.o: $(CORE_BASE_DIR)/src/%.c
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+$(HOST_BUILD_DIR)/shared/core/core_viewport2d/%.o: $(CORE_VIEWPORT2D_DIR)/src/%.c
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(CFLAGS) -MMD -MP -c $< -o $@
 

@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <SDL2/SDL.h>
+
 #include "app/datalab_runtime_pack.h"
 #include "app/datalab_runtime_prefs.h"
 #include "core_data.h"
@@ -167,6 +169,9 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
                        i + 1);
     }
     runtime->input_root_from_cli = 0;
+    runtime->playback_active = 0;
+    runtime->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
+    datalab_raster_viewport_state_init(&runtime->raster_viewport);
     runtime->selected_pack_path[0] = '\0';
     runtime->last_load_error[0] = '\0';
     for (i = 0; i < DATALAB_FRAME_PREFETCH_SLOT_COUNT; ++i) {
@@ -420,6 +425,12 @@ int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app
     }
     snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", runtime->input_root);
     app_state->open_picker_requested = 0;
+    app_state->playback_active = runtime->playback_active;
+    app_state->playback_interval_ms =
+        runtime->playback_interval_ms ? runtime->playback_interval_ms : DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
+    app_state->playback_last_advance_ticks = SDL_GetTicks();
+    app_state->raster_viewport = runtime->raster_viewport;
+    app_state->raster_viewport.drag_active = 0;
     return 0;
 }
 
@@ -506,6 +517,12 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                 snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", runtime->input_root);
                 app_state->open_picker_requested = 0;
                 app_state->panel_rescan_requested = 1;
+                app_state->playback_active = runtime->playback_active;
+                app_state->playback_interval_ms =
+                    runtime->playback_interval_ms ? runtime->playback_interval_ms : DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
+                app_state->playback_last_advance_ticks = SDL_GetTicks();
+                app_state->raster_viewport = runtime->raster_viewport;
+                app_state->raster_viewport.drag_active = 0;
                 if (picker_enter_authoring) {
                     app_state->workspace_authoring_stub_active = 1;
                     app_state->workspace_authoring_overlay_mode =
@@ -535,6 +552,10 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                                app_state->workspace_authoring_custom_theme_slot_names[i]);
             }
             runtime->text_zoom_step = app_state->text_zoom_step;
+            runtime->playback_active = app_state->playback_active;
+            runtime->playback_interval_ms = app_state->playback_interval_ms;
+            runtime->raster_viewport = app_state->raster_viewport;
+            runtime->raster_viewport.drag_active = 0;
         }
         datalab_runtime_prefs_save_text_zoom_step(app_state ? app_state->text_zoom_step : runtime->text_zoom_step);
         datalab_runtime_prefs_save_theme_preset_id(runtime->workspace_authoring_theme_preset_id);

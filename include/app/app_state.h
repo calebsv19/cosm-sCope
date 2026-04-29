@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core_viewport2d.h"
 #include "data/pack_loader.h"
 
 #define DATALAB_APP_PATH_CAP 1024
@@ -42,8 +43,23 @@ typedef struct DatalabWorkspaceCustomTheme {
     uint8_t button_active_r, button_active_g, button_active_b;
 } DatalabWorkspaceCustomTheme;
 
+typedef struct DatalabRasterViewportState {
+    CoreViewport2D viewport;
+    uint32_t content_width;
+    uint32_t content_height;
+    int view_width;
+    int view_height;
+    int valid;
+    int fit_mode;
+    int reset_requested;
+    int drag_active;
+    int last_mouse_x;
+    int last_mouse_y;
+} DatalabRasterViewportState;
+
 #define DATALAB_TEXT_ZOOM_STEP_MIN (-4)
 #define DATALAB_TEXT_ZOOM_STEP_MAX 5
+#define DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT 120u
 
 typedef struct DatalabAppState {
     const char *pack_path;
@@ -64,6 +80,10 @@ typedef struct DatalabAppState {
     size_t panel_selected_index;
     int panel_open_selected_requested;
     char panel_requested_pack_path[DATALAB_APP_PATH_CAP];
+    int playback_active;
+    uint32_t playback_interval_ms;
+    uint32_t playback_last_advance_ticks;
+    DatalabRasterViewportState raster_viewport;
     int workspace_authoring_stub_active;
     uint8_t workspace_authoring_entry_chord_mask;
     uint32_t workspace_authoring_entry_count;
@@ -95,5 +115,8 @@ const char *datalab_view_mode_name(DatalabViewMode mode);
 const char *datalab_workspace_authoring_overlay_mode_name(DatalabWorkspaceAuthoringOverlayMode mode);
 int datalab_text_zoom_step_clamp(int step);
 float datalab_text_zoom_step_multiplier(int step);
+void datalab_raster_viewport_state_init(DatalabRasterViewportState *state);
+void datalab_raster_viewport_request_reset(DatalabRasterViewportState *state);
+int datalab_profile_supports_raster_viewport(DatalabProfile profile);
 
 #endif

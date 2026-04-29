@@ -101,6 +101,8 @@ typedef struct DatalabPhysicsRenderDeriveFrame {
 typedef struct DatalabSketchRenderDeriveFrame {
     DatalabRenderDeriveFrame common;
     SDL_Rect dst;
+    float zoom;
+    uint8_t fit_mode;
 } DatalabSketchRenderDeriveFrame;
 
 int datalab_ir1_diag_enabled(void);
@@ -165,8 +167,12 @@ void datalab_physics_render_derive_frame(SDL_Renderer *renderer,
                                          DatalabPhysicsRenderDeriveFrame *out_derive);
 void datalab_sketch_render_derive_frame(SDL_Renderer *renderer,
                                         const DatalabFrame *frame,
-                                        const DatalabAppState *app_state,
+                                        DatalabAppState *app_state,
                                         DatalabSketchRenderDeriveFrame *out_derive);
+void datalab_raster_viewport_derive_frame(SDL_Renderer *renderer,
+                                          const DatalabFrame *frame,
+                                          DatalabAppState *app_state,
+                                          DatalabSketchRenderDeriveFrame *out_derive);
 void datalab_physics_render_submit_frame(SDL_Window *window,
                                          SDL_Renderer *renderer,
                                          SDL_Texture *texture,

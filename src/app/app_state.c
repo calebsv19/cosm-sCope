@@ -26,6 +26,29 @@ float datalab_text_zoom_step_multiplier(int step) {
     return multiplier;
 }
 
+void datalab_raster_viewport_state_init(DatalabRasterViewportState *state) {
+    if (!state) {
+        return;
+    }
+    memset(state, 0, sizeof(*state));
+    (void)core_viewport2d_init(&state->viewport);
+    state->fit_mode = 1;
+    state->reset_requested = 1;
+}
+
+void datalab_raster_viewport_request_reset(DatalabRasterViewportState *state) {
+    if (!state) {
+        return;
+    }
+    state->fit_mode = 1;
+    state->reset_requested = 1;
+    state->drag_active = 0;
+}
+
+int datalab_profile_supports_raster_viewport(DatalabProfile profile) {
+    return profile == DATALAB_PROFILE_SKETCH || profile == DATALAB_PROFILE_IMAGE;
+}
+
 void datalab_app_state_init(DatalabAppState *state, const char *pack_path, DatalabProfile profile) {
     DatalabWorkspaceCustomTheme default_theme;
     int i;
@@ -48,6 +71,10 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->panel_selected_index = 0u;
     state->panel_open_selected_requested = 0;
     state->panel_requested_pack_path[0] = '\0';
+    state->playback_active = 0;
+    state->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
+    state->playback_last_advance_ticks = 0u;
+    datalab_raster_viewport_state_init(&state->raster_viewport);
     state->workspace_authoring_stub_active = 0;
     state->workspace_authoring_entry_chord_mask = 0u;
     state->workspace_authoring_entry_count = 0u;

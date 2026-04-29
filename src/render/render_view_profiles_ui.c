@@ -699,17 +699,14 @@ void datalab_physics_render_derive_frame(SDL_Renderer *renderer,
 
 void datalab_sketch_render_derive_frame(SDL_Renderer *renderer,
                                         const DatalabFrame *frame,
-                                        const DatalabAppState *app_state,
+                                        DatalabAppState *app_state,
                                         DatalabSketchRenderDeriveFrame *out_derive) {
-    int ww = 0;
-    int wh = 0;
     if (!renderer || !frame || !app_state || !out_derive) {
         return;
     }
     memset(out_derive, 0, sizeof(*out_derive));
     datalab_render_derive_frame(frame, app_state, &out_derive->common);
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
-    calc_fit_rect(ww, wh, frame->width, frame->height, &out_derive->dst);
+    datalab_raster_viewport_derive_frame(renderer, frame, app_state, out_derive);
 }
 
 static void datalab_draw_workspace_authoring_overlay(SDL_Renderer *renderer,

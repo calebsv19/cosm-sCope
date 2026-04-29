@@ -12,6 +12,7 @@
 
 #define DATALAB_PANEL_MAX_FILES 160
 #define DATALAB_PANEL_REFRESH_MS 1200u
+#define DATALAB_PLAYBACK_STEP_INTERVAL_MS_DEFAULT DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT
 
 typedef struct DatalabPackPanelCache {
     char scanned_root[DATALAB_APP_PATH_CAP];
@@ -148,6 +149,7 @@ static void datalab_panel_tick(DatalabAppState *app_state) {
     if (g_pack_panel_cache.file_count == 0u) {
         app_state->panel_selected_index = 0u;
         app_state->panel_selection_delta = 0;
+        app_state->playback_active = 0;
     } else {
         int delta = app_state->panel_selection_delta;
         if (delta != 0) {
@@ -162,6 +164,23 @@ static void datalab_panel_tick(DatalabAppState *app_state) {
             app_state->panel_selection_delta = 0;
         } else if (app_state->panel_selected_index >= g_pack_panel_cache.file_count) {
             app_state->panel_selected_index = g_pack_panel_cache.file_count - 1u;
+        }
+    }
+
+    if (app_state->playback_active && g_pack_panel_cache.file_count > 0u) {
+        uint32_t step_interval_ms = app_state->playback_interval_ms;
+        if (step_interval_ms == 0u) {
+            step_interval_ms = DATALAB_PLAYBACK_STEP_INTERVAL_MS_DEFAULT;
+            app_state->playback_interval_ms = step_interval_ms;
+        }
+        if ((uint32_t)(now_ticks - app_state->playback_last_advance_ticks) >= step_interval_ms) {
+            if (app_state->panel_selected_index + 1u < g_pack_panel_cache.file_count) {
+                app_state->panel_selected_index += 1u;
+            } else {
+                app_state->panel_selected_index = 0u;
+            }
+            app_state->panel_open_selected_requested = 1;
+            app_state->playback_last_advance_ticks = now_ticks;
         }
     }
 
@@ -204,6 +223,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     int max_rows = 0;
     int start_y = 0;
     size_t start_idx = 0u;
+    const char *shortcut_line = NULL;
     if (!renderer || !app_state) {
         return;
     }
@@ -211,6 +231,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     root = (app_state->input_root[0] != '\0') ? app_state->input_root : "<not set>";
     pack_path = app_state->pack_path && app_state->pack_path[0] ? app_state->pack_path : "<none>";
     active_name = datalab_path_basename(pack_path);
+    shortcut_line = datalab_profile_supports_raster_viewport(app_state->profile)
+                        ? "Wheel zoom | Left drag pan | R reset | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan"
+                        : "Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan";
     SDL_GetRendererOutputSize(renderer, &ww, &wh);
     pad = datalab_scaled_px(8.0f);
     section_gap = datalab_scaled_px(4.0f);
@@ -224,7 +247,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     max_panel_h = datalab_clamp_int((wh * 50) / 100, datalab_scaled_px(220.0f), datalab_scaled_px(380.0f));
 
     (void)datalab_measure_text(1, "SESSION DATA", &content_w, &measured_h);
-    (void)datalab_measure_text(1, "O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan", &measured_w, &measured_h);
+    (void)datalab_measure_text(1, shortcut_line, &measured_w, &measured_h);
     if (measured_w > content_w) content_w = measured_w;
     (void)datalab_measure_text(1, "ROOT", &measured_w, &measured_h);
     if (measured_w > content_w) content_w = measured_w;
@@ -267,7 +290,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     draw_text_5x7(renderer,
                   panel.x + pad,
                   y_cursor,
-                  "O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan",
+                  shortcut_line,
                   1,
                   210,
                   220,
@@ -498,7 +521,9 @@ typedef struct DatalabSketchLoopContext {
     SDL_Texture *texture;
 } DatalabSketchLoopContext;
 
-static void datalab_loop_handle_event(const SDL_Event *event,
+static void datalab_loop_handle_event(SDL_Window *window,
+                                      SDL_Renderer *renderer,
+                                      const SDL_Event *event,
                                       DatalabInputFrame *input_frame,
                                       DatalabAppState *app_state,
                                       int *quit,
@@ -516,6 +541,9 @@ static void datalab_loop_handle_event(const SDL_Event *event,
     if (datalab_workspace_authoring_route_mouse_event(event, app_state)) {
         return;
     }
+    if (datalab_handle_mouse_event(window, renderer, event, app_state)) {
+        return;
+    }
     if (event->type == SDL_KEYDOWN) {
         datalab_workspace_authoring_route_keydown(&event->key, app_state, &authoring_route);
         if (!authoring_route.consumed) {
@@ -524,7 +552,9 @@ static void datalab_loop_handle_event(const SDL_Event *event,
     }
 }
 
-static void datalab_loop_input_wait_and_drain(DatalabInputFrame *input_frame,
+static void datalab_loop_input_wait_and_drain(SDL_Window *window,
+                                              SDL_Renderer *renderer,
+                                              DatalabInputFrame *input_frame,
                                               DatalabAppState *app_state,
                                               int *quit,
                                               int wait_timeout_ms,
@@ -538,13 +568,13 @@ static void datalab_loop_input_wait_and_drain(DatalabInputFrame *input_frame,
     if (wait_timeout_ms > 0) {
         uint32_t wait_start = SDL_GetTicks();
         if (SDL_WaitEventTimeout(&event, wait_timeout_ms) == 1) {
-            datalab_loop_handle_event(&event, input_frame, app_state, quit, out_resize_pending);
+            datalab_loop_handle_event(window, renderer, &event, input_frame, app_state, quit, out_resize_pending);
         }
         *out_wait_blocked_ms += (SDL_GetTicks() - wait_start);
         *out_wait_call_count += 1u;
     }
     while (SDL_PollEvent(&event)) {
-        datalab_loop_handle_event(&event, input_frame, app_state, quit, out_resize_pending);
+        datalab_loop_handle_event(window, renderer, &event, input_frame, app_state, quit, out_resize_pending);
     }
 }
 
@@ -595,7 +625,9 @@ static void datalab_loop_note_input_diag(const char *lane_tag,
     }
 }
 
-static void datalab_loop_frame_phase_wait_and_input(DatalabLoopFramePhases *phase,
+static void datalab_loop_frame_phase_wait_and_input(SDL_Window *window,
+                                                    SDL_Renderer *renderer,
+                                                    DatalabLoopFramePhases *phase,
                                                     DatalabLoopRunState *run_state,
                                                     DatalabAppState *app_state) {
     if (!phase || !run_state || !app_state) {
@@ -605,7 +637,9 @@ static void datalab_loop_frame_phase_wait_and_input(DatalabLoopFramePhases *phas
     phase->frame_begin_counter = SDL_GetPerformanceCounter();
     phase->wait_timeout_ms = datalab_loop_compute_wait_timeout_ms(&run_state->wait_policy_input);
     datalab_input_frame_begin(&phase->input_frame);
-    datalab_loop_input_wait_and_drain(&phase->input_frame,
+    datalab_loop_input_wait_and_drain(window,
+                                      renderer,
+                                      &phase->input_frame,
                                       app_state,
                                       &run_state->quit,
                                       phase->wait_timeout_ms,
@@ -775,7 +809,7 @@ static CoreResult datalab_loop_run_profile(SDL_Window *window,
         DatalabRenderSubmitOutcome render_submit = {0};
         CoreResult render_result = core_result_ok();
 
-        datalab_loop_frame_phase_wait_and_input(&phase, &run_state, app_state);
+        datalab_loop_frame_phase_wait_and_input(window, renderer, &phase, &run_state, app_state);
         if (datalab_loop_frame_phase_runtime_tick(&phase, app_state)) {
             break;
         }
