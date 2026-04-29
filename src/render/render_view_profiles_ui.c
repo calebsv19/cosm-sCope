@@ -902,7 +902,7 @@ void datalab_daw_render_submit_frame(SDL_Window *window,
 
 void datalab_sketch_render_submit_frame(SDL_Window *window,
                                         SDL_Renderer *renderer,
-                                        SDL_Texture *texture,
+                                        DatalabRasterTextureState *texture_state,
                                         const DatalabFrame *frame,
                                         const DatalabAppState *app_state,
                                         const DatalabSketchRenderDeriveFrame *derive,
@@ -911,7 +911,7 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
         return;
     }
     memset(outcome, 0, sizeof(*outcome));
-    if (!window || !renderer || !texture || !frame || !app_state || !derive || !frame->drawing_rgba) {
+    if (!window || !renderer || !texture_state || !frame || !app_state || !derive || !frame->drawing_rgba) {
         outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid sketch render submit request" };
         return;
     }
@@ -925,10 +925,12 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
                                                     outcome);
         return;
     }
-    SDL_UpdateTexture(texture, NULL, frame->drawing_rgba, (int)frame->width * 4);
     SDL_SetRenderDrawColor(renderer, 12, 12, 16, 255);
     SDL_RenderClear(renderer);
-    SDL_RenderCopy(renderer, texture, NULL, &derive->dst);
+    outcome->result = datalab_raster_render_frame(renderer, frame, derive, texture_state);
+    if (outcome->result.code != CORE_OK) {
+        return;
+    }
     datalab_draw_session_controls(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->common.title);

@@ -518,7 +518,7 @@ typedef struct DatalabPhysicsLoopContext {
 } DatalabPhysicsLoopContext;
 
 typedef struct DatalabSketchLoopContext {
-    SDL_Texture *texture;
+    DatalabRasterTextureState texture_state;
 } DatalabSketchLoopContext;
 
 static void datalab_loop_handle_event(SDL_Window *window,
@@ -785,7 +785,7 @@ static CoreResult datalab_loop_render_step_sketch(SDL_Window *window,
     datalab_sketch_render_derive_frame(renderer, frame, app_state, &render_derive);
     datalab_sketch_render_submit_frame(window,
                                        renderer,
-                                       ctx->texture,
+                                       &ctx->texture_state,
                                        frame,
                                        app_state,
                                        &render_derive,
@@ -958,19 +958,18 @@ CoreResult render_sketch_loop(SDL_Window *window,
     DatalabLoopProfileOps ops;
     CoreResult loop_result = core_result_ok();
     memset(&sketch_ctx, 0, sizeof(sketch_ctx));
-    sketch_ctx.texture = SDL_CreateTexture(renderer,
-                                           SDL_PIXELFORMAT_RGBA32,
-                                           SDL_TEXTUREACCESS_STREAMING,
-                                           (int)frame->width,
-                                           (int)frame->height);
-    if (!sketch_ctx.texture) {
-        return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
+    loop_result = datalab_raster_texture_state_init(renderer,
+                                                    frame->width,
+                                                    frame->height,
+                                                    &sketch_ctx.texture_state);
+    if (loop_result.code != CORE_OK) {
+        return loop_result;
     }
     ops.lane_tag = "sketch";
     ops.lane_ctx = &sketch_ctx;
     ops.render_step = datalab_loop_render_step_sketch;
     loop_result = datalab_loop_run_profile(window, renderer, frame, app_state, &ops);
-    SDL_DestroyTexture(sketch_ctx.texture);
+    datalab_raster_texture_state_destroy(&sketch_ctx.texture_state);
     return loop_result;
 }
 

@@ -23,6 +23,7 @@ This project is currently focused on reliability and observability, not feature 
 - Basic interactive view modes and input controls for visual inspection, including in-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan), plus left/right cycling for `.bmp` frame sequences.
 - `Space`-toggle autoplay for stepping through the active directory file list (`.pack`/`.bmp`) at a fixed default cadence.
 - Shared `core_viewport2d`-backed raster inspection for sketch/image lanes: mouse-wheel cursor-anchor zoom, left-drag pan, and `R` reset-to-fit.
+- Oversized sketch/BMP rasters now fall back to tiled streaming when they exceed renderer texture limits, so large frames can still render instead of failing texture creation.
 - Runtime text zoom controls (`Cmd/Ctrl +`, `Cmd/Ctrl -`, `Cmd/Ctrl 0`) with persisted zoom step in `data/runtime/text_zoom_step.txt`.
 - Runtime input-root persistence in `data/runtime/input_root.txt`.
 - Picker load failures now return to the picker with a status message instead of exiting the app.

@@ -17,6 +17,7 @@ Last updated: 2026-04-28
 - Session panel supports `Space` autoplay (play/pause) to advance through the active discovered file list.
 - Shared `core_viewport2d` is now adopted for sketch/image raster inspection.
 - Sketch and image lanes now support cursor-anchor mouse-wheel zoom, left-drag pan, and `R` reset-to-fit.
+- Sketch and image lanes now fall back to tiled raster streaming when a full SDL texture would exceed renderer limits.
 - Runtime picker reopen is active (`O`) for dataset switching without relaunch.
 - Unsupported/bad pack selection returns to picker with surfaced error state (no hard exit).
 

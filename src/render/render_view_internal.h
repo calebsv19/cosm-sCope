@@ -105,6 +105,15 @@ typedef struct DatalabSketchRenderDeriveFrame {
     uint8_t fit_mode;
 } DatalabSketchRenderDeriveFrame;
 
+typedef struct DatalabRasterTextureState {
+    SDL_Texture *full_texture;
+    SDL_Texture *tile_texture;
+    int use_tiled;
+    int tile_edge;
+    int max_texture_width;
+    int max_texture_height;
+} DatalabRasterTextureState;
+
 int datalab_ir1_diag_enabled(void);
 int datalab_rs1_diag_enabled(void);
 int datalab_loop_compute_wait_timeout_ms(const DatalabLoopWaitPolicyInput *input);
@@ -173,6 +182,15 @@ void datalab_raster_viewport_derive_frame(SDL_Renderer *renderer,
                                           const DatalabFrame *frame,
                                           DatalabAppState *app_state,
                                           DatalabSketchRenderDeriveFrame *out_derive);
+CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
+                                             uint32_t content_width,
+                                             uint32_t content_height,
+                                             DatalabRasterTextureState *state);
+void datalab_raster_texture_state_destroy(DatalabRasterTextureState *state);
+CoreResult datalab_raster_render_frame(SDL_Renderer *renderer,
+                                       const DatalabFrame *frame,
+                                       const DatalabSketchRenderDeriveFrame *derive,
+                                       DatalabRasterTextureState *state);
 void datalab_physics_render_submit_frame(SDL_Window *window,
                                          SDL_Renderer *renderer,
                                          SDL_Texture *texture,
@@ -184,7 +202,7 @@ void datalab_physics_render_submit_frame(SDL_Window *window,
                                          DatalabRenderSubmitOutcome *outcome);
 void datalab_sketch_render_submit_frame(SDL_Window *window,
                                         SDL_Renderer *renderer,
-                                        SDL_Texture *texture,
+                                        DatalabRasterTextureState *texture_state,
                                         const DatalabFrame *frame,
                                         const DatalabAppState *app_state,
                                         const DatalabSketchRenderDeriveFrame *derive,
