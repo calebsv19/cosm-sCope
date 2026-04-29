@@ -50,6 +50,7 @@ static void datalab_raster_tile_cache_reset_entry(DatalabRasterTileCacheEntry *e
     entry->tile_w = 0;
     entry->tile_h = 0;
     entry->stamp = 0u;
+    entry->frame_generation = 0u;
     entry->valid = 0;
 }
 
@@ -181,7 +182,10 @@ static DatalabRasterTileCacheEntry *datalab_raster_tile_cache_find(DatalabRaster
     }
     for (int i = 0; i < state->cache_capacity; ++i) {
         DatalabRasterTileCacheEntry *entry = &state->cache_entries[i];
-        if (entry->valid && entry->tile_x_index == tile_x_index && entry->tile_y_index == tile_y_index) {
+        if (entry->valid &&
+            entry->frame_generation == state->frame_generation &&
+            entry->tile_x_index == tile_x_index &&
+            entry->tile_y_index == tile_y_index) {
             return entry;
         }
     }
@@ -268,6 +272,7 @@ static CoreResult datalab_raster_tile_cache_touch(DatalabRasterTextureState *sta
     entry->tile_w = tile_w;
     entry->tile_h = tile_h;
     entry->stamp = ++state->cache_stamp;
+    entry->frame_generation = state->frame_generation;
     entry->valid = 1;
     if (out_entry) {
         *out_entry = entry;
@@ -447,6 +452,8 @@ CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
 
     datalab_raster_texture_state_reset(state);
     datalab_raster_texture_state_note_renderer_limits(renderer, state);
+    state->content_width = content_width;
+    state->content_height = content_height;
     if (!datalab_raster_texture_state_needs_tiling(state, content_width, content_height)) {
         state->full_texture = SDL_CreateTexture(renderer,
                                                 SDL_PIXELFORMAT_RGBA32,
@@ -492,6 +499,30 @@ CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
         }
     }
     return core_result_ok();
+}
+
+CoreResult datalab_raster_texture_state_prepare(SDL_Renderer *renderer,
+                                                uint32_t content_width,
+                                                uint32_t content_height,
+                                                DatalabRasterTextureState *state) {
+    if (!renderer || !state || content_width == 0u || content_height == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid raster texture state prepare request" };
+    }
+    if (state->content_width != content_width ||
+        state->content_height != content_height ||
+        (!state->use_tiled && !state->full_texture) ||
+        (state->use_tiled && !state->tile_texture && !state->cache_entries)) {
+        datalab_raster_texture_state_destroy(state);
+        return datalab_raster_texture_state_init(renderer, content_width, content_height, state);
+    }
+    return core_result_ok();
+}
+
+void datalab_raster_texture_state_begin_frame(DatalabRasterTextureState *state) {
+    if (!state) {
+        return;
+    }
+    state->frame_generation += 1u;
 }
 
 void datalab_raster_texture_state_destroy(DatalabRasterTextureState *state) {

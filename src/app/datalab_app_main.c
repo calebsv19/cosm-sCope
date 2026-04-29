@@ -171,6 +171,7 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
     runtime->input_root_from_cli = 0;
     runtime->playback_active = 0;
     runtime->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
+    runtime->session_hud_collapsed = 0;
     datalab_raster_viewport_state_init(&runtime->raster_viewport);
     runtime->selected_pack_path[0] = '\0';
     runtime->last_load_error[0] = '\0';
@@ -429,14 +430,17 @@ int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app
     app_state->playback_interval_ms =
         runtime->playback_interval_ms ? runtime->playback_interval_ms : DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
     app_state->playback_last_advance_ticks = SDL_GetTicks();
+    app_state->session_hud_collapsed = runtime->session_hud_collapsed;
     app_state->raster_viewport = runtime->raster_viewport;
     app_state->raster_viewport.drag_active = 0;
     return 0;
 }
 
 int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state) {
+    DatalabRenderSession *render_session = NULL;
     CoreResult run_r;
     int picker_enter_authoring = 0;
+    int exit_code = 0;
     if (!runtime) {
         return 1;
     }
@@ -446,6 +450,8 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
     for (;;) {
         if (!runtime->frame_loaded) {
             if (!runtime->pack_path || runtime->pack_path[0] == '\0') {
+                datalab_render_session_close(render_session);
+                render_session = NULL;
                 run_r = datalab_render_pick_pack_path(runtime->input_root,
                                                       runtime->last_load_error,
                                                       runtime->input_root,
@@ -458,14 +464,16 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                                                       sizeof(runtime->selected_pack_path));
                 if (run_r.code != CORE_OK) {
                     fprintf(stderr, "datalab: pack picker failed: %s\n", run_r.message);
-                    return 4;
+                    exit_code = 4;
+                    goto cleanup;
                 }
                 runtime->last_load_error[0] = '\0';
                 runtime->pack_path = runtime->selected_pack_path;
             }
             if (!runtime->pack_path || runtime->pack_path[0] == '\0') {
                 datalab_runtime_prefs_save_input_root(runtime->input_root);
-                return 0;
+                exit_code = 0;
+                goto cleanup;
             }
             {
                 int load_rc = datalab_runtime_load_frame(runtime);
@@ -483,7 +491,8 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                 }
             }
             if (!runtime->frame_loaded) {
-                return 2;
+                exit_code = 2;
+                goto cleanup;
             }
             if (app_state) {
                 int i = 0;
@@ -521,6 +530,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                 app_state->playback_interval_ms =
                     runtime->playback_interval_ms ? runtime->playback_interval_ms : DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
                 app_state->playback_last_advance_ticks = SDL_GetTicks();
+                app_state->session_hud_collapsed = runtime->session_hud_collapsed;
                 app_state->raster_viewport = runtime->raster_viewport;
                 app_state->raster_viewport.drag_active = 0;
                 if (picker_enter_authoring) {
@@ -536,7 +546,16 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             }
         }
 
-        run_r = datalab_render_run(&runtime->frame, app_state);
+        if (!render_session) {
+            run_r = datalab_render_session_open(&render_session);
+            if (run_r.code != CORE_OK) {
+                fprintf(stderr, "datalab: render session failed: %s\n", run_r.message);
+                exit_code = 4;
+                goto cleanup;
+            }
+        }
+
+        run_r = datalab_render_run_with_session(render_session, &runtime->frame, app_state);
         if (app_state) {
             int i = 0;
             runtime->workspace_authoring_theme_preset_id = app_state->workspace_authoring_theme_preset_id;
@@ -554,6 +573,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             runtime->text_zoom_step = app_state->text_zoom_step;
             runtime->playback_active = app_state->playback_active;
             runtime->playback_interval_ms = app_state->playback_interval_ms;
+            runtime->session_hud_collapsed = app_state->session_hud_collapsed;
             runtime->raster_viewport = app_state->raster_viewport;
             runtime->raster_viewport.drag_active = 0;
         }
@@ -568,7 +588,8 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
         datalab_runtime_prefs_save_input_root(runtime->input_root);
         if (run_r.code != CORE_OK) {
             fprintf(stderr, "datalab: render failed: %s\n", run_r.message);
-            return 4;
+            exit_code = 4;
+            goto cleanup;
         }
         if (app_state && app_state->panel_requested_pack_path[0] != '\0') {
             snprintf(runtime->selected_pack_path,
@@ -578,10 +599,13 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             runtime->pack_path = runtime->selected_pack_path;
             app_state->panel_requested_pack_path[0] = '\0';
         } else if (app_state && app_state->open_picker_requested) {
+            datalab_render_session_close(render_session);
+            render_session = NULL;
             runtime->pack_path = NULL;
             app_state->open_picker_requested = 0;
         } else {
-            return 0;
+            exit_code = 0;
+            goto cleanup;
         }
         if (runtime->frame_loaded) {
             datalab_frame_free(&runtime->frame);
@@ -589,6 +613,10 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             runtime->frame_loaded = 0;
         }
     }
+
+cleanup:
+    datalab_render_session_close(render_session);
+    return exit_code;
 }
 
 static int datalab_default_runtime_dispatch(const DatalabDispatchRequest *request,
@@ -921,9 +949,13 @@ int datalab_app_main_legacy(int argc, char **argv) {
 
     if (!no_gui) {
         DatalabAppState app_state;
+        DatalabRenderSession *render_session = NULL;
         datalab_app_state_init(&app_state, pack_path, frame.profile);
-
-        CoreResult run_r = datalab_render_run(&frame, &app_state);
+        CoreResult run_r = datalab_render_session_open(&render_session);
+        if (run_r.code == CORE_OK) {
+            run_r = datalab_render_run_with_session(render_session, &frame, &app_state);
+        }
+        datalab_render_session_close(render_session);
         datalab_frame_free(&frame);
         if (run_r.code != CORE_OK) {
             fprintf(stderr, "datalab: render failed: %s\n", run_r.message);

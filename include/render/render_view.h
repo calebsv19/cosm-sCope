@@ -5,6 +5,13 @@
 #include "core_base.h"
 #include "data/pack_loader.h"
 
+typedef struct DatalabRenderSession DatalabRenderSession;
+
+CoreResult datalab_render_session_open(DatalabRenderSession **out_session);
+void datalab_render_session_close(DatalabRenderSession *session);
+CoreResult datalab_render_run_with_session(DatalabRenderSession *session,
+                                           const DatalabFrame *frame,
+                                           DatalabAppState *app_state);
 CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_state);
 CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                                          const char *initial_status,

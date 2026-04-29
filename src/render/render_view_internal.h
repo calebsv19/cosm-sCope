@@ -112,6 +112,7 @@ typedef struct DatalabRasterTileCacheEntry {
     int tile_w;
     int tile_h;
     uint64_t stamp;
+    uint64_t frame_generation;
     int valid;
 } DatalabRasterTileCacheEntry;
 
@@ -125,7 +126,10 @@ typedef struct DatalabRasterTextureState {
     int prefetch_radius;
     int max_texture_width;
     int max_texture_height;
+    uint32_t content_width;
+    uint32_t content_height;
     uint64_t cache_stamp;
+    uint64_t frame_generation;
 } DatalabRasterTextureState;
 
 int datalab_ir1_diag_enabled(void);
@@ -200,6 +204,11 @@ CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
                                              uint32_t content_width,
                                              uint32_t content_height,
                                              DatalabRasterTextureState *state);
+CoreResult datalab_raster_texture_state_prepare(SDL_Renderer *renderer,
+                                                uint32_t content_width,
+                                                uint32_t content_height,
+                                                DatalabRasterTextureState *state);
+void datalab_raster_texture_state_begin_frame(DatalabRasterTextureState *state);
 void datalab_raster_texture_state_destroy(DatalabRasterTextureState *state);
 CoreResult datalab_raster_render_frame(SDL_Renderer *renderer,
                                        const DatalabFrame *frame,
@@ -250,7 +259,8 @@ CoreResult render_physics_loop(SDL_Window *window,
 CoreResult render_sketch_loop(SDL_Window *window,
                               SDL_Renderer *renderer,
                               const DatalabFrame *frame,
-                              DatalabAppState *app_state);
+                              DatalabAppState *app_state,
+                              DatalabRasterTextureState *texture_state);
 CoreResult render_daw_loop(SDL_Window *window,
                            SDL_Renderer *renderer,
                            const DatalabFrame *frame,

@@ -83,6 +83,7 @@ typedef struct DatalabAppState {
     int playback_active;
     uint32_t playback_interval_ms;
     uint32_t playback_last_advance_ticks;
+    int session_hud_collapsed;
     DatalabRasterViewportState raster_viewport;
     int workspace_authoring_stub_active;
     uint8_t workspace_authoring_entry_chord_mask;

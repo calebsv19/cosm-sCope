@@ -27,6 +27,7 @@ typedef struct DatalabAppRuntime {
     int input_root_from_cli;
     int playback_active;
     uint32_t playback_interval_ms;
+    int session_hud_collapsed;
     DatalabRasterViewportState raster_viewport;
     char input_root[DATALAB_APP_PATH_CAP];
     char selected_pack_path[DATALAB_APP_PATH_CAP];

@@ -227,13 +227,16 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     if (!renderer || !app_state) {
         return;
     }
+    if (app_state->session_hud_collapsed) {
+        return;
+    }
 
     root = (app_state->input_root[0] != '\0') ? app_state->input_root : "<not set>";
     pack_path = app_state->pack_path && app_state->pack_path[0] ? app_state->pack_path : "<none>";
     active_name = datalab_path_basename(pack_path);
     shortcut_line = datalab_profile_supports_raster_viewport(app_state->profile)
-                        ? "Wheel zoom | Left drag pan | R reset | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan"
-                        : "Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan";
+                        ? "H hide HUD | Wheel zoom | Left drag pan | R reset | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan"
+                        : "H hide HUD | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan";
     SDL_GetRendererOutputSize(renderer, &ww, &wh);
     pad = datalab_scaled_px(8.0f);
     section_gap = datalab_scaled_px(4.0f);
@@ -518,7 +521,7 @@ typedef struct DatalabPhysicsLoopContext {
 } DatalabPhysicsLoopContext;
 
 typedef struct DatalabSketchLoopContext {
-    DatalabRasterTextureState texture_state;
+    DatalabRasterTextureState *texture_state;
 } DatalabSketchLoopContext;
 
 static void datalab_loop_handle_event(SDL_Window *window,
@@ -785,7 +788,7 @@ static CoreResult datalab_loop_render_step_sketch(SDL_Window *window,
     datalab_sketch_render_derive_frame(renderer, frame, app_state, &render_derive);
     datalab_sketch_render_submit_frame(window,
                                        renderer,
-                                       &ctx->texture_state,
+                                       ctx->texture_state,
                                        frame,
                                        app_state,
                                        &render_derive,
@@ -953,23 +956,20 @@ CoreResult render_daw_loop(SDL_Window *window,
 CoreResult render_sketch_loop(SDL_Window *window,
                               SDL_Renderer *renderer,
                               const DatalabFrame *frame,
-                              DatalabAppState *app_state) {
+                              DatalabAppState *app_state,
+                              DatalabRasterTextureState *texture_state) {
     DatalabSketchLoopContext sketch_ctx;
     DatalabLoopProfileOps ops;
     CoreResult loop_result = core_result_ok();
-    memset(&sketch_ctx, 0, sizeof(sketch_ctx));
-    loop_result = datalab_raster_texture_state_init(renderer,
-                                                    frame->width,
-                                                    frame->height,
-                                                    &sketch_ctx.texture_state);
-    if (loop_result.code != CORE_OK) {
-        return loop_result;
+    if (!texture_state) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "missing sketch texture state" };
     }
+    memset(&sketch_ctx, 0, sizeof(sketch_ctx));
+    sketch_ctx.texture_state = texture_state;
     ops.lane_tag = "sketch";
     ops.lane_ctx = &sketch_ctx;
     ops.render_step = datalab_loop_render_step_sketch;
     loop_result = datalab_loop_run_profile(window, renderer, frame, app_state, &ops);
-    datalab_raster_texture_state_destroy(&sketch_ctx.texture_state);
     return loop_result;
 }
 

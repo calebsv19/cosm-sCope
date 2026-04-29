@@ -74,6 +74,7 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->playback_active = 0;
     state->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
     state->playback_last_advance_ticks = 0u;
+    state->session_hud_collapsed = 0;
     datalab_raster_viewport_state_init(&state->raster_viewport);
     state->workspace_authoring_stub_active = 0;
     state->workspace_authoring_entry_chord_mask = 0u;

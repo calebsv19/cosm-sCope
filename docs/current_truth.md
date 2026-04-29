@@ -15,9 +15,11 @@ Last updated: 2026-04-28
   - `.pack` families (physics/DAW/trace/sketch profile roots)
   - `.bmp` image profile lane with adjacent-frame prefetch for smoother stepping
 - Session panel supports `Space` autoplay (play/pause) to advance through the active discovered file list.
+- Viewer HUD can be collapsed/restored with `H` during runtime inspection.
 - Shared `core_viewport2d` is now adopted for sketch/image raster inspection.
 - Sketch and image lanes now support cursor-anchor mouse-wheel zoom, left-drag pan, and `R` reset-to-fit.
 - Sketch and image lanes now fall back to tiled raster rendering with visible-tile caching and short halo prefetch when a full SDL texture would exceed renderer limits.
+- Render sessions now persist across file switches, reusing the SDL window/renderer and raster texture containers during manual stepping and autoplay.
 - Runtime picker reopen is active (`O`) for dataset switching without relaunch.
 - Unsupported/bad pack selection returns to picker with surfaced error state (no hard exit).
 

@@ -158,83 +158,13 @@ float clamp_unit(float v) {
 }
 
 CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_state) {
-    if (!frame || !app_state) {
-        CoreResult r = { CORE_ERR_INVALID_ARG, "invalid argument" };
-        return r;
+    DatalabRenderSession *session = NULL;
+    CoreResult run_r = core_result_ok();
+    CoreResult open_r = datalab_render_session_open(&session);
+    if (open_r.code != CORE_OK) {
+        return open_r;
     }
-
-    if (frame->profile == DATALAB_PROFILE_PHYSICS) {
-        if (!frame->density || !frame->velx || !frame->vely || frame->width == 0 || frame->height == 0) {
-            CoreResult r = { CORE_ERR_INVALID_ARG, "invalid physics frame" };
-            return r;
-        }
-    } else if (frame->profile == DATALAB_PROFILE_DAW) {
-        if (!frame->wave_min || !frame->wave_max || frame->point_count == 0) {
-            CoreResult r = { CORE_ERR_INVALID_ARG, "invalid daw frame" };
-            return r;
-        }
-    } else if (frame->profile == DATALAB_PROFILE_TRACE) {
-        if (!frame->trace_samples || frame->trace_sample_count == 0) {
-            CoreResult r = { CORE_ERR_INVALID_ARG, "invalid trace frame" };
-            return r;
-        }
-    } else if (frame->profile == DATALAB_PROFILE_SKETCH) {
-        if (!frame->drawing_rgba || frame->width == 0 || frame->height == 0) {
-            CoreResult r = { CORE_ERR_INVALID_ARG, "invalid sketch frame" };
-            return r;
-        }
-    } else if (frame->profile == DATALAB_PROFILE_IMAGE) {
-        if (!frame->drawing_rgba || frame->width == 0 || frame->height == 0) {
-            CoreResult r = { CORE_ERR_INVALID_ARG, "invalid image frame" };
-            return r;
-        }
-    } else {
-        CoreResult r = { CORE_ERR_INVALID_ARG, "unknown frame profile" };
-        return r;
-    }
-
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        CoreResult r = { CORE_ERR_IO, SDL_GetError() };
-        return r;
-    }
-
-    SDL_Window *window = SDL_CreateWindow("DataLab",
-                                          SDL_WINDOWPOS_CENTERED,
-                                          SDL_WINDOWPOS_CENTERED,
-                                          1200,
-                                          900,
-                                          SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-    if (!window) {
-        SDL_Quit();
-        CoreResult r = { CORE_ERR_IO, SDL_GetError() };
-        return r;
-    }
-
-    SDL_Renderer *renderer = SDL_CreateRenderer(window,
-                                                -1,
-                                                SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!renderer) {
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        CoreResult r = { CORE_ERR_IO, SDL_GetError() };
-        return r;
-    }
-    (void)datalab_text_renderer_init();
-
-    CoreResult run_r;
-    if (frame->profile == DATALAB_PROFILE_DAW) {
-        run_r = render_daw_loop(window, renderer, frame, app_state);
-    } else if (frame->profile == DATALAB_PROFILE_TRACE) {
-        run_r = render_trace_loop(window, renderer, frame, app_state);
-    } else if (frame->profile == DATALAB_PROFILE_SKETCH || frame->profile == DATALAB_PROFILE_IMAGE) {
-        run_r = render_sketch_loop(window, renderer, frame, app_state);
-    } else {
-        run_r = render_physics_loop(window, renderer, frame, app_state);
-    }
-
-    datalab_text_renderer_shutdown();
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+    run_r = datalab_render_run_with_session(session, frame, app_state);
+    datalab_render_session_close(session);
     return run_r;
 }

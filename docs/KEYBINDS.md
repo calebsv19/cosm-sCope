@@ -7,6 +7,7 @@
 - `Cmd/Ctrl +` `0`: reset text size.
 - `R`: reset local view controls for the active profile.
 - `O`: reopen startup picker and switch dataset.
+- `H`: collapse/restore the in-viewer session HUD.
 - `F5`: rescan supported files (`.pack`, `.bmp`) in the active input root.
 - `U` / `J`: move Data Panel selection up/down.
 - `Enter`: load selected file from the Data Panel list.

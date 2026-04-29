@@ -262,6 +262,11 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
                 state->playback_last_advance_ticks = SDL_GetTicks();
             }
             break;
+        case SDLK_h:
+            if (!state->workspace_authoring_stub_active) {
+                state->session_hud_collapsed = !state->session_hud_collapsed;
+            }
+            break;
         default:
             break;
     }

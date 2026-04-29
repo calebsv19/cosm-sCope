@@ -21,9 +21,11 @@ This project is currently focused on reliability and observability, not feature 
 - Physics dataset mapping (`density`, `velocity`) through shared `core_data`.
 - sketCh snapshot (`DPS2`/`DPLR`/`DPOB`) loading for rasterized rectangle/ellipse canvas content.
 - Basic interactive view modes and input controls for visual inspection, including in-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan), plus left/right cycling for `.bmp` frame sequences.
+- `H` toggles the in-viewer session HUD so the file viewer can be cleared for inspection without leaving runtime mode.
 - `Space`-toggle autoplay for stepping through the active directory file list (`.pack`/`.bmp`) at a fixed default cadence.
 - Shared `core_viewport2d`-backed raster inspection for sketch/image lanes: mouse-wheel cursor-anchor zoom, left-drag pan, and `R` reset-to-fit.
 - Oversized sketch/BMP rasters now fall back to tiled rendering with a visible-tile cache and short halo prefetch ring when they exceed renderer texture limits, so large frames can still render and pan more smoothly instead of failing texture creation.
+- Renderer sessions now persist across in-session file switches, so the SDL window/renderer and raster texture containers are reused while stepping or autoplaying through directory frames.
 - Runtime text zoom controls (`Cmd/Ctrl +`, `Cmd/Ctrl -`, `Cmd/Ctrl 0`) with persisted zoom step in `data/runtime/text_zoom_step.txt`.
 - Runtime input-root persistence in `data/runtime/input_root.txt`.
 - Picker load failures now return to the picker with a status message instead of exiting the app.
