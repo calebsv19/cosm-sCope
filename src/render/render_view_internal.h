@@ -105,13 +105,27 @@ typedef struct DatalabSketchRenderDeriveFrame {
     uint8_t fit_mode;
 } DatalabSketchRenderDeriveFrame;
 
+typedef struct DatalabRasterTileCacheEntry {
+    SDL_Texture *texture;
+    int tile_x_index;
+    int tile_y_index;
+    int tile_w;
+    int tile_h;
+    uint64_t stamp;
+    int valid;
+} DatalabRasterTileCacheEntry;
+
 typedef struct DatalabRasterTextureState {
     SDL_Texture *full_texture;
     SDL_Texture *tile_texture;
+    DatalabRasterTileCacheEntry *cache_entries;
     int use_tiled;
     int tile_edge;
+    int cache_capacity;
+    int prefetch_radius;
     int max_texture_width;
     int max_texture_height;
+    uint64_t cache_stamp;
 } DatalabRasterTextureState;
 
 int datalab_ir1_diag_enabled(void);
