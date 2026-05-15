@@ -723,7 +723,7 @@ static void datalab_draw_workspace_authoring_overlay(SDL_Renderer *renderer,
     char status_line[224];
     const char *help_line = "ALT+C+V toggle | TAB overlay | ENTER apply | ESC cancel";
 
-    if (!renderer || !app_state) {
+    if (!renderer || !app_state || !app_state->workspace_authoring_stub_active) {
         return;
     }
 
@@ -735,11 +735,7 @@ static void datalab_draw_workspace_authoring_overlay(SDL_Renderer *renderer,
     line_h = datalab_text_line_height(1);
     pad = datalab_scaled_px(4.0f);
     row_gap = datalab_scaled_px(2.0f);
-    if (app_state->workspace_authoring_stub_active) {
-        bar.h = line_h + row_gap + line_h + (pad * 2);
-    } else {
-        bar.h = line_h + (pad * 2);
-    }
+    bar.h = line_h + row_gap + line_h + (pad * 2);
     bar.x = 0;
     bar.y = 0;
     bar.w = ww;
@@ -753,20 +749,12 @@ static void datalab_draw_workspace_authoring_overlay(SDL_Renderer *renderer,
     }
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    if (app_state->workspace_authoring_stub_active) {
-        SDL_SetRenderDrawColor(renderer, 8, 14, 26, 224);
-    } else {
-        SDL_SetRenderDrawColor(renderer, 8, 12, 18, 148);
-    }
+    SDL_SetRenderDrawColor(renderer, 8, 14, 26, 224);
     SDL_RenderFillRect(renderer, &bar);
-    if (app_state->workspace_authoring_stub_active) {
-        SDL_SetRenderDrawColor(renderer, 115, 186, 240, 235);
-    } else {
-        SDL_SetRenderDrawColor(renderer, 75, 90, 112, 210);
-    }
+    SDL_SetRenderDrawColor(renderer, 115, 186, 240, 235);
     SDL_RenderDrawRect(renderer, &bar);
 
-    if (app_state->workspace_authoring_stub_active) {
+    {
         SDL_Rect accent = {0, 0, datalab_scaled_px(5.0f), bar.h};
         if (app_state->workspace_authoring_overlay_mode == DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME) {
             SDL_SetRenderDrawColor(renderer, 176, 146, 255, 235);
@@ -785,22 +773,17 @@ static void datalab_draw_workspace_authoring_overlay(SDL_Renderer *renderer,
     }
 
     y = bar.y + pad;
-    if (app_state->workspace_authoring_stub_active) {
-        snprintf(status_line,
-                 sizeof(status_line),
-                 "AUTHORING ON | OVERLAY:%s | PENDING:%u | APPLY:%u | CANCEL:%u | ENTRY:%u",
-                 mode_name,
-                 (unsigned int)app_state->workspace_authoring_pending_stub,
-                 (unsigned int)app_state->workspace_authoring_apply_count,
-                 (unsigned int)app_state->workspace_authoring_cancel_count,
-                 (unsigned int)app_state->workspace_authoring_entry_count);
-        draw_text_5x7_clipped(renderer, &clip_rect, clip_rect.x, y, status_line, 1, 215, 230, 245, 255);
-        y += line_h + row_gap;
-        draw_text_5x7_clipped(renderer, &clip_rect, clip_rect.x, y, help_line, 1, 170, 190, 220, 255);
-    } else {
-        snprintf(status_line, sizeof(status_line), "AUTHORING OFF | ALT+C+V enter runtime overlay");
-        draw_text_5x7_clipped(renderer, &clip_rect, clip_rect.x, y, status_line, 1, 160, 174, 192, 255);
-    }
+    snprintf(status_line,
+             sizeof(status_line),
+             "AUTHORING ON | OVERLAY:%s | PENDING:%u | APPLY:%u | CANCEL:%u | ENTRY:%u",
+             mode_name,
+             (unsigned int)app_state->workspace_authoring_pending_stub,
+             (unsigned int)app_state->workspace_authoring_apply_count,
+             (unsigned int)app_state->workspace_authoring_cancel_count,
+             (unsigned int)app_state->workspace_authoring_entry_count);
+    draw_text_5x7_clipped(renderer, &clip_rect, clip_rect.x, y, status_line, 1, 215, 230, 245, 255);
+    y += line_h + row_gap;
+    draw_text_5x7_clipped(renderer, &clip_rect, clip_rect.x, y, help_line, 1, 170, 190, 220, 255);
 }
 
 void datalab_physics_render_submit_frame(SDL_Window *window,

@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-04-28
+Last updated: 2026-05-04
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -13,27 +13,43 @@ Last updated: 2026-04-28
 - Startup picker + in-session source panel are active.
 - Supported ingest lanes include:
   - `.pack` families (physics/DAW/trace/sketch profile roots)
-  - `.bmp` image profile lane with adjacent-frame prefetch for smoother stepping
-- Session panel supports `Space` autoplay (play/pause) to advance through the active discovered file list.
-- Viewer HUD can be collapsed/restored with `H` during runtime inspection.
-- Shared `core_viewport2d` is now adopted for sketch/image raster inspection.
-- Sketch and image lanes now support cursor-anchor mouse-wheel zoom, left-drag pan, and `R` reset-to-fit.
-- Sketch and image lanes now fall back to tiled raster rendering with visible-tile caching and short halo prefetch when a full SDL texture would exceed renderer limits.
-- Render sessions now persist across file switches, reusing the SDL window/renderer and raster texture containers during manual stepping and autoplay.
-- Runtime picker reopen is active (`O`) for dataset switching without relaunch.
-- Unsupported/bad pack selection returns to picker with surfaced error state (no hard exit).
+  - `.bmp` image profile lane
+- Data visualizer behavior is interactive (not static-image only):
+  - session HUD collapse/restore (`H`)
+  - directory autoplay (`Space`)
+  - viewport zoom/pan/reset for sketch/image lanes (`wheel`, drag, `R`)
+- Oversized-raster handling is active:
+  - tiled rendering fallback when full texture exceeds limits
+  - visible-tile cache with short halo prefetch
+- Render sessions persist across file switches:
+  - SDL window/renderer/raster texture containers are reused during stepping/autoplay.
+- Picker load failures now return safely to picker with status feedback.
+- Workspace-authoring host pilot is live in the worktree/runtime path:
+  - `Alt+C+V` enters authoring from picker launch or active profile runtime
+  - authoring overlay cycles between pane takeover and font/theme takeover
+  - top-level authoring actions currently route through shared `kit_workspace_authoring` controls (`cycle`, `apply`, `cancel`)
+- Font/theme authoring state persists across sessions:
+  - theme preset id persists
+  - one active custom theme plus three custom theme slots persist
+  - custom slot names and active slot persist alongside text zoom + input-root prefs
 
 ## Structure
 - Required lanes: `docs/`, `src/`, `include/`, `tests/`, `build/`
 - Active source subsystems:
   - `app`, `data`, `render`, `ui`
-- Render runtime split is active across input/profile/picker helper lanes.
+- Recent render/app split additions include persistent render session seam, raster tile/cache helpers, and authoring overlay render/input/theme helpers.
 
 ## Runtime Contract
 - Default GUI launch opens picker and does not require `--pack`.
 - Headless mode still requires explicit `--pack`.
 - Runtime prefs persist text zoom and input-root state.
-- CLI `--input-root` precedence is preserved over persisted prefs.
+- Runtime prefs also persist workspace-authoring theme/custom-theme state.
+- CLI `--input-root` takes precedence over persisted root.
+- While authoring is active:
+  - `Tab` cycles overlay mode
+  - `Enter` applies the pending draft state
+  - `Esc` cancels the draft state and exits authoring
+  - host-authoring input has first-right-of-refusal over profile handlers
 
 ## Verification Contract
 - Build/harness:
@@ -52,8 +68,9 @@ Last updated: 2026-04-28
   - `make -C datalab release-distribute ...`
 
 ## Current Boundary
-- Maintain picker/session panel UX and profile rendering stability while extending ingest coverage safely.
-- Preserve data-path precedence and non-crashing ingest failure behavior as hard contract constraints.
+- Continue visualizer UX and profile rendering stability while validating the workspace-authoring host path.
+- Keep data-path precedence and non-crashing load-failure behavior as hard constraints.
+- Keep the current authoring lane scoped to host/theme validation until a broader authoring contract is intentionally promoted.
 
 ## History and Deep Lane References
 - Full execution/history docs are in:

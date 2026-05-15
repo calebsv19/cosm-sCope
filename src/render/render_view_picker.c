@@ -342,12 +342,13 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
     }
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "best");
     window = SDL_CreateWindow("DataLab | Select Input Root + Pack",
                               SDL_WINDOWPOS_CENTERED,
                               SDL_WINDOWPOS_CENTERED,
                               1160,
                               820,
-                              SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                              SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     if (!window) {
         SDL_Quit();
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };

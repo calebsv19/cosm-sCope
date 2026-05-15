@@ -7,43 +7,47 @@ static int datalab_overlay_point_in_rect(const SDL_Rect *rect, int x, int y) {
     return x >= rect->x && x < (rect->x + rect->w) && y >= rect->y && y < (rect->y + rect->h);
 }
 
+static DatalabAuthoringFontThemeHitId datalab_overlay_hit_from_shared_button(
+    KitWorkspaceAuthoringFontThemeButtonId button_id) {
+    switch (button_id) {
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_DEC:
+            return DATALAB_AUTHORING_FONT_HIT_TEXT_DEC;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_INC:
+            return DATALAB_AUTHORING_FONT_HIT_TEXT_INC;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_RESET:
+            return DATALAB_AUTHORING_FONT_HIT_TEXT_RESET;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_DAW_DEFAULT:
+            return DATALAB_AUTHORING_FONT_HIT_FONT_DAW_DEFAULT;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_IDE:
+            return DATALAB_AUTHORING_FONT_HIT_FONT_IDE;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_CUSTOM_STUB:
+            return DATALAB_AUTHORING_FONT_HIT_FONT_CUSTOM;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_DAW_DEFAULT:
+            return DATALAB_AUTHORING_FONT_HIT_THEME_0;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_STANDARD_GREY:
+            return DATALAB_AUTHORING_FONT_HIT_THEME_1;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_MIDNIGHT_CONTRAST:
+            return DATALAB_AUTHORING_FONT_HIT_THEME_2;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_SOFT_LIGHT:
+            return DATALAB_AUTHORING_FONT_HIT_THEME_3;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_GREYSCALE:
+            return DATALAB_AUTHORING_FONT_HIT_THEME_4;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_CREATE_STUB:
+            return DATALAB_AUTHORING_FONT_HIT_CUSTOM_CREATE;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_EDIT_STUB:
+            return DATALAB_AUTHORING_FONT_HIT_CUSTOM_EDIT;
+        case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE:
+        default:
+            return DATALAB_AUTHORING_FONT_HIT_NONE;
+    }
+}
+
 static DatalabAuthoringFontThemeHitId datalab_overlay_font_theme_hit_test(int x, int y) {
     int i;
+    KitWorkspaceAuthoringFontThemeButtonId shared_hit = KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE;
 
     if (!g_datalab_authoring_overlay_ui.font_controls_valid) {
         return DATALAB_AUTHORING_FONT_HIT_NONE;
-    }
-    if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.text_dec_button, x, y)) {
-        return DATALAB_AUTHORING_FONT_HIT_TEXT_DEC;
-    }
-    if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.text_inc_button, x, y)) {
-        return DATALAB_AUTHORING_FONT_HIT_TEXT_INC;
-    }
-    if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.text_reset_button, x, y)) {
-        return DATALAB_AUTHORING_FONT_HIT_TEXT_RESET;
-    }
-
-    for (i = 0; i < DATALAB_FONT_THEME_THEME_BUTTON_COUNT; ++i) {
-        if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.theme_buttons[i], x, y)) {
-            return (DatalabAuthoringFontThemeHitId)(DATALAB_AUTHORING_FONT_HIT_THEME_0 + i);
-        }
-    }
-    if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_create_button, x, y)) {
-        return DATALAB_AUTHORING_FONT_HIT_CUSTOM_CREATE;
-    }
-    if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_edit_button, x, y)) {
-        return DATALAB_AUTHORING_FONT_HIT_CUSTOM_EDIT;
-    }
-    if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_open_button, x, y)) {
-        return DATALAB_AUTHORING_FONT_HIT_CUSTOM_EDIT;
-    }
-    for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
-        if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_slot_buttons[i], x, y)) {
-            return (DatalabAuthoringFontThemeHitId)(DATALAB_AUTHORING_FONT_HIT_CUSTOM_SLOT_0 + i);
-        }
-    }
-    if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_rename_button, x, y)) {
-        return DATALAB_AUTHORING_FONT_HIT_CUSTOM_RENAME;
     }
     if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_popup_close_button, x, y)) {
         return DATALAB_AUTHORING_FONT_HIT_CUSTOM_POPUP_CLOSE;
@@ -65,6 +69,21 @@ static DatalabAuthoringFontThemeHitId datalab_overlay_font_theme_hit_test(int x,
     }
     if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_popup_assist_button, x, y)) {
         return DATALAB_AUTHORING_FONT_HIT_CUSTOM_ASSIST;
+    }
+    if (g_datalab_authoring_overlay_ui.font_theme_shared_layout_valid) {
+        shared_hit = kit_workspace_authoring_ui_font_theme_hit_button(
+            &g_datalab_authoring_overlay_ui.font_theme_shared_layout, (float)x, (float)y);
+        if (shared_hit != KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE) {
+            return datalab_overlay_hit_from_shared_button(shared_hit);
+        }
+    }
+    for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
+        if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_slot_buttons[i], x, y)) {
+            return (DatalabAuthoringFontThemeHitId)(DATALAB_AUTHORING_FONT_HIT_CUSTOM_SLOT_0 + i);
+        }
+    }
+    if (datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.custom_rename_button, x, y)) {
+        return DATALAB_AUTHORING_FONT_HIT_CUSTOM_RENAME;
     }
 
     return DATALAB_AUTHORING_FONT_HIT_NONE;

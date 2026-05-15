@@ -1,43 +1,43 @@
 # DataLab (Alpha)
 
-DataLab is a lightweight C-based data visualizer for `.pack` and `.bmp` artifacts produced by other programs in the CodeWork ecosystem.
+DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced by other CodeWork programs.
 
 ## Current Scope
 
-- Loads `.pack` frames via `core_pack` and raster `.bmp` frames for image-sequence inspection.
-- Supports profile-aware parsing for Physics, DAW, Trace, and sketCh canvas snapshot payloads.
-- Provides a simple SDL2 viewer for quick inspection.
-- Supports headless validation mode for CLI checks.
-
-This project is currently focused on reliability and observability, not feature completeness.
+- Profile-aware `.pack` loading for Physics, DAW, Trace, and sketCh snapshot payloads.
+- `.bmp` image-sequence inspection in the same runtime session model.
+- Interactive visualizer controls for raster/image lanes (zoom/pan/reset) backed by shared `core_viewport2d`.
+- Startup picker + in-session source panel for switching files without relaunch.
+- Workspace-authoring host pilot for pane + font/theme overlay validation.
+- Headless validation mode for deterministic CLI checks.
 
 ## Implemented Today
 
-- CLI file loading (`--pack /path/to/file.pack` or `--pack /path/to/frame.bmp`).
-- CLI input-root override (`--input-root /path/to/folder`), with CLI precedence over persisted runtime root.
-- Optional headless mode (`--no-gui`).
-- No-arg GUI launch opens startup picker for input-root and file selection (`.pack` / `.bmp`).
-- Frame summary output to terminal.
-- Physics dataset mapping (`density`, `velocity`) through shared `core_data`.
-- sketCh snapshot (`DPS2`/`DPLR`/`DPOB`) loading for rasterized rectangle/ellipse canvas content.
-- Basic interactive view modes and input controls for visual inspection, including in-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan), plus left/right cycling for `.bmp` frame sequences.
-- `H` toggles the in-viewer session HUD so the file viewer can be cleared for inspection without leaving runtime mode.
-- `Space`-toggle autoplay for stepping through the active directory file list (`.pack`/`.bmp`) at a fixed default cadence.
-- Shared `core_viewport2d`-backed raster inspection for sketch/image lanes: mouse-wheel cursor-anchor zoom, left-drag pan, and `R` reset-to-fit.
-- Oversized sketch/BMP rasters now fall back to tiled rendering with a visible-tile cache and short halo prefetch ring when they exceed renderer texture limits, so large frames can still render and pan more smoothly instead of failing texture creation.
-- Renderer sessions now persist across in-session file switches, so the SDL window/renderer and raster texture containers are reused while stepping or autoplaying through directory frames.
-- Runtime text zoom controls (`Cmd/Ctrl +`, `Cmd/Ctrl -`, `Cmd/Ctrl 0`) with persisted zoom step in `data/runtime/text_zoom_step.txt`.
-- Runtime input-root persistence in `data/runtime/input_root.txt`.
-- Picker load failures now return to the picker with a status message instead of exiting the app.
+- Startup picker on no-arg GUI launch (`.pack` / `.bmp` list, input-root selection).
+- In-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan).
+- Session HUD collapse/restore (`H`).
+- Directory autoplay (`Space`) across current supported-file list.
+- Shared viewport controls for sketch/image profiles:
+  - mouse-wheel cursor-anchor zoom
+  - left-drag pan
+  - `R` reset-to-fit
+- Oversized-raster fallback:
+  - tiled rendering with visible-tile cache and short halo prefetch when full texture exceeds renderer limits.
+- Persistent render session path:
+  - window/renderer/raster texture containers are reused across file switches.
+- Runtime preferences:
+  - text zoom step persistence (`data/runtime/text_zoom_step.txt`)
+  - input-root persistence (`data/runtime/input_root.txt`)
+  - authoring theme preset + custom theme slot persistence
+  - CLI `--input-root` precedence over persisted root.
+- Picker load failure safety:
+  - bad/unsupported file load returns to picker with status message (no forced process exit).
+- Workspace-authoring pilot:
+  - `Alt+C+V` can enter the host-authoring takeover from the startup picker or active runtime.
+  - active overlay modes currently cycle between pane takeover and font/theme controls.
+  - font/theme mode supports preset selection plus three persisted custom theme slots.
 
 ## Build and Run
-
-Prerequisites:
-
-- C11 compiler (`cc`/clang)
-- SDL2 development libraries
-
-Commands:
 
 ```bash
 make -C datalab
@@ -45,89 +45,46 @@ make -C datalab run
 make -C datalab run-headless
 ```
 
-Compile verification command (after shared subtree updates):
-
-```bash
-make -C datalab clean && make -C datalab
-make -C datalab run-headless-smoke
-make -C datalab visual-harness
-make -C datalab test-stable
-```
-
-With an explicit input path:
+Explicit input examples:
 
 ```bash
 ./datalab/datalab --pack /absolute/path/to/frame.pack
 ./datalab/datalab --pack /absolute/path/to/frame.bmp
 ./datalab/datalab --pack /absolute/path/to/frame.bmp --no-gui
-```
-
-Picker and input-root examples:
-
-```bash
-./datalab/datalab
 ./datalab/datalab --input-root /absolute/path/to/folder
 ```
 
-## Tests
+## Verification Gates
 
 ```bash
+make -C datalab clean && make -C datalab
 make -C datalab test
+make -C datalab run-headless-smoke
+make -C datalab visual-harness
+make -C datalab test-stable
 ```
-
-Current tests:
-
-- `datalab_smoke_test`
-- `datalab_pack_loader_test`
-
-Scaffold test lanes:
-
-- `make -C datalab test-stable`
-- `make -C datalab test-legacy`
 
 ## Known Limitations
 
-- UI is intentionally minimal and geared toward developer inspection.
-- No editing/export pipeline; this is a viewer/validator, not a full analysis suite.
-- Support depth depends on emitted `.pack` profile content from upstream programs.
-- sketCh object rendering is currently limited to rasterized rectangle/ellipse content; unsupported object types are counted but not yet rendered.
+- Workspace authoring is still a host-pilot lane, not a full dataset editing/export workflow.
+- Current authoring focus is overlay/theme validation rather than object/data mutation.
+- sketCh object rendering is currently bounded (unsupported object types are counted and reported).
 
 See `KNOWN_ISSUES.md` for release-facing caveats.
 
 ## Shared Subtree Workflow
 
-DataLab vendors the shared ecosystem under:
+DataLab vendors shared ecosystem code under:
 
 - `third_party/codework_shared`
 
-Configured subtree remote:
-
-```bash
-git -C datalab remote get-url shared-upstream
-```
-
-Update vendored shared snapshot:
-
-```bash
-git -C datalab fetch shared-upstream main
-git -C datalab subtree pull --prefix=third_party/codework_shared shared-upstream main --squash
-```
-
 Scaffold path policy:
 
-- keep `third_party/` as the explicit vendored shared-library lane for this repo
+- keep `third_party/` as vendored shared-library lane
 - keep runtime/temp artifacts in ignored lanes (`tmp/`, `data/runtime/`, `data/snapshots/`)
-
-## Security and Data Hygiene
-
-- Treat DataLab as trusted-local tooling.
-- Do not open untrusted `.pack`/`.bmp` files from unknown sources.
-- Runtime/build outputs are excluded from source control.
-
-See `SECURITY.md` for details.
 
 ## Docs Index
 
-Public docs are organized under:
+Public docs live under:
 
 - `datalab/docs/README.md`

@@ -14,6 +14,58 @@ static DatalabWorkspaceAuthoringThemePreset datalab_overlay_theme_preset_clamp(i
     return (DatalabWorkspaceAuthoringThemePreset)value;
 }
 
+static KitWorkspaceAuthoringFontThemeButtonId datalab_overlay_shared_button_for_hit(
+    DatalabAuthoringFontThemeHitId hit_id) {
+    switch (hit_id) {
+        case DATALAB_AUTHORING_FONT_HIT_TEXT_DEC:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_DEC;
+        case DATALAB_AUTHORING_FONT_HIT_TEXT_INC:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_INC;
+        case DATALAB_AUTHORING_FONT_HIT_TEXT_RESET:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_RESET;
+        case DATALAB_AUTHORING_FONT_HIT_FONT_DAW_DEFAULT:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_DAW_DEFAULT;
+        case DATALAB_AUTHORING_FONT_HIT_FONT_IDE:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_IDE;
+        case DATALAB_AUTHORING_FONT_HIT_FONT_CUSTOM:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_CUSTOM_STUB;
+        case DATALAB_AUTHORING_FONT_HIT_THEME_0:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_DAW_DEFAULT;
+        case DATALAB_AUTHORING_FONT_HIT_THEME_1:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_STANDARD_GREY;
+        case DATALAB_AUTHORING_FONT_HIT_THEME_2:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_MIDNIGHT_CONTRAST;
+        case DATALAB_AUTHORING_FONT_HIT_THEME_3:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_SOFT_LIGHT;
+        case DATALAB_AUTHORING_FONT_HIT_THEME_4:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_GREYSCALE;
+        case DATALAB_AUTHORING_FONT_HIT_CUSTOM_CREATE:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_CREATE_STUB;
+        case DATALAB_AUTHORING_FONT_HIT_CUSTOM_EDIT:
+        case DATALAB_AUTHORING_FONT_HIT_CUSTOM_OPEN:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_EDIT_STUB;
+        default:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE;
+    }
+}
+
+static DatalabWorkspaceAuthoringThemePreset datalab_overlay_theme_from_core_preset(CoreThemePresetId preset_id) {
+    switch (preset_id) {
+        case CORE_THEME_PRESET_DAW_DEFAULT:
+            return DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT;
+        case CORE_THEME_PRESET_IDE_GRAY:
+            return DATALAB_WORKSPACE_AUTHORING_THEME_STANDARD_GREY;
+        case CORE_THEME_PRESET_DARK_DEFAULT:
+            return DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+        case CORE_THEME_PRESET_LIGHT_DEFAULT:
+            return DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT;
+        case CORE_THEME_PRESET_GREYSCALE:
+            return DATALAB_WORKSPACE_AUTHORING_THEME_GREYSCALE;
+        default:
+            return DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    }
+}
+
 const char *datalab_overlay_theme_name(DatalabWorkspaceAuthoringThemePreset preset) {
     switch (preset) {
         case DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT:
@@ -622,6 +674,55 @@ int datalab_overlay_apply_font_theme_hit(DatalabAuthoringFontThemeHitId hit_id, 
     }
 
     next_step = app_state->text_zoom_step;
+    {
+        KitWorkspaceAuthoringFontThemeButtonId shared_button = datalab_overlay_shared_button_for_hit(hit_id);
+        KitWorkspaceAuthoringFontThemeAction action =
+            kit_workspace_authoring_ui_font_theme_action_for_button(shared_button);
+        switch (action.type) {
+            case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_TEXT_SIZE_DEC:
+                next_step = datalab_text_zoom_step_clamp(app_state->text_zoom_step - 1);
+                if (next_step != app_state->text_zoom_step) {
+                    app_state->text_zoom_step = next_step;
+                    datalab_set_text_zoom_step(next_step);
+                    app_state->workspace_authoring_pending_stub = 1u;
+                    return 1;
+                }
+                return 0;
+            case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_TEXT_SIZE_INC:
+                next_step = datalab_text_zoom_step_clamp(app_state->text_zoom_step + 1);
+                if (next_step != app_state->text_zoom_step) {
+                    app_state->text_zoom_step = next_step;
+                    datalab_set_text_zoom_step(next_step);
+                    app_state->workspace_authoring_pending_stub = 1u;
+                    return 1;
+                }
+                return 0;
+            case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_TEXT_SIZE_RESET:
+                if (app_state->text_zoom_step != 0) {
+                    app_state->text_zoom_step = 0;
+                    datalab_set_text_zoom_step(0);
+                    app_state->workspace_authoring_pending_stub = 1u;
+                    return 1;
+                }
+                return 0;
+            case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_SET_THEME_PRESET: {
+                uint8_t next_theme =
+                    (uint8_t)datalab_overlay_theme_from_core_preset(action.theme_preset_id);
+                if (app_state->workspace_authoring_theme_preset_id != next_theme) {
+                    app_state->workspace_authoring_theme_preset_id = next_theme;
+                    app_state->workspace_authoring_pending_stub = 1u;
+                    return 1;
+                }
+                return 0;
+            }
+            case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_SET_FONT_PRESET:
+                return 0;
+            case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_CUSTOM_THEME_STATUS:
+            case KIT_WORKSPACE_AUTHORING_FONT_THEME_ACTION_NONE:
+            default:
+                break;
+        }
+    }
     switch (hit_id) {
         case DATALAB_AUTHORING_FONT_HIT_TEXT_DEC:
             next_step = datalab_text_zoom_step_clamp(app_state->text_zoom_step - 1);

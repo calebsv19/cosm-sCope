@@ -2,25 +2,36 @@
 
 Start here for public repository documentation.
 
-## Scaffold State
-- `docs/current_truth.md`: current scaffold/runtime structure and verification snapshot.
-- `docs/future_intent.md`: forward-looking maintenance and next slices (including data-path contract follow-up state).
-- migration-friendly verification gates:
-  - `make -C datalab run-headless-smoke`
-  - `make -C datalab visual-harness`
-  - `make -C datalab test-stable`
-  - `make -C datalab test-legacy`
-  - `make -C datalab package-desktop-self-test`
+## Current State Docs
 
-## Public Runtime Docs
-- `README.md` (repo root): product overview, build/run commands, startup picker/input-root behavior, and baseline runtime behavior.
-- `KNOWN_ISSUES.md`: release-facing caveats and current limitations.
-- `docs/KEYBINDS.md`: keyboard interaction reference (including text zoom shortcuts).
-- `docs/desktop_packaging.md`: `.app` packaging targets, launcher contract, and Desktop validation flow.
-- host-integration pilot tracking:
-  - current state/phase: `docs/current_truth.md`
-  - forward plan: `docs/future_intent.md`
+- `docs/current_truth.md`: compressed current-state contract and active boundaries.
+- `docs/future_intent.md`: near-term direction and constraints.
+- `docs/KEYBINDS.md`: runtime and authoring-entry input contract.
+
+## Verification Entry Points
+
+- `make -C datalab run-headless-smoke`
+- `make -C datalab visual-harness`
+- `make -C datalab test-stable`
+- `make -C datalab test-legacy`
+- `make -C datalab package-desktop-self-test`
+
+## Runtime + Packaging Docs
+
+- `README.md` (repo root): product overview, runtime behavior, build/run usage.
+- `KNOWN_ISSUES.md`: release-facing caveats and known limitations.
+- `docs/desktop_packaging.md`: `.app` packaging contract and launcher validation flow.
+
+## Current Emphasis
+
+- interactive data visualization remains the shipped baseline
+- workspace-authoring host validation is now an active public-facing pilot:
+  - `Alt+C+V` entry
+  - pane takeover
+  - font/theme takeover with persisted custom theme slots
 
 ## Private Planning Docs
-- Private scaffold plans/checklists are kept in the workspace private docs bucket:
-  - `../docs/private_program_docs/datalab/`
+
+Private plans/checklists are kept in the workspace private bucket:
+
+- `../../docs/private_program_docs/datalab/`

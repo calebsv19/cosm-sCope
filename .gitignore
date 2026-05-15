@@ -1,6 +1,7 @@
 # Build artifacts
 /build/
 /dist/
+/dist_*/
 /datalab
 *.o
 *.d

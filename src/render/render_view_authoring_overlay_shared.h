@@ -17,6 +17,9 @@ typedef enum DatalabAuthoringFontThemeHitId {
     DATALAB_AUTHORING_FONT_HIT_TEXT_DEC = 1,
     DATALAB_AUTHORING_FONT_HIT_TEXT_INC = 2,
     DATALAB_AUTHORING_FONT_HIT_TEXT_RESET = 3,
+    DATALAB_AUTHORING_FONT_HIT_FONT_DAW_DEFAULT = 4,
+    DATALAB_AUTHORING_FONT_HIT_FONT_IDE = 5,
+    DATALAB_AUTHORING_FONT_HIT_FONT_CUSTOM = 6,
     DATALAB_AUTHORING_FONT_HIT_THEME_0 = 10,
     DATALAB_AUTHORING_FONT_HIT_THEME_1 = 11,
     DATALAB_AUTHORING_FONT_HIT_THEME_2 = 12,
@@ -82,6 +85,8 @@ typedef struct DatalabAuthoringOverlayUiState {
     KitWorkspaceAuthoringOverlayButtonId hover_top_button;
     DatalabAuthoringFontThemeHitId hover_font_hit;
     uint8_t font_controls_valid;
+    uint8_t font_theme_shared_layout_valid;
+    KitWorkspaceAuthoringFontThemeLayout font_theme_shared_layout;
     SDL_Rect text_dec_button;
     SDL_Rect text_inc_button;
     SDL_Rect text_reset_button;

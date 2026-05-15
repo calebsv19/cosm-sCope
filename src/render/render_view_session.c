@@ -46,6 +46,7 @@ static CoreResult datalab_render_validate_frame(const DatalabFrame *frame, const
 CoreResult datalab_render_session_open(DatalabRenderSession **out_session) {
     DatalabRenderSession *session = NULL;
     const uint32_t video_mask = SDL_INIT_VIDEO;
+    const uint32_t window_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
     if (!out_session) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid render session request" };
     }
@@ -61,12 +62,13 @@ CoreResult datalab_render_session_open(DatalabRenderSession **out_session) {
         }
         session->sdl_owner = 1;
     }
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "best");
     session->window = SDL_CreateWindow("DataLab",
                                        SDL_WINDOWPOS_CENTERED,
                                        SDL_WINDOWPOS_CENTERED,
                                        1200,
                                        900,
-                                       SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                                       (int)window_flags);
     if (!session->window) {
         datalab_render_session_close(session);
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };

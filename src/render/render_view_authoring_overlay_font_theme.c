@@ -4,6 +4,52 @@
 #include <stdio.h>
 #include <string.h>
 
+static SDL_Rect datalab_overlay_rect_from_kit(KitRenderRect rect) {
+    SDL_Rect out = {
+        (int)lroundf(rect.x),
+        (int)lroundf(rect.y),
+        (int)lroundf(rect.width),
+        (int)lroundf(rect.height)
+    };
+    if (out.w < 0) {
+        out.w = 0;
+    }
+    if (out.h < 0) {
+        out.h = 0;
+    }
+    return out;
+}
+
+static KitWorkspaceAuthoringFontThemeButtonId datalab_overlay_shared_font_button_id_at(int index) {
+    switch (index) {
+        case 0:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_DAW_DEFAULT;
+        case 1:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_IDE;
+        case 2:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_CUSTOM_STUB;
+        default:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE;
+    }
+}
+
+static KitWorkspaceAuthoringFontThemeButtonId datalab_overlay_shared_theme_button_id_at(int index) {
+    switch (index) {
+        case 0:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_DAW_DEFAULT;
+        case 1:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_STANDARD_GREY;
+        case 2:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_MIDNIGHT_CONTRAST;
+        case 3:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_SOFT_LIGHT;
+        case 4:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_THEME_PRESET_GREYSCALE;
+        default:
+            return KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_NONE;
+    }
+}
+
 void datalab_overlay_draw_centered_text(SDL_Renderer *renderer,
                                                const SDL_Rect *rect,
                                                int y,
@@ -95,24 +141,18 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
     SDL_Rect section = {0};
     SDL_Rect value_chip = {0};
     SDL_Rect custom_section = {0};
+    SDL_Rect button_rect = {0};
     SDL_Rect popup = {0};
     SDL_Rect popup_title = {0};
     int pad = 0;
     int row_h = 0;
     int button_h = 0;
-    int button_small_w = 0;
-    int button_reset_w = 0;
-    int controls_gap = 0;
     int controls_x = 0;
-    int controls_y = 0;
     int section_inner_x = 0;
     int section_inner_w = 0;
     int i = 0;
     int theme_step = 0;
     int zoom_percent = 100;
-    int theme_button_w = 0;
-    int theme_button_gap = 0;
-    int theme_buttons_y = 0;
     int popup_row_h = 0;
     int popup_selected_token = 0;
     int popup_selected_channel = 0;
@@ -127,25 +167,16 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
     int custom_slot_gap = 0;
     int custom_slot_button_w = 0;
     int custom_slot_buttons_y = 0;
-    int custom_action_gap = 0;
     int custom_action_y = 0;
     int custom_rename_w = 0;
-    int custom_action_w = 0;
     int active_custom_slot = 0;
     char line[192];
     char size_line[80];
     char custom_line[160];
     char popup_row_line[96];
+    KitWorkspaceAuthoringFontThemeLayout shared_layout = {0};
     DatalabWorkspaceAuthoringThemePreset selected_theme = DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
     const char *theme_name = NULL;
-    static const char *k_theme_labels[DATALAB_FONT_THEME_THEME_BUTTON_COUNT] = {
-        "daw_default",
-        "standard_grey",
-        "midnight_contrast",
-        "soft_light",
-        "greyscale",
-        "custom"
-    };
     static const char *k_custom_theme_tokens[DATALAB_CUSTOM_THEME_TOKEN_COUNT] = {
         "clear",
         "pane_fill",
@@ -198,28 +229,22 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
     g_datalab_authoring_overlay_ui.custom_create_button = (SDL_Rect){0, 0, 0, 0};
     g_datalab_authoring_overlay_ui.custom_edit_button = (SDL_Rect){0, 0, 0, 0};
     g_datalab_authoring_overlay_ui.custom_rename_button = (SDL_Rect){0, 0, 0, 0};
+    g_datalab_authoring_overlay_ui.font_theme_shared_layout_valid =
+        (uint8_t)kit_workspace_authoring_ui_font_theme_build_layout(NULL, ww, wh, &shared_layout);
+    if (!g_datalab_authoring_overlay_ui.font_theme_shared_layout_valid) {
+        g_datalab_authoring_overlay_ui.font_controls_valid = 0u;
+        return;
+    }
+    g_datalab_authoring_overlay_ui.font_theme_shared_layout = shared_layout;
 
     pad = datalab_scaled_px(14.0f);
     row_h = datalab_text_line_height(1) + datalab_scaled_px(4.0f);
     button_h = datalab_scaled_px(22.0f);
-    button_small_w = datalab_scaled_px(22.0f);
-    button_reset_w = datalab_scaled_px(56.0f);
-    controls_gap = datalab_scaled_px(6.0f);
-    theme_button_gap = datalab_scaled_px(6.0f);
 
     SDL_SetRenderDrawColor(renderer, palette->clear_r, palette->clear_g, palette->clear_b, 255);
     SDL_RenderClear(renderer);
 
-    panel.x = datalab_scaled_px(20.0f);
-    panel.y = datalab_scaled_px(54.0f);
-    panel.w = ww - datalab_scaled_px(40.0f);
-    panel.h = wh - datalab_scaled_px(84.0f);
-    if (panel.w < datalab_scaled_px(240.0f)) {
-        panel.w = datalab_scaled_px(240.0f);
-    }
-    if (panel.h < datalab_scaled_px(200.0f)) {
-        panel.h = datalab_scaled_px(200.0f);
-    }
+    panel = datalab_overlay_rect_from_kit(shared_layout.panel);
 
     SDL_SetRenderDrawColor(renderer, palette->shell_fill_r, palette->shell_fill_g, palette->shell_fill_b, 246);
     SDL_RenderFillRect(renderer, &panel);
@@ -236,10 +261,7 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                   palette->text_primary_b,
                   255);
 
-    section.x = panel.x + pad;
-    section.y = panel.y + pad + row_h;
-    section.w = panel.w - (pad * 2);
-    section.h = datalab_scaled_px(92.0f);
+    section = datalab_overlay_rect_from_kit(shared_layout.font_preset_section);
     SDL_SetRenderDrawColor(renderer, palette->button_fill_r, palette->button_fill_g, palette->button_fill_b, 232);
     SDL_RenderFillRect(renderer, &section);
     SDL_SetRenderDrawColor(renderer, palette->shell_border_r, palette->shell_border_g, palette->shell_border_b, 250);
@@ -249,6 +271,34 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                   section.x + datalab_scaled_px(8.0f),
                   section.y + datalab_scaled_px(8.0f),
                   "Font Preset: ide",
+                  1,
+                  palette->text_primary_r,
+                  palette->text_primary_g,
+                  palette->text_primary_b,
+                  255);
+
+    for (i = 0; i < (int)shared_layout.font_preset_button_count; ++i) {
+        KitWorkspaceAuthoringFontThemeButtonId button_id = datalab_overlay_shared_font_button_id_at(i);
+        const char *label = kit_workspace_authoring_ui_font_theme_button_label(button_id);
+        button_rect = datalab_overlay_rect_from_kit(shared_layout.font_preset_buttons[i]);
+        datalab_overlay_draw_button(renderer,
+                                    &button_rect,
+                                    label ? label : "font",
+                                    g_datalab_authoring_overlay_ui.hover_font_hit ==
+                                        (DatalabAuthoringFontThemeHitId)button_id,
+                                    button_id == KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_FONT_PRESET_IDE,
+                                    palette);
+    }
+
+    section = datalab_overlay_rect_from_kit(shared_layout.text_size_section);
+    SDL_SetRenderDrawColor(renderer, palette->button_fill_r, palette->button_fill_g, palette->button_fill_b, 232);
+    SDL_RenderFillRect(renderer, &section);
+    SDL_SetRenderDrawColor(renderer, palette->shell_border_r, palette->shell_border_g, palette->shell_border_b, 250);
+    SDL_RenderDrawRect(renderer, &section);
+    draw_text_5x7(renderer,
+                  section.x + datalab_scaled_px(8.0f),
+                  section.y + datalab_scaled_px(8.0f),
+                  "Text Size",
                   1,
                   palette->text_primary_r,
                   palette->text_primary_g,
@@ -268,37 +318,25 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                   palette->text_secondary_b,
                   255);
 
-    section_inner_x = section.x + datalab_scaled_px(8.0f);
-    section_inner_w = section.w - datalab_scaled_px(16.0f);
-    controls_y = section.y + section.h - button_h - datalab_scaled_px(8.0f);
-    controls_x = section_inner_x;
     g_datalab_authoring_overlay_ui.text_dec_button =
-        (SDL_Rect){ controls_x, controls_y, button_small_w, button_h };
-    controls_x += button_small_w + controls_gap;
+        datalab_overlay_rect_from_kit(shared_layout.text_size_dec_button);
     g_datalab_authoring_overlay_ui.text_inc_button =
-        (SDL_Rect){ controls_x, controls_y, button_small_w, button_h };
-    controls_x += button_small_w + controls_gap;
-
-    value_chip.w = datalab_overlay_clamp_int(section_inner_w - (button_small_w * 2) - button_reset_w - (controls_gap * 3),
-                                             datalab_scaled_px(76.0f),
-                                             datalab_scaled_px(140.0f));
-    value_chip.h = button_h;
-    value_chip.x = controls_x;
-    value_chip.y = controls_y;
-    controls_x += value_chip.w + controls_gap;
-
+        datalab_overlay_rect_from_kit(shared_layout.text_size_inc_button);
+    value_chip = datalab_overlay_rect_from_kit(shared_layout.text_size_value_chip);
     g_datalab_authoring_overlay_ui.text_reset_button =
-        (SDL_Rect){ controls_x, controls_y, button_reset_w, button_h };
+        datalab_overlay_rect_from_kit(shared_layout.text_size_reset_button);
 
     datalab_overlay_draw_button(renderer,
                                 &g_datalab_authoring_overlay_ui.text_dec_button,
-                                "-",
+                                kit_workspace_authoring_ui_font_theme_button_label(
+                                    KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_DEC),
                                 g_datalab_authoring_overlay_ui.hover_font_hit == DATALAB_AUTHORING_FONT_HIT_TEXT_DEC,
                                 0,
                                 palette);
     datalab_overlay_draw_button(renderer,
                                 &g_datalab_authoring_overlay_ui.text_inc_button,
-                                "+",
+                                kit_workspace_authoring_ui_font_theme_button_label(
+                                    KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_INC),
                                 g_datalab_authoring_overlay_ui.hover_font_hit == DATALAB_AUTHORING_FONT_HIT_TEXT_INC,
                                 0,
                                 palette);
@@ -318,13 +356,13 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
 
     datalab_overlay_draw_button(renderer,
                                 &g_datalab_authoring_overlay_ui.text_reset_button,
-                                "Reset",
+                                kit_workspace_authoring_ui_font_theme_button_label(
+                                    KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_RESET),
                                 g_datalab_authoring_overlay_ui.hover_font_hit == DATALAB_AUTHORING_FONT_HIT_TEXT_RESET,
                                 0,
                                 palette);
 
-    section.y += section.h + datalab_scaled_px(10.0f);
-    section.h = datalab_scaled_px(94.0f);
+    section = datalab_overlay_rect_from_kit(shared_layout.theme_preset_section);
     SDL_SetRenderDrawColor(renderer, palette->button_fill_r, palette->button_fill_g, palette->button_fill_b, 232);
     SDL_RenderFillRect(renderer, &section);
     SDL_SetRenderDrawColor(renderer, palette->shell_border_r, palette->shell_border_g, palette->shell_border_b, 250);
@@ -353,42 +391,30 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                   palette->text_secondary_b,
                   255);
 
-    section_inner_x = section.x + datalab_scaled_px(8.0f);
-    section_inner_w = section.w - datalab_scaled_px(16.0f);
-    theme_button_w = (section_inner_w - (theme_button_gap * (DATALAB_FONT_THEME_THEME_BUTTON_COUNT - 1))) /
-                     DATALAB_FONT_THEME_THEME_BUTTON_COUNT;
-    if (theme_button_w < datalab_scaled_px(60.0f)) {
-        theme_button_w = datalab_scaled_px(60.0f);
-    }
-    theme_buttons_y = section.y + section.h - button_h - datalab_scaled_px(8.0f);
-    controls_x = section_inner_x;
-    for (i = 0; i < DATALAB_FONT_THEME_THEME_BUTTON_COUNT; ++i) {
+    for (i = 0; i < (int)shared_layout.theme_preset_button_count; ++i) {
+        KitWorkspaceAuthoringFontThemeButtonId button_id = datalab_overlay_shared_theme_button_id_at(i);
         int is_active = (int)selected_theme == i;
         DatalabAuthoringFontThemeHitId hover_hit =
             (DatalabAuthoringFontThemeHitId)(DATALAB_AUTHORING_FONT_HIT_THEME_0 + i);
-        g_datalab_authoring_overlay_ui.theme_buttons[i] = (SDL_Rect){ controls_x, theme_buttons_y, theme_button_w, button_h };
+        g_datalab_authoring_overlay_ui.theme_buttons[i] =
+            datalab_overlay_rect_from_kit(shared_layout.theme_preset_buttons[i]);
         datalab_overlay_draw_button(renderer,
                                     &g_datalab_authoring_overlay_ui.theme_buttons[i],
-                                    k_theme_labels[i],
+                                    kit_workspace_authoring_ui_font_theme_button_label(button_id),
                                     g_datalab_authoring_overlay_ui.hover_font_hit == hover_hit,
                                     is_active,
                                     palette);
-        controls_x += theme_button_w + theme_button_gap;
     }
 
-    custom_section.x = section.x;
-    custom_section.y = section.y + section.h + datalab_scaled_px(10.0f);
-    custom_section.w = section.w;
-    custom_section.h = datalab_scaled_px(132.0f);
+    custom_section = datalab_overlay_rect_from_kit(shared_layout.custom_theme_section);
     g_datalab_authoring_overlay_ui.custom_open_button = (SDL_Rect){0, 0, 0, 0};
     g_datalab_authoring_overlay_ui.custom_create_button = (SDL_Rect){0, 0, 0, 0};
     g_datalab_authoring_overlay_ui.custom_edit_button = (SDL_Rect){0, 0, 0, 0};
     g_datalab_authoring_overlay_ui.custom_popup_close_button = (SDL_Rect){0, 0, 0, 0};
-    if (custom_section.y + custom_section.h < panel.y + panel.h - datalab_scaled_px(30.0f)) {
+    if (custom_section.y + custom_section.h <= panel.y + panel.h - datalab_scaled_px(8.0f)) {
         section_inner_x = custom_section.x + datalab_scaled_px(8.0f);
         section_inner_w = custom_section.w - datalab_scaled_px(16.0f);
         custom_slot_gap = datalab_scaled_px(6.0f);
-        custom_action_gap = datalab_scaled_px(6.0f);
         custom_slot_button_w =
             (section_inner_w - (custom_slot_gap * (DATALAB_CUSTOM_THEME_SLOT_COUNT - 1))) /
             DATALAB_CUSTOM_THEME_SLOT_COUNT;
@@ -399,18 +425,6 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
         custom_rename_w = datalab_overlay_clamp_int(section_inner_w / 4,
                                                     datalab_scaled_px(56.0f),
                                                     datalab_scaled_px(96.0f));
-        custom_action_w =
-            (section_inner_w - custom_rename_w - (custom_action_gap * 2)) / 2;
-        if (custom_action_w < datalab_scaled_px(64.0f)) {
-            custom_action_w = datalab_scaled_px(64.0f);
-            custom_rename_w =
-                section_inner_w - (custom_action_w * 2) - (custom_action_gap * 2);
-            custom_rename_w = datalab_overlay_clamp_int(custom_rename_w,
-                                                        datalab_scaled_px(44.0f),
-                                                        datalab_scaled_px(96.0f));
-            custom_action_w =
-                (section_inner_w - custom_rename_w - (custom_action_gap * 2)) / 2;
-        }
         custom_action_y = custom_slot_buttons_y + button_h + datalab_scaled_px(8.0f);
 
         SDL_SetRenderDrawColor(renderer, palette->button_fill_r, palette->button_fill_g, palette->button_fill_b, 224);
@@ -465,26 +479,14 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
             controls_x += custom_slot_button_w + custom_slot_gap;
         }
 
+        g_datalab_authoring_overlay_ui.custom_create_button =
+            datalab_overlay_rect_from_kit(shared_layout.custom_theme_buttons[0]);
+        g_datalab_authoring_overlay_ui.custom_edit_button =
+            datalab_overlay_rect_from_kit(shared_layout.custom_theme_buttons[1]);
         g_datalab_authoring_overlay_ui.custom_rename_button = (SDL_Rect){
             section_inner_x,
             custom_action_y,
             custom_rename_w,
-            button_h
-        };
-        g_datalab_authoring_overlay_ui.custom_create_button = (SDL_Rect){
-            g_datalab_authoring_overlay_ui.custom_rename_button.x +
-                g_datalab_authoring_overlay_ui.custom_rename_button.w +
-                custom_action_gap,
-            custom_action_y,
-            custom_action_w,
-            button_h
-        };
-        g_datalab_authoring_overlay_ui.custom_edit_button = (SDL_Rect){
-            g_datalab_authoring_overlay_ui.custom_create_button.x +
-                g_datalab_authoring_overlay_ui.custom_create_button.w +
-                custom_action_gap,
-            custom_action_y,
-            custom_action_w,
             button_h
         };
         g_datalab_authoring_overlay_ui.custom_open_button = g_datalab_authoring_overlay_ui.custom_edit_button;
@@ -497,13 +499,15 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                                     palette);
         datalab_overlay_draw_button(renderer,
                                     &g_datalab_authoring_overlay_ui.custom_create_button,
-                                    "Create Custom",
+                                    kit_workspace_authoring_ui_font_theme_button_label(
+                                        KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_CREATE_STUB),
                                     g_datalab_authoring_overlay_ui.hover_font_hit == DATALAB_AUTHORING_FONT_HIT_CUSTOM_CREATE,
                                     0,
                                     palette);
         datalab_overlay_draw_button(renderer,
                                     &g_datalab_authoring_overlay_ui.custom_edit_button,
-                                    "Edit Custom",
+                                    kit_workspace_authoring_ui_font_theme_button_label(
+                                        KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_CUSTOM_THEME_EDIT_STUB),
                                     g_datalab_authoring_overlay_ui.hover_font_hit == DATALAB_AUTHORING_FONT_HIT_CUSTOM_EDIT,
                                     app_state->workspace_authoring_custom_theme_popup_open != 0,
                                     palette);
