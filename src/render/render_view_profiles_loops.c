@@ -7,7 +7,9 @@
 #include <string.h>
 #include <strings.h>
 
+#include "app/datalab_runtime_prefs.h"
 #include "data/input_file_loader.h"
+#include "render/render_view_authoring_overlay_shared.h"
 #include "ui/input.h"
 
 #define DATALAB_PANEL_MAX_FILES 160
@@ -22,7 +24,15 @@ typedef struct DatalabPackPanelCache {
     char status[160];
 } DatalabPackPanelCache;
 
+typedef struct DatalabRecentInputRootUiState {
+    SDL_Rect button_rect;
+    SDL_Rect list_rect;
+    SDL_Rect item_rects[DATALAB_RECENT_INPUT_ROOT_LIMIT];
+    size_t visible_count;
+} DatalabRecentInputRootUiState;
+
 static DatalabPackPanelCache g_pack_panel_cache;
+static DatalabRecentInputRootUiState g_recent_input_root_ui;
 
 static int datalab_pack_ext(const char *name) {
     return datalab_input_file_is_supported(name);
@@ -38,6 +48,41 @@ static int datalab_clamp_int(int value, int min_value, int max_value) {
     if (value < min_value) return min_value;
     if (value > max_value) return max_value;
     return value;
+}
+
+static int datalab_point_in_rect(const SDL_Rect *rect, int x, int y) {
+    if (!rect) {
+        return 0;
+    }
+    return x >= rect->x && y >= rect->y &&
+           x < (rect->x + rect->w) && y < (rect->y + rect->h);
+}
+
+static int datalab_map_window_to_renderer_point(SDL_Window *window,
+                                                SDL_Renderer *renderer,
+                                                int window_x,
+                                                int window_y,
+                                                int *out_render_x,
+                                                int *out_render_y) {
+    int window_w = 0;
+    int window_h = 0;
+    int render_w = 0;
+    int render_h = 0;
+    if (!window || !renderer || !out_render_x || !out_render_y) {
+        return 0;
+    }
+    SDL_GetWindowSize(window, &window_w, &window_h);
+    SDL_GetRendererOutputSize(renderer, &render_w, &render_h);
+    if (window_w <= 0 || window_h <= 0 || render_w <= 0 || render_h <= 0) {
+        return 0;
+    }
+    *out_render_x = (window_x * render_w) / window_w;
+    *out_render_y = (window_y * render_h) / window_h;
+    return 1;
+}
+
+static int datalab_header_bar_height_px(void) {
+    return (datalab_text_line_height(1) * 2) + datalab_scaled_px(12.0f);
 }
 
 static const char *datalab_path_basename(const char *path) {
@@ -199,7 +244,221 @@ static void datalab_panel_tick(DatalabAppState *app_state) {
     }
 }
 
+static void datalab_recent_input_root_activate(DatalabAppState *app_state, const char *path) {
+    uint32_t now_ticks = 0u;
+    if (!app_state || !path || path[0] == '\0') {
+        return;
+    }
+    snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", path);
+    datalab_normalize_input_root_path(app_state->input_root, sizeof(app_state->input_root));
+    datalab_recent_input_roots_add(app_state->recent_input_roots,
+                                   &app_state->recent_input_root_count,
+                                   DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                   app_state->input_root);
+    app_state->recent_input_root_dropdown_open = 0;
+    app_state->panel_rescan_requested = 0;
+    app_state->panel_selection_delta = 0;
+    app_state->panel_selected_index = 0u;
+    app_state->panel_open_selected_requested = 0;
+    app_state->panel_requested_pack_path[0] = '\0';
+    app_state->playback_active = 0;
+    datalab_panel_rescan(app_state->input_root, &g_pack_panel_cache);
+    now_ticks = SDL_GetTicks();
+    g_pack_panel_cache.last_scan_ticks = now_ticks;
+    if (g_pack_panel_cache.file_count > 0u) {
+        snprintf(app_state->panel_requested_pack_path,
+                 sizeof(app_state->panel_requested_pack_path),
+                 "%s/%s",
+                 app_state->input_root,
+                 g_pack_panel_cache.files[0]);
+    }
+}
+
+int datalab_session_controls_route_mouse_event(SDL_Window *window,
+                                               SDL_Renderer *renderer,
+                                               const SDL_Event *event,
+                                               DatalabAppState *app_state) {
+    int pointer_x = 0;
+    int pointer_y = 0;
+    size_t i = 0u;
+    if (!window || !renderer || !event || !app_state) {
+        return 0;
+    }
+    if (event->type != SDL_MOUSEBUTTONDOWN || event->button.button != SDL_BUTTON_LEFT) {
+        return 0;
+    }
+    if (!datalab_map_window_to_renderer_point(window,
+                                              renderer,
+                                              event->button.x,
+                                              event->button.y,
+                                              &pointer_x,
+                                              &pointer_y)) {
+        return 0;
+    }
+    if (datalab_point_in_rect(&g_recent_input_root_ui.button_rect, pointer_x, pointer_y)) {
+        app_state->recent_input_root_dropdown_open = !app_state->recent_input_root_dropdown_open;
+        return 1;
+    }
+    if (!app_state->recent_input_root_dropdown_open) {
+        return 0;
+    }
+    for (i = 0u; i < g_recent_input_root_ui.visible_count; ++i) {
+        if (!datalab_point_in_rect(&g_recent_input_root_ui.item_rects[i], pointer_x, pointer_y)) {
+            continue;
+        }
+        if (i < app_state->recent_input_root_count && app_state->recent_input_roots[i][0] != '\0') {
+            datalab_recent_input_root_activate(app_state, app_state->recent_input_roots[i]);
+            return 1;
+        }
+    }
+    if (!datalab_point_in_rect(&g_recent_input_root_ui.list_rect, pointer_x, pointer_y)) {
+        app_state->recent_input_root_dropdown_open = 0;
+        return 1;
+    }
+    return 0;
+}
+
+void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const DatalabAppState *app_state) {
+    DatalabAuthoringThemePalette palette = {0};
+    DatalabWorkspaceAuthoringThemePreset preset = DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    SDL_Rect bar = {0};
+    SDL_Rect button = {0};
+    SDL_Rect list_rect = {0};
+    SDL_Rect clip_rect = {0};
+    const char *root = NULL;
+    int ww = 0;
+    int wh = 0;
+    int pad = 0;
+    int line_h = 0;
+    int button_w = 0;
+    int button_h = 0;
+    int row_h = 0;
+    int visible_count = 0;
+    size_t i = 0u;
+
+    if (!renderer || !app_state) {
+        return;
+    }
+    memset(&g_recent_input_root_ui, 0, sizeof(g_recent_input_root_ui));
+    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    if (ww <= 0 || wh <= 0) {
+        return;
+    }
+
+    preset = datalab_overlay_selected_theme(app_state);
+    datalab_overlay_theme_palette(preset, &app_state->workspace_authoring_custom_theme, &palette);
+    root = (app_state->input_root[0] != '\0') ? app_state->input_root : "<not set>";
+    pad = datalab_scaled_px(8.0f);
+    line_h = datalab_text_line_height(1);
+    button_w = datalab_scaled_px(280.0f);
+    button_h = (line_h * 2) + datalab_scaled_px(8.0f);
+    row_h = line_h + datalab_scaled_px(4.0f);
+    visible_count = (int)app_state->recent_input_root_count;
+    if (visible_count > DATALAB_RECENT_INPUT_ROOT_LIMIT) {
+        visible_count = DATALAB_RECENT_INPUT_ROOT_LIMIT;
+    }
+
+    bar = (SDL_Rect){0, 0, ww, button_h + datalab_scaled_px(4.0f)};
+    button = (SDL_Rect){
+        ww - button_w - datalab_scaled_px(12.0f),
+        datalab_scaled_px(4.0f),
+        button_w,
+        button_h
+    };
+    if (button.x < datalab_scaled_px(120.0f)) {
+        button.x = datalab_scaled_px(120.0f);
+        button.w = ww - button.x - datalab_scaled_px(12.0f);
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, palette.shell_fill_r, palette.shell_fill_g, palette.shell_fill_b, 228);
+    SDL_RenderFillRect(renderer, &bar);
+    SDL_SetRenderDrawColor(renderer, palette.shell_border_r, palette.shell_border_g, palette.shell_border_b, 240);
+    SDL_RenderDrawLine(renderer, 0, bar.h - 1, ww, bar.h - 1);
+
+    draw_text_5x7(renderer,
+                  datalab_scaled_px(12.0f),
+                  datalab_scaled_px(10.0f),
+                  "DATALAB",
+                  1,
+                  palette.text_primary_r,
+                  palette.text_primary_g,
+                  palette.text_primary_b,
+                  255);
+
+    datalab_overlay_draw_button(renderer,
+                                &button,
+                                "RECENT DIRECTORIES",
+                                app_state->recent_input_root_dropdown_open,
+                                app_state->recent_input_root_dropdown_open,
+                                &palette);
+    clip_rect = (SDL_Rect){
+        button.x + pad,
+        button.y + line_h + datalab_scaled_px(2.0f),
+        button.w - (pad * 2),
+        line_h
+    };
+    draw_text_5x7_clipped(renderer,
+                          &clip_rect,
+                          clip_rect.x,
+                          clip_rect.y,
+                          root,
+                          1,
+                          palette.text_secondary_r,
+                          palette.text_secondary_g,
+                          palette.text_secondary_b,
+                          255);
+    g_recent_input_root_ui.button_rect = button;
+
+    if (app_state->recent_input_root_dropdown_open && visible_count > 0) {
+        list_rect = (SDL_Rect){
+            button.x,
+            button.y + button.h + datalab_scaled_px(4.0f),
+            button.w,
+            (visible_count * row_h) + (pad * 2)
+        };
+        SDL_SetRenderDrawColor(renderer, palette.pane_fill_r, palette.pane_fill_g, palette.pane_fill_b, 238);
+        SDL_RenderFillRect(renderer, &list_rect);
+        SDL_SetRenderDrawColor(renderer, palette.shell_border_r, palette.shell_border_g, palette.shell_border_b, 245);
+        SDL_RenderDrawRect(renderer, &list_rect);
+        clip_rect = (SDL_Rect){
+            list_rect.x + pad,
+            list_rect.y + pad,
+            list_rect.w - (pad * 2),
+            list_rect.h - (pad * 2)
+        };
+        g_recent_input_root_ui.list_rect = list_rect;
+        g_recent_input_root_ui.visible_count = (size_t)visible_count;
+        for (i = 0u; i < (size_t)visible_count; ++i) {
+            SDL_Rect item_rect = {
+                list_rect.x + pad,
+                list_rect.y + pad + ((int)i * row_h),
+                list_rect.w - (pad * 2),
+                row_h
+            };
+            int is_active = strcmp(app_state->recent_input_roots[i], root) == 0;
+            if (is_active) {
+                SDL_SetRenderDrawColor(renderer, palette.button_active_r, palette.button_active_g, palette.button_active_b, 230);
+                SDL_RenderFillRect(renderer, &item_rect);
+            }
+            draw_text_5x7_clipped(renderer,
+                                  &clip_rect,
+                                  item_rect.x + datalab_scaled_px(4.0f),
+                                  item_rect.y + datalab_scaled_px(2.0f),
+                                  app_state->recent_input_roots[i],
+                                  1,
+                                  is_active ? palette.text_primary_r : palette.text_secondary_r,
+                                  is_active ? palette.text_primary_g : palette.text_secondary_g,
+                                  is_active ? palette.text_primary_b : palette.text_secondary_b,
+                                  255);
+            g_recent_input_root_ui.item_rects[i] = item_rect;
+        }
+    }
+}
+
 void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState *app_state) {
+    DatalabAuthoringThemePalette palette = {0};
+    DatalabWorkspaceAuthoringThemePreset preset = DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
     SDL_Rect panel = {0};
     SDL_Rect panel_clip = {0};
     SDL_Rect list_box = {0};
@@ -227,10 +486,8 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     if (!renderer || !app_state) {
         return;
     }
-    if (app_state->session_hud_collapsed) {
-        return;
-    }
-
+    preset = datalab_overlay_selected_theme(app_state);
+    datalab_overlay_theme_palette(preset, &app_state->workspace_authoring_custom_theme, &palette);
     root = (app_state->input_root[0] != '\0') ? app_state->input_root : "<not set>";
     pack_path = app_state->pack_path && app_state->pack_path[0] ? app_state->pack_path : "<none>";
     active_name = datalab_path_basename(pack_path);
@@ -239,6 +496,10 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                         : "H hide HUD | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan";
     SDL_GetRendererOutputSize(renderer, &ww, &wh);
     pad = datalab_scaled_px(8.0f);
+    if (app_state->session_hud_collapsed) {
+        return;
+    }
+
     section_gap = datalab_scaled_px(4.0f);
     line_h = datalab_text_line_height(1);
     min_panel_w = datalab_scaled_px(260.0f);
@@ -266,13 +527,12 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     if (measured_w > content_w) content_w = measured_w;
 
     panel.x = datalab_scaled_px(10.0f);
-    panel.y = datalab_scaled_px(10.0f);
+    panel.y = datalab_header_bar_height_px() + datalab_scaled_px(10.0f);
     panel.w = datalab_clamp_int(content_w + (pad * 2) + datalab_scaled_px(8.0f), min_panel_w, max_panel_w);
     panel.h = datalab_clamp_int((line_h * 7) + (section_gap * 6) + datalab_scaled_px(120.0f), min_panel_h, max_panel_h);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 10, 12, 18, 190);
+    SDL_SetRenderDrawColor(renderer, palette.pane_fill_r, palette.pane_fill_g, palette.pane_fill_b, 204);
     SDL_RenderFillRect(renderer, &panel);
-    SDL_SetRenderDrawColor(renderer, 90, 100, 120, 210);
+    SDL_SetRenderDrawColor(renderer, palette.shell_border_r, palette.shell_border_g, palette.shell_border_b, 220);
     SDL_RenderDrawRect(renderer, &panel);
     panel_clip.x = panel.x + pad;
     panel_clip.y = panel.y + pad;
@@ -285,9 +545,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                   y_cursor,
                   "SESSION DATA",
                   1,
-                  220,
-                  230,
-                  240,
+                  palette.text_primary_r,
+                  palette.text_primary_g,
+                  palette.text_primary_b,
                   255);
     y_cursor += line_h + section_gap;
     draw_text_5x7(renderer,
@@ -295,9 +555,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                   y_cursor,
                   shortcut_line,
                   1,
-                  210,
-                  220,
-                  230,
+                  palette.text_secondary_r,
+                  palette.text_secondary_g,
+                  palette.text_secondary_b,
                   255);
     y_cursor += line_h + section_gap;
     draw_text_5x7(renderer,
@@ -305,9 +565,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                   y_cursor,
                   "ROOT",
                   1,
-                  180,
-                  190,
-                  205,
+                  palette.text_secondary_r,
+                  palette.text_secondary_g,
+                  palette.text_secondary_b,
                   255);
     y_cursor += line_h + section_gap;
     draw_text_5x7_clipped(renderer,
@@ -316,9 +576,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                           y_cursor,
                           root,
                           1,
-                          170,
-                          190,
-                          210,
+                          palette.text_primary_r,
+                          palette.text_primary_g,
+                          palette.text_primary_b,
                           255);
     y_cursor += line_h + section_gap;
     draw_text_5x7(renderer,
@@ -326,9 +586,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                   y_cursor,
                   "ACTIVE",
                   1,
-                  180,
-                  190,
-                  205,
+                  palette.text_secondary_r,
+                  palette.text_secondary_g,
+                  palette.text_secondary_b,
                   255);
     y_cursor += line_h + section_gap;
     draw_text_5x7_clipped(renderer,
@@ -337,9 +597,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                           y_cursor,
                           pack_path,
                           1,
-                          170,
-                          190,
-                          210,
+                          palette.text_primary_r,
+                          palette.text_primary_g,
+                          palette.text_primary_b,
                           255);
     y_cursor += line_h + section_gap;
     draw_text_5x7(renderer,
@@ -347,9 +607,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                   y_cursor,
                   g_pack_panel_cache.status[0] ? g_pack_panel_cache.status : "scanning...",
                   1,
-                  150,
-                  215,
-                  160,
+                  palette.text_primary_r,
+                  palette.text_primary_g,
+                  palette.text_primary_b,
                   255);
     y_cursor += line_h + section_gap;
 
@@ -360,9 +620,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
             panel.w - (pad * 2),
             panel.y + panel.h - y_cursor - pad
         };
-        SDL_SetRenderDrawColor(renderer, 18, 21, 30, 210);
+        SDL_SetRenderDrawColor(renderer, palette.shell_fill_r, palette.shell_fill_g, palette.shell_fill_b, 220);
         SDL_RenderFillRect(renderer, &list_box);
-        SDL_SetRenderDrawColor(renderer, 70, 80, 100, 210);
+        SDL_SetRenderDrawColor(renderer, palette.shell_border_r, palette.shell_border_g, palette.shell_border_b, 220);
         SDL_RenderDrawRect(renderer, &list_box);
 
         row_h = datalab_text_line_height(1) + datalab_scaled_px(2.0f);
@@ -431,9 +691,17 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                         list_box.w - datalab_scaled_px(4.0f),
                         row_h
                     };
-                    SDL_SetRenderDrawColor(renderer, is_selected ? 58 : 40, is_selected ? 86 : 66, 92, 220);
+                    SDL_SetRenderDrawColor(renderer,
+                                           is_selected ? palette.button_active_r : palette.button_fill_r,
+                                           is_selected ? palette.button_active_g : palette.button_fill_g,
+                                           is_selected ? palette.button_active_b : palette.button_fill_b,
+                                           220);
                     SDL_RenderFillRect(renderer, &hi);
-                    SDL_SetRenderDrawColor(renderer, is_selected ? 118 : 88, is_selected ? 168 : 138, 188, 255);
+                    SDL_SetRenderDrawColor(renderer,
+                                           is_selected ? palette.button_hover_r : palette.shell_border_r,
+                                           is_selected ? palette.button_hover_g : palette.shell_border_g,
+                                           is_selected ? palette.button_hover_b : palette.shell_border_b,
+                                           255);
                     SDL_RenderDrawRect(renderer, &hi);
                 }
                 draw_text_5x7_clipped(renderer,
@@ -442,9 +710,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                                       y,
                                       name,
                                       1,
-                                      (is_selected || is_active) ? 235 : 210,
-                                      (is_selected || is_active) ? 245 : 220,
-                                      (is_selected || is_active) ? 255 : 235,
+                                      (is_selected || is_active) ? palette.text_primary_r : palette.text_secondary_r,
+                                      (is_selected || is_active) ? palette.text_primary_g : palette.text_secondary_g,
+                                      (is_selected || is_active) ? palette.text_primary_b : palette.text_secondary_b,
                                       255);
             }
         }
@@ -542,6 +810,9 @@ static void datalab_loop_handle_event(SDL_Window *window,
         *resize_pending = 1;
     }
     if (datalab_workspace_authoring_route_mouse_event(event, app_state)) {
+        return;
+    }
+    if (datalab_session_controls_route_mouse_event(window, renderer, event, app_state)) {
         return;
     }
     if (datalab_handle_mouse_event(window, renderer, event, app_state)) {

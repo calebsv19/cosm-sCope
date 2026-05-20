@@ -14,7 +14,14 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
 ## Implemented Today
 
 - Startup picker on no-arg GUI launch (`.pack` / `.bmp` list, input-root selection).
+- Startup picker recent-directories dropdown:
+  - keeps the last 16 input roots
+  - selecting a recent root reorders it to the top instead of duplicating it
+  - selecting a recent root rescans and highlights the first supported file in that directory
 - In-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan).
+- In-session recent-directories header dropdown:
+  - uses the same persisted 16-entry MRU list as the startup picker
+  - selecting a recent root reorders it to the top and immediately loads the first supported file from that directory
 - Session HUD collapse/restore (`H`).
 - Directory autoplay (`Space`) across current supported-file list.
 - Shared viewport controls for sketch/image profiles:
@@ -28,6 +35,7 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
 - Runtime preferences:
   - text zoom step persistence (`data/runtime/text_zoom_step.txt`)
   - input-root persistence (`data/runtime/input_root.txt`)
+  - recent input-root history persistence (`data/runtime/recent_input_roots_v1.txt`)
   - authoring theme preset + custom theme slot persistence
   - CLI `--input-root` precedence over persisted root.
 - Picker load failure safety:

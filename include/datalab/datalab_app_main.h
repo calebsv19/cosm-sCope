@@ -30,6 +30,8 @@ typedef struct DatalabAppRuntime {
     int session_hud_collapsed;
     DatalabRasterViewportState raster_viewport;
     char input_root[DATALAB_APP_PATH_CAP];
+    char recent_input_roots[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP];
+    size_t recent_input_root_count;
     char selected_pack_path[DATALAB_APP_PATH_CAP];
     char last_load_error[256];
     DatalabFrame frame;

@@ -7,6 +7,7 @@ Start here for public repository documentation.
 - `docs/current_truth.md`: compressed current-state contract and active boundaries.
 - `docs/future_intent.md`: near-term direction and constraints.
 - `docs/KEYBINDS.md`: runtime and authoring-entry input contract.
+- current public docs include the startup-picker and active-runtime recent-directories behavior.
 
 ## Verification Entry Points
 

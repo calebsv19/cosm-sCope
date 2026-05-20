@@ -12,6 +12,7 @@
 - `U` / `J`: move Data Panel selection up/down.
 - `Enter`: load selected file from the Data Panel list.
 - `Space`: toggle directory autoplay (play/pause through current file list at default speed).
+- `Click RECENT DIRECTORIES` (active runtime header): open the recent-root MRU list; selecting a root immediately loads the first supported file from that directory.
 
 ## Startup Picker
 - `E`: toggle path edit mode.
@@ -20,6 +21,7 @@
 - `Enter`: apply edited path in edit mode, or open selected file.
 - `Up` / `Down`: move file selection.
 - `Esc`: cancel edit mode or exit picker.
+- `Click RECENT DIRECTORIES`: open the recent-root MRU list; selecting a root rescans that directory and highlights the first supported file.
 - `Alt+C+V`: open selected file and enter authoring mode immediately.
 
 ## Physics Profile

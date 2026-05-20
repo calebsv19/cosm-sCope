@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-05-04
+Last updated: 2026-05-20
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -11,6 +11,11 @@ Last updated: 2026-05-04
 
 ## Current Shipped State
 - Startup picker + in-session source panel are active.
+- Input-root switching now includes a shared recent-directories MRU lane:
+  - startup picker exposes a top-level recent-directories dropdown
+  - active runtime exposes a themed header recent-directories dropdown above the session HUD
+  - MRU list is capped at `16` entries and persisted across sessions
+  - re-opening an existing root moves it to the top instead of keeping duplicate rows
 - Supported ingest lanes include:
   - `.pack` families (physics/DAW/trace/sketch profile roots)
   - `.bmp` image profile lane
@@ -43,8 +48,12 @@ Last updated: 2026-05-04
 - Default GUI launch opens picker and does not require `--pack`.
 - Headless mode still requires explicit `--pack`.
 - Runtime prefs persist text zoom and input-root state.
+- Runtime prefs also persist recent input-root history in `data/runtime/recent_input_roots_v1.txt`.
 - Runtime prefs also persist workspace-authoring theme/custom-theme state.
 - CLI `--input-root` takes precedence over persisted root.
+- Recent-directory activation behavior is mode-specific:
+  - startup picker selection rescans the new root and highlights the first supported file
+  - active runtime selection immediately requests the first supported file in the chosen root
 - While authoring is active:
   - `Tab` cycles overlay mode
   - `Enter` applies the pending draft state

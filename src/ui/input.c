@@ -233,11 +233,13 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
             state->panel_selection_delta = 0;
             state->panel_open_selected_requested = 0;
             state->panel_requested_pack_path[0] = '\0';
+            state->recent_input_root_dropdown_open = 0;
             state->playback_active = 0;
             state->playback_last_advance_ticks = 0u;
             datalab_raster_viewport_request_reset(&state->raster_viewport);
             break;
         case SDLK_o:
+            state->recent_input_root_dropdown_open = 0;
             state->open_picker_requested = 1;
             break;
         case SDLK_F5:

@@ -10,8 +10,47 @@
 
 #include "kit_workspace_authoring.h"
 #include "data/input_file_loader.h"
+#include "app/datalab_runtime_prefs.h"
 
 #define DATALAB_PICKER_MAX_FILES 256
+
+typedef struct DatalabPickerRecentUiState {
+    SDL_Rect button_rect;
+    SDL_Rect list_rect;
+    SDL_Rect item_rects[DATALAB_RECENT_INPUT_ROOT_LIMIT];
+    size_t visible_count;
+} DatalabPickerRecentUiState;
+
+static int datalab_picker_point_in_rect(const SDL_Rect *rect, int x, int y) {
+    if (!rect) {
+        return 0;
+    }
+    return x >= rect->x && y >= rect->y &&
+           x < (rect->x + rect->w) && y < (rect->y + rect->h);
+}
+
+static int datalab_picker_map_window_to_renderer_point(SDL_Window *window,
+                                                       SDL_Renderer *renderer,
+                                                       int window_x,
+                                                       int window_y,
+                                                       int *out_render_x,
+                                                       int *out_render_y) {
+    int window_w = 0;
+    int window_h = 0;
+    int render_w = 0;
+    int render_h = 0;
+    if (!window || !renderer || !out_render_x || !out_render_y) {
+        return 0;
+    }
+    SDL_GetWindowSize(window, &window_w, &window_h);
+    SDL_GetRendererOutputSize(renderer, &render_w, &render_h);
+    if (window_w <= 0 || window_h <= 0 || render_w <= 0 || render_h <= 0) {
+        return 0;
+    }
+    *out_render_x = (window_x * render_w) / window_w;
+    *out_render_y = (window_y * render_h) / window_h;
+    return 1;
+}
 
 typedef struct DatalabPickerThemePalette {
     uint8_t clear_r, clear_g, clear_b;
@@ -302,6 +341,10 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     char edit_root[DATALAB_APP_PATH_CAP];
     char status[256];
     char files[DATALAB_PICKER_MAX_FILES][DATALAB_APP_PATH_CAP];
+    char recent_input_roots[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP];
+    size_t recent_input_root_count = 0u;
+    int recent_input_root_dropdown_open = 0;
+    DatalabPickerRecentUiState recent_ui = {0};
 
     if (!io_input_root || input_root_cap == 0u || !out_pack_path || out_pack_path_cap == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid picker arguments" };
@@ -327,7 +370,15 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     } else {
         snprintf(input_root, sizeof(input_root), "%s", "data/import");
     }
+    datalab_normalize_input_root_path(input_root, sizeof(input_root));
     snprintf(edit_root, sizeof(edit_root), "%s", input_root);
+    (void)datalab_runtime_prefs_load_recent_input_roots(recent_input_roots,
+                                                        DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                                        &recent_input_root_count);
+    datalab_recent_input_roots_add(recent_input_roots,
+                                   &recent_input_root_count,
+                                   DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                   input_root);
     status[0] = '\0';
     if (initial_status && initial_status[0] != '\0') {
         snprintf(status, sizeof(status), "%s", initial_status);
@@ -376,6 +427,57 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                     strncat(edit_root, e.text.text, sizeof(edit_root) - cur - 1u);
                 }
                 continue;
+            }
+            if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+                int pointer_x = 0;
+                int pointer_y = 0;
+                size_t recent_idx = 0u;
+                if (!datalab_picker_map_window_to_renderer_point(window,
+                                                                 renderer,
+                                                                 e.button.x,
+                                                                 e.button.y,
+                                                                 &pointer_x,
+                                                                 &pointer_y)) {
+                    continue;
+                }
+                if (datalab_picker_point_in_rect(&recent_ui.button_rect, pointer_x, pointer_y)) {
+                    recent_input_root_dropdown_open = !recent_input_root_dropdown_open;
+                    continue;
+                }
+                if (recent_input_root_dropdown_open) {
+                    int handled_recent = 0;
+                    for (recent_idx = 0u; recent_idx < recent_ui.visible_count; ++recent_idx) {
+                        if (!datalab_picker_point_in_rect(&recent_ui.item_rects[recent_idx], pointer_x, pointer_y)) {
+                            continue;
+                        }
+                        if (recent_idx < recent_input_root_count && recent_input_roots[recent_idx][0] != '\0') {
+                            snprintf(input_root, sizeof(input_root), "%s", recent_input_roots[recent_idx]);
+                            datalab_normalize_input_root_path(input_root, sizeof(input_root));
+                            snprintf(edit_root, sizeof(edit_root), "%s", input_root);
+                            datalab_recent_input_roots_add(recent_input_roots,
+                                                           &recent_input_root_count,
+                                                           DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                                           input_root);
+                            file_count = datalab_scan_pack_files(input_root,
+                                                                 files,
+                                                                 DATALAB_PICKER_MAX_FILES,
+                                                                 status,
+                                                                 sizeof(status));
+                            selected = 0;
+                            edit_mode = 0;
+                            recent_input_root_dropdown_open = 0;
+                            handled_recent = 1;
+                            break;
+                        }
+                    }
+                    if (handled_recent) {
+                        continue;
+                    }
+                    if (!datalab_picker_point_in_rect(&recent_ui.list_rect, pointer_x, pointer_y)) {
+                        recent_input_root_dropdown_open = 0;
+                    }
+                    continue;
+                }
             }
             if (e.type != SDL_KEYDOWN) {
                 continue;
@@ -436,12 +538,15 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                     if (edit_mode) {
                         edit_mode = 0;
                         snprintf(edit_root, sizeof(edit_root), "%s", input_root);
+                    } else if (recent_input_root_dropdown_open) {
+                        recent_input_root_dropdown_open = 0;
                     } else {
                         canceled = 1;
                         done = 1;
                     }
                     break;
                 case SDLK_e:
+                    recent_input_root_dropdown_open = 0;
                     edit_mode = !edit_mode;
                     if (edit_mode) {
                         snprintf(edit_root, sizeof(edit_root), "%s", input_root);
@@ -452,7 +557,12 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                         char picked[DATALAB_APP_PATH_CAP];
                         if (datalab_pick_folder_macos(picked, sizeof(picked))) {
                             snprintf(input_root, sizeof(input_root), "%s", picked);
+                            datalab_normalize_input_root_path(input_root, sizeof(input_root));
                             snprintf(edit_root, sizeof(edit_root), "%s", input_root);
+                            datalab_recent_input_roots_add(recent_input_roots,
+                                                           &recent_input_root_count,
+                                                           DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                                           input_root);
                             file_count = datalab_scan_pack_files(input_root,
                                                                  files,
                                                                  DATALAB_PICKER_MAX_FILES,
@@ -490,6 +600,11 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                             break;
                         }
                         snprintf(input_root, sizeof(input_root), "%s", edit_root);
+                        datalab_normalize_input_root_path(input_root, sizeof(input_root));
+                        datalab_recent_input_roots_add(recent_input_roots,
+                                                       &recent_input_root_count,
+                                                       DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                                       input_root);
                         file_count = datalab_scan_pack_files(input_root,
                                                              files,
                                                              DATALAB_PICKER_MAX_FILES,
@@ -519,12 +634,17 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             SDL_Rect list = {0};
             SDL_Rect top_clip = {0};
             SDL_Rect list_clip = {0};
+            SDL_Rect recent_button = {0};
+            SDL_Rect recent_list = {0};
+            SDL_Rect recent_clip = {0};
             int pad = 0;
             int line_h1 = 0;
             int line_h2 = 0;
             int row_h = 0;
+            int recent_row_h = 0;
             int top_gap = 0;
             int list_gap = 0;
+            int recent_visible = 0;
             int y_title = 0;
             int y_help = 0;
             int y_path_label = 0;
@@ -541,8 +661,16 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             top_gap = datalab_scaled_px(6.0f);
             list_gap = datalab_scaled_px(4.0f);
             row_h = line_h1 + datalab_scaled_px(4.0f);
+            recent_row_h = line_h1 + datalab_scaled_px(4.0f);
             if (row_h < datalab_scaled_px(10.0f)) {
                 row_h = datalab_scaled_px(10.0f);
+            }
+            if (recent_row_h < datalab_scaled_px(10.0f)) {
+                recent_row_h = datalab_scaled_px(10.0f);
+            }
+            recent_visible = (int)recent_input_root_count;
+            if (recent_visible > DATALAB_RECENT_INPUT_ROOT_LIMIT) {
+                recent_visible = DATALAB_RECENT_INPUT_ROOT_LIMIT;
             }
 
             top.x = datalab_scaled_px(18.0f);
@@ -584,11 +712,116 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             SDL_SetRenderDrawColor(renderer, palette.frame_r, palette.frame_g, palette.frame_b, 255);
             SDL_RenderDrawRect(renderer, &list);
 
+            recent_button = (SDL_Rect){
+                top.x + top.w - datalab_scaled_px(320.0f) - pad,
+                top.y + pad,
+                datalab_scaled_px(320.0f),
+                (line_h1 * 2) + datalab_scaled_px(8.0f)
+            };
+            if (recent_button.x < top.x + datalab_scaled_px(320.0f)) {
+                recent_button.x = top.x + datalab_scaled_px(320.0f);
+                recent_button.w = top.x + top.w - recent_button.x - pad;
+            }
+            SDL_SetRenderDrawColor(renderer,
+                                   palette.selected_fill_r,
+                                   palette.selected_fill_g,
+                                   palette.selected_fill_b,
+                                   180);
+            SDL_RenderFillRect(renderer, &recent_button);
+            SDL_SetRenderDrawColor(renderer,
+                                   palette.selected_border_r,
+                                   palette.selected_border_g,
+                                   palette.selected_border_b,
+                                   255);
+            SDL_RenderDrawRect(renderer, &recent_button);
+            draw_text_5x7(renderer,
+                          recent_button.x + datalab_scaled_px(8.0f),
+                          recent_button.y + datalab_scaled_px(4.0f),
+                          "RECENT DIRECTORIES",
+                          1,
+                          palette.text_primary_r,
+                          palette.text_primary_g,
+                          palette.text_primary_b,
+                          255);
+            recent_clip = (SDL_Rect){
+                recent_button.x + datalab_scaled_px(8.0f),
+                recent_button.y + line_h1 + datalab_scaled_px(2.0f),
+                recent_button.w - datalab_scaled_px(16.0f),
+                line_h1
+            };
+            draw_text_5x7_clipped(renderer,
+                                  &recent_clip,
+                                  recent_clip.x,
+                                  recent_clip.y,
+                                  input_root,
+                                  1,
+                                  palette.text_secondary_r,
+                                  palette.text_secondary_g,
+                                  palette.text_secondary_b,
+                                  255);
+            recent_ui.button_rect = recent_button;
+            recent_ui.list_rect = (SDL_Rect){0, 0, 0, 0};
+            recent_ui.visible_count = 0u;
+            if (recent_input_root_dropdown_open && recent_visible > 0) {
+                recent_list = (SDL_Rect){
+                    recent_button.x,
+                    recent_button.y + recent_button.h + datalab_scaled_px(4.0f),
+                    recent_button.w,
+                    (recent_visible * recent_row_h) + (pad * 2)
+                };
+                SDL_SetRenderDrawColor(renderer, palette.top_fill_r, palette.top_fill_g, palette.top_fill_b, 248);
+                SDL_RenderFillRect(renderer, &recent_list);
+                SDL_SetRenderDrawColor(renderer, palette.frame_r, palette.frame_g, palette.frame_b, 255);
+                SDL_RenderDrawRect(renderer, &recent_list);
+                recent_clip = (SDL_Rect){
+                    recent_list.x + pad,
+                    recent_list.y + pad,
+                    recent_list.w - (pad * 2),
+                    recent_list.h - (pad * 2)
+                };
+                recent_ui.list_rect = recent_list;
+                recent_ui.visible_count = (size_t)recent_visible;
+                for (int recent_i = 0; recent_i < recent_visible; ++recent_i) {
+                    SDL_Rect item_rect = {
+                        recent_list.x + pad,
+                        recent_list.y + pad + (recent_i * recent_row_h),
+                        recent_list.w - (pad * 2),
+                        recent_row_h
+                    };
+                    int is_active_recent = strcmp(recent_input_roots[recent_i], input_root) == 0;
+                    if (is_active_recent) {
+                        SDL_SetRenderDrawColor(renderer,
+                                               palette.selected_fill_r,
+                                               palette.selected_fill_g,
+                                               palette.selected_fill_b,
+                                               200);
+                        SDL_RenderFillRect(renderer, &item_rect);
+                        SDL_SetRenderDrawColor(renderer,
+                                               palette.selected_border_r,
+                                               palette.selected_border_g,
+                                               palette.selected_border_b,
+                                               255);
+                        SDL_RenderDrawRect(renderer, &item_rect);
+                    }
+                    draw_text_5x7_clipped(renderer,
+                                          &recent_clip,
+                                          item_rect.x + datalab_scaled_px(4.0f),
+                                          item_rect.y + datalab_scaled_px(2.0f),
+                                          recent_input_roots[recent_i],
+                                          1,
+                                          is_active_recent ? palette.text_primary_r : palette.text_secondary_r,
+                                          is_active_recent ? palette.text_primary_g : palette.text_secondary_g,
+                                          is_active_recent ? palette.text_primary_b : palette.text_secondary_b,
+                                          255);
+                    recent_ui.item_rects[recent_i] = item_rect;
+                }
+            }
+
             draw_text_5x7(renderer, top.x + pad, y_title,
                           "DATALAB INPUT ROOT + DATA PICKER", 2,
                           palette.text_primary_r, palette.text_primary_g, palette.text_primary_b, 255);
             draw_text_5x7(renderer, top.x + pad, y_help,
-                          "ALT+C+V OPEN+AUTHOR  E EDIT PATH  ENTER APPLY  B FOLDER DIALOG  UP/DOWN SELECT  ENTER OPEN FILE  ESC CANCEL",
+                          "ALT+C+V OPEN+AUTHOR  E EDIT PATH  ENTER APPLY  B FOLDER DIALOG  CLICK RECENT DIRS  UP/DOWN SELECT  ENTER OPEN FILE  ESC CANCEL",
                           1, palette.text_secondary_r, palette.text_secondary_g, palette.text_secondary_b, 255);
             draw_text_5x7(renderer, top.x + pad, y_path_label,
                           edit_mode ? "PATH (EDIT MODE):" : "PATH:",
@@ -695,6 +928,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     if (io_custom_theme) {
         *io_custom_theme = picker_custom_theme;
     }
+    datalab_runtime_prefs_save_recent_input_roots(recent_input_roots, recent_input_root_count);
     if (canceled) {
         out_pack_path[0] = '\0';
     }

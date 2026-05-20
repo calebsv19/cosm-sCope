@@ -8,6 +8,7 @@
 #include "data/pack_loader.h"
 
 #define DATALAB_APP_PATH_CAP 1024
+#define DATALAB_RECENT_INPUT_ROOT_LIMIT 16
 #define DATALAB_CUSTOM_THEME_SLOT_COUNT 3
 #define DATALAB_CUSTOM_THEME_NAME_CAP 24
 
@@ -65,6 +66,9 @@ typedef struct DatalabAppState {
     const char *pack_path;
     DatalabProfile profile;
     char input_root[DATALAB_APP_PATH_CAP];
+    char recent_input_roots[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP];
+    size_t recent_input_root_count;
+    int recent_input_root_dropdown_open;
     DatalabViewMode view_mode;
     int text_zoom_step;
     uint32_t vector_stride;

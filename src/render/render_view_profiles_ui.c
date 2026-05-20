@@ -843,6 +843,7 @@ void datalab_physics_render_submit_frame(SDL_Window *window,
         }
     }
 
+    datalab_draw_recent_input_root_header(renderer, app_state);
     datalab_draw_session_controls(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->common.title);
@@ -875,6 +876,7 @@ void datalab_daw_render_submit_frame(SDL_Window *window,
         return;
     }
     render_daw_frame(renderer, frame, app_state);
+    datalab_draw_recent_input_root_header(renderer, app_state);
     datalab_draw_session_controls(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->title);
@@ -914,6 +916,7 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
     if (outcome->result.code != CORE_OK) {
         return;
     }
+    datalab_draw_recent_input_root_header(renderer, app_state);
     datalab_draw_session_controls(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->common.title);
@@ -946,6 +949,7 @@ void datalab_trace_render_submit_frame(SDL_Window *window,
         return;
     }
     render_trace_frame(renderer, frame, app_state);
+    datalab_draw_recent_input_root_header(renderer, app_state);
     datalab_draw_session_controls(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->title);

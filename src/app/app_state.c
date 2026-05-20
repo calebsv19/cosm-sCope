@@ -56,6 +56,8 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->pack_path = pack_path;
     state->profile = profile;
     state->input_root[0] = '\0';
+    state->recent_input_root_count = 0u;
+    state->recent_input_root_dropdown_open = 0;
     state->view_mode = (profile == DATALAB_PROFILE_DAW) ? DATALAB_VIEW_SPEED : DATALAB_VIEW_DENSITY;
     state->text_zoom_step = 0;
     state->vector_stride = 8;

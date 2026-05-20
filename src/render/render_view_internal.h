@@ -145,6 +145,10 @@ void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
                                                DatalabAppState *app_state,
                                                DatalabWorkspaceAuthoringAdapterResult *outcome);
 int datalab_workspace_authoring_route_mouse_event(const SDL_Event *event, DatalabAppState *app_state);
+int datalab_session_controls_route_mouse_event(SDL_Window *window,
+                                               SDL_Renderer *renderer,
+                                               const SDL_Event *event,
+                                               DatalabAppState *app_state);
 CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_state, const char *action_id);
 
 void datalab_sync_text_zoom(const DatalabAppState *app_state);
@@ -182,6 +186,7 @@ int datalab_measure_text(int scale,
 int datalab_text_line_height(int scale);
 void render_daw_frame(SDL_Renderer *renderer, const DatalabFrame *frame, const DatalabAppState *app_state);
 
+void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const DatalabAppState *app_state);
 void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState *app_state);
 void datalab_render_derive_frame(const DatalabFrame *frame,
                                  const DatalabAppState *app_state,
