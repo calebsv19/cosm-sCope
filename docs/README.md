@@ -11,9 +11,10 @@ Start here for public repository documentation.
 
 ## Verification Entry Points
 
+- `make -C datalab test-stable`
 - `make -C datalab run-headless-smoke`
 - `make -C datalab visual-harness`
-- `make -C datalab test-stable`
+  - manual/build-only readiness gate, not an unattended regression pass
 - `make -C datalab test-legacy`
 - `make -C datalab package-desktop-self-test`
 

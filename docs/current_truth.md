@@ -64,9 +64,10 @@ Last updated: 2026-05-20
 - Build/harness:
   - `make -C datalab clean && make -C datalab`
   - `make -C datalab run-headless-smoke`
-  - `make -C datalab visual-harness`
 - Stable tests:
   - `make -C datalab test-stable`
+- Build-only readiness:
+  - `make -C datalab visual-harness`
 - Legacy tests:
   - `make -C datalab test-legacy`
 - Packaging/release lanes:
