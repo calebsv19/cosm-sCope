@@ -1,0 +1,106 @@
+#include "render/render_view_internal.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <strings.h>
+
+#define DATALAB_PLAYBACK_STEP_INTERVAL_MS_DEFAULT DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT
+
+size_t datalab_panel_find_active_index(const DatalabPackPanelCache *cache, const char *active_path) {
+    const char *active_name = NULL;
+    size_t i = 0u;
+    if (!cache || !active_path || active_path[0] == '\0') {
+        return (size_t)-1;
+    }
+    active_name = core_path_basename(active_path);
+    if (!active_name || active_name[0] == '\0') {
+        return (size_t)-1;
+    }
+    for (i = 0u; i < cache->file_count; ++i) {
+        if (strcasecmp(cache->files[i], active_name) == 0) {
+            return i;
+        }
+    }
+    return (size_t)-1;
+}
+
+void datalab_panel_apply_state(DatalabAppState *app_state,
+                               DatalabPackPanelCache *cache,
+                               const char *root,
+                               int rescanned,
+                               uint32_t now_ticks) {
+    if (!app_state || !cache) {
+        return;
+    }
+    if (!root || root[0] == '\0') {
+        cache->file_count = 0u;
+        cache->scanned_root[0] = '\0';
+        cache->last_scan_ticks = 0u;
+        snprintf(cache->status, sizeof(cache->status), "no input root selected (press O)");
+        app_state->panel_selected_index = 0u;
+        app_state->panel_selection_delta = 0;
+        app_state->panel_open_selected_requested = 0;
+        app_state->panel_requested_pack_path[0] = '\0';
+        app_state->playback_active = 0;
+        return;
+    }
+
+    if (rescanned && cache->file_count > 0u) {
+        size_t active_index = datalab_panel_find_active_index(cache, app_state->pack_path);
+        if (active_index != (size_t)-1) {
+            app_state->panel_selected_index = active_index;
+        }
+    }
+
+    if (cache->file_count == 0u) {
+        app_state->panel_selected_index = 0u;
+        app_state->panel_selection_delta = 0;
+        app_state->playback_active = 0;
+    } else {
+        int delta = app_state->panel_selection_delta;
+        if (delta != 0) {
+            long idx = (long)app_state->panel_selected_index + (long)delta;
+            if (idx < 0) {
+                idx = 0;
+            }
+            if ((size_t)idx >= cache->file_count) {
+                idx = (long)(cache->file_count - 1u);
+            }
+            app_state->panel_selected_index = (size_t)idx;
+            app_state->panel_selection_delta = 0;
+        } else if (app_state->panel_selected_index >= cache->file_count) {
+            app_state->panel_selected_index = cache->file_count - 1u;
+        }
+    }
+
+    if (app_state->playback_active && cache->file_count > 0u) {
+        uint32_t step_interval_ms = app_state->playback_interval_ms;
+        if (step_interval_ms == 0u) {
+            step_interval_ms = DATALAB_PLAYBACK_STEP_INTERVAL_MS_DEFAULT;
+            app_state->playback_interval_ms = step_interval_ms;
+        }
+        if ((uint32_t)(now_ticks - app_state->playback_last_advance_ticks) >= step_interval_ms) {
+            if (app_state->panel_selected_index + 1u < cache->file_count) {
+                app_state->panel_selected_index += 1u;
+            } else {
+                app_state->panel_selected_index = 0u;
+            }
+            app_state->panel_open_selected_requested = 1;
+            app_state->playback_last_advance_ticks = now_ticks;
+        }
+    }
+
+    if (app_state->panel_open_selected_requested) {
+        app_state->panel_open_selected_requested = 0;
+        app_state->panel_requested_pack_path[0] = '\0';
+        if (cache->file_count > 0u && app_state->panel_selected_index < cache->file_count) {
+            snprintf(app_state->panel_requested_pack_path,
+                     sizeof(app_state->panel_requested_pack_path),
+                     "%s/%s",
+                     root,
+                     cache->files[app_state->panel_selected_index]);
+        } else {
+            snprintf(cache->status, sizeof(cache->status), "no file selected");
+        }
+    }
+}

@@ -12,17 +12,7 @@
 #include "render/render_view_authoring_overlay_shared.h"
 #include "ui/input.h"
 
-#define DATALAB_PANEL_MAX_FILES 160
 #define DATALAB_PANEL_REFRESH_MS 1200u
-#define DATALAB_PLAYBACK_STEP_INTERVAL_MS_DEFAULT DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT
-
-typedef struct DatalabPackPanelCache {
-    char scanned_root[DATALAB_APP_PATH_CAP];
-    char files[DATALAB_PANEL_MAX_FILES][DATALAB_APP_PATH_CAP];
-    size_t file_count;
-    uint32_t last_scan_ticks;
-    char status[160];
-} DatalabPackPanelCache;
 
 typedef struct DatalabRecentInputRootUiState {
     SDL_Rect button_rect;
@@ -85,36 +75,6 @@ static int datalab_header_bar_height_px(void) {
     return (datalab_text_line_height(1) * 2) + datalab_scaled_px(12.0f);
 }
 
-static const char *datalab_path_basename(const char *path) {
-    const char *base = NULL;
-    if (!path || path[0] == '\0') {
-        return "";
-    }
-    base = strrchr(path, '/');
-    if (!base) {
-        base = strrchr(path, '\\');
-    }
-    return base ? (base + 1) : path;
-}
-
-static size_t datalab_panel_find_active_index(const DatalabPackPanelCache *cache, const char *active_path) {
-    const char *active_name = NULL;
-    size_t i = 0u;
-    if (!cache || !active_path || active_path[0] == '\0') {
-        return (size_t)-1;
-    }
-    active_name = datalab_path_basename(active_path);
-    if (!active_name || active_name[0] == '\0') {
-        return (size_t)-1;
-    }
-    for (i = 0u; i < cache->file_count; ++i) {
-        if (strcasecmp(cache->files[i], active_name) == 0) {
-            return i;
-        }
-    }
-    return (size_t)-1;
-}
-
 static void datalab_panel_rescan(const char *root, DatalabPackPanelCache *cache) {
     DIR *dir = NULL;
     struct dirent *entry = NULL;
@@ -163,17 +123,11 @@ static void datalab_panel_tick(DatalabAppState *app_state) {
     if (!app_state) {
         return;
     }
-    if (app_state->input_root[0] == '\0') {
-        g_pack_panel_cache.file_count = 0u;
-        g_pack_panel_cache.scanned_root[0] = '\0';
-        g_pack_panel_cache.last_scan_ticks = 0u;
-        snprintf(g_pack_panel_cache.status, sizeof(g_pack_panel_cache.status), "no input root selected (press O)");
-        app_state->panel_selected_index = 0u;
-        app_state->panel_selection_delta = 0;
-        app_state->panel_open_selected_requested = 0;
+    root = app_state->input_root;
+    if (root[0] == '\0') {
+        datalab_panel_apply_state(app_state, &g_pack_panel_cache, root, 0, 0u);
         return;
     }
-    root = app_state->input_root;
     now_ticks = SDL_GetTicks();
     if (app_state->panel_rescan_requested ||
         strncmp(g_pack_panel_cache.scanned_root, root, sizeof(g_pack_panel_cache.scanned_root)) != 0 ||
@@ -183,65 +137,7 @@ static void datalab_panel_tick(DatalabAppState *app_state) {
         app_state->panel_rescan_requested = 0;
         rescanned = 1;
     }
-
-    if (rescanned && g_pack_panel_cache.file_count > 0u) {
-        size_t active_index = datalab_panel_find_active_index(&g_pack_panel_cache, app_state->pack_path);
-        if (active_index != (size_t)-1) {
-            app_state->panel_selected_index = active_index;
-        }
-    }
-
-    if (g_pack_panel_cache.file_count == 0u) {
-        app_state->panel_selected_index = 0u;
-        app_state->panel_selection_delta = 0;
-        app_state->playback_active = 0;
-    } else {
-        int delta = app_state->panel_selection_delta;
-        if (delta != 0) {
-            long idx = (long)app_state->panel_selected_index + (long)delta;
-            if (idx < 0) {
-                idx = 0;
-            }
-            if ((size_t)idx >= g_pack_panel_cache.file_count) {
-                idx = (long)(g_pack_panel_cache.file_count - 1u);
-            }
-            app_state->panel_selected_index = (size_t)idx;
-            app_state->panel_selection_delta = 0;
-        } else if (app_state->panel_selected_index >= g_pack_panel_cache.file_count) {
-            app_state->panel_selected_index = g_pack_panel_cache.file_count - 1u;
-        }
-    }
-
-    if (app_state->playback_active && g_pack_panel_cache.file_count > 0u) {
-        uint32_t step_interval_ms = app_state->playback_interval_ms;
-        if (step_interval_ms == 0u) {
-            step_interval_ms = DATALAB_PLAYBACK_STEP_INTERVAL_MS_DEFAULT;
-            app_state->playback_interval_ms = step_interval_ms;
-        }
-        if ((uint32_t)(now_ticks - app_state->playback_last_advance_ticks) >= step_interval_ms) {
-            if (app_state->panel_selected_index + 1u < g_pack_panel_cache.file_count) {
-                app_state->panel_selected_index += 1u;
-            } else {
-                app_state->panel_selected_index = 0u;
-            }
-            app_state->panel_open_selected_requested = 1;
-            app_state->playback_last_advance_ticks = now_ticks;
-        }
-    }
-
-    if (app_state->panel_open_selected_requested) {
-        app_state->panel_open_selected_requested = 0;
-        app_state->panel_requested_pack_path[0] = '\0';
-        if (g_pack_panel_cache.file_count > 0u && app_state->panel_selected_index < g_pack_panel_cache.file_count) {
-            snprintf(app_state->panel_requested_pack_path,
-                     sizeof(app_state->panel_requested_pack_path),
-                     "%s/%s",
-                     root,
-                     g_pack_panel_cache.files[app_state->panel_selected_index]);
-        } else {
-            snprintf(g_pack_panel_cache.status, sizeof(g_pack_panel_cache.status), "no file selected");
-        }
-    }
+    datalab_panel_apply_state(app_state, &g_pack_panel_cache, root, rescanned, now_ticks);
 }
 
 static void datalab_recent_input_root_activate(DatalabAppState *app_state, const char *path) {
@@ -274,6 +170,16 @@ static void datalab_recent_input_root_activate(DatalabAppState *app_state, const
     }
 }
 
+int datalab_session_controls_mouse_enabled(const DatalabAppState *app_state) {
+    if (!app_state) {
+        return 0;
+    }
+    if (app_state->workspace_authoring_stub_active) {
+        return 0;
+    }
+    return 1;
+}
+
 int datalab_session_controls_route_mouse_event(SDL_Window *window,
                                                SDL_Renderer *renderer,
                                                const SDL_Event *event,
@@ -282,6 +188,9 @@ int datalab_session_controls_route_mouse_event(SDL_Window *window,
     int pointer_y = 0;
     size_t i = 0u;
     if (!window || !renderer || !event || !app_state) {
+        return 0;
+    }
+    if (!datalab_session_controls_mouse_enabled(app_state)) {
         return 0;
     }
     if (event->type != SDL_MOUSEBUTTONDOWN || event->button.button != SDL_BUTTON_LEFT) {
@@ -490,7 +399,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     datalab_overlay_theme_palette(preset, &app_state->workspace_authoring_custom_theme, &palette);
     root = (app_state->input_root[0] != '\0') ? app_state->input_root : "<not set>";
     pack_path = app_state->pack_path && app_state->pack_path[0] ? app_state->pack_path : "<none>";
-    active_name = datalab_path_basename(pack_path);
+    active_name = core_path_basename(pack_path);
     shortcut_line = datalab_profile_supports_raster_viewport(app_state->profile)
                         ? "H hide HUD | Wheel zoom | Left drag pan | R reset | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan"
                         : "H hide HUD | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan";
@@ -728,22 +637,6 @@ static double datalab_loop_elapsed_sec(Uint64 begin_counter,
     return (double)(end_counter - begin_counter) / (double)perf_freq;
 }
 
-enum {
-    DATALAB_LOOP_RENDER_HEARTBEAT_MS = 250u,
-    DATALAB_LOOP_RENDER_REASON_FORCE = 1u << 0,
-    DATALAB_LOOP_RENDER_REASON_INPUT_INVALIDATE = 1u << 1,
-    DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN = 1u << 2,
-    DATALAB_LOOP_RENDER_REASON_ASYNC_AUTHORING = 1u << 3,
-    DATALAB_LOOP_RENDER_REASON_RESIZE = 1u << 4,
-    DATALAB_LOOP_RENDER_REASON_HEARTBEAT = 1u << 5
-};
-
-typedef struct DatalabLoopBoundarySignals {
-    uint8_t sync_input_invalidated;
-    uint8_t async_panel_rescan_pending;
-    uint8_t async_authoring_pending;
-} DatalabLoopBoundarySignals;
-
 typedef struct DatalabLoopFramePhases {
     DatalabInputFrame input_frame;
     DatalabLoopBoundarySignals boundary_signals;
@@ -852,22 +745,6 @@ static void datalab_loop_input_wait_and_drain(SDL_Window *window,
     }
 }
 
-static void datalab_loop_update_wait_policy(DatalabLoopWaitPolicyInput *policy,
-                                            const DatalabInputFrame *input_frame,
-                                            const DatalabAppState *app_state,
-                                            int panel_rescan_pending,
-                                            int resize_pending) {
-    if (!policy || !input_frame || !app_state) {
-        return;
-    }
-    policy->high_intensity_mode = 0u;
-    policy->interaction_active = (input_frame->raw.sdl_event_count > 0u || app_state->workspace_authoring_pending_stub)
-                                     ? 1u
-                                     : 0u;
-    policy->background_busy = panel_rescan_pending ? 1u : 0u;
-    policy->resize_pending = resize_pending ? 1u : 0u;
-}
-
 static void datalab_loop_note_input_diag(const char *lane_tag,
                                          DatalabInputDiagTotals *totals,
                                          const DatalabInputFrame *input_frame) {
@@ -940,31 +817,13 @@ static int datalab_loop_frame_phase_runtime_tick(DatalabLoopFramePhases *phase,
 
 static uint32_t datalab_loop_frame_phase_render_decision(const DatalabLoopFramePhases *phase,
                                                          uint32_t last_present_ticks) {
-    uint32_t reason_bits = 0u;
-    uint32_t now_ticks = SDL_GetTicks();
     if (!phase) {
         return 0u;
     }
-    if (last_present_ticks == 0u) {
-        reason_bits |= DATALAB_LOOP_RENDER_REASON_FORCE;
-    }
-    if (phase->boundary_signals.sync_input_invalidated) {
-        reason_bits |= DATALAB_LOOP_RENDER_REASON_INPUT_INVALIDATE;
-    }
-    if (phase->boundary_signals.async_panel_rescan_pending) {
-        reason_bits |= DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN;
-    }
-    if (phase->boundary_signals.async_authoring_pending) {
-        reason_bits |= DATALAB_LOOP_RENDER_REASON_ASYNC_AUTHORING;
-    }
-    if (phase->resize_pending) {
-        reason_bits |= DATALAB_LOOP_RENDER_REASON_RESIZE;
-    }
-    if (last_present_ticks == 0u ||
-        (uint32_t)(now_ticks - last_present_ticks) >= DATALAB_LOOP_RENDER_HEARTBEAT_MS) {
-        reason_bits |= DATALAB_LOOP_RENDER_REASON_HEARTBEAT;
-    }
-    return reason_bits;
+    return datalab_loop_compute_render_reason_bits(&phase->boundary_signals,
+                                                   phase->resize_pending,
+                                                   last_present_ticks,
+                                                   SDL_GetTicks());
 }
 
 static void datalab_loop_frame_phase_finalize(DatalabLoopFramePhases *phase,
@@ -977,11 +836,11 @@ static void datalab_loop_frame_phase_finalize(DatalabLoopFramePhases *phase,
                                                         SDL_GetPerformanceCounter(),
                                                         run_state->perf_freq);
     datalab_loop_diag_tick(phase->frame_elapsed_sec, phase->wait_blocked_ms, phase->wait_call_count);
-    datalab_loop_update_wait_policy(&run_state->wait_policy_input,
-                                    &phase->input_frame,
-                                    app_state,
-                                    phase->panel_rescan_pending,
-                                    phase->resize_pending);
+    datalab_loop_update_wait_policy_input(&run_state->wait_policy_input,
+                                          &phase->input_frame,
+                                          app_state,
+                                          phase->panel_rescan_pending,
+                                          phase->resize_pending);
 }
 
 static CoreResult datalab_loop_render_step_physics(SDL_Window *window,

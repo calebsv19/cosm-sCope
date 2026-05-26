@@ -71,6 +71,22 @@ typedef struct DatalabLoopWaitPolicyInput {
     uint8_t resize_pending;
 } DatalabLoopWaitPolicyInput;
 
+typedef struct DatalabLoopBoundarySignals {
+    uint8_t sync_input_invalidated;
+    uint8_t async_panel_rescan_pending;
+    uint8_t async_authoring_pending;
+} DatalabLoopBoundarySignals;
+
+enum {
+    DATALAB_LOOP_RENDER_HEARTBEAT_MS = 250u,
+    DATALAB_LOOP_RENDER_REASON_FORCE = 1u << 0,
+    DATALAB_LOOP_RENDER_REASON_INPUT_INVALIDATE = 1u << 1,
+    DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN = 1u << 2,
+    DATALAB_LOOP_RENDER_REASON_ASYNC_AUTHORING = 1u << 3,
+    DATALAB_LOOP_RENDER_REASON_RESIZE = 1u << 4,
+    DATALAB_LOOP_RENDER_REASON_HEARTBEAT = 1u << 5
+};
+
 typedef struct DatalabWorkspaceAuthoringAdapterResult {
     uint8_t consumed;
     uint8_t entered_authoring;
@@ -132,12 +148,38 @@ typedef struct DatalabRasterTextureState {
     uint64_t frame_generation;
 } DatalabRasterTextureState;
 
+#define DATALAB_PANEL_MAX_FILES 160
+
+typedef struct DatalabPackPanelCache {
+    char scanned_root[DATALAB_APP_PATH_CAP];
+    char files[DATALAB_PANEL_MAX_FILES][DATALAB_APP_PATH_CAP];
+    size_t file_count;
+    uint32_t last_scan_ticks;
+    char status[160];
+} DatalabPackPanelCache;
+
 int datalab_ir1_diag_enabled(void);
 int datalab_rs1_diag_enabled(void);
 int datalab_loop_compute_wait_timeout_ms(const DatalabLoopWaitPolicyInput *input);
+void datalab_loop_update_wait_policy_input(DatalabLoopWaitPolicyInput *policy,
+                                           const DatalabInputFrame *input_frame,
+                                           const DatalabAppState *app_state,
+                                           int panel_rescan_pending,
+                                           int resize_pending);
+uint32_t datalab_loop_compute_render_reason_bits(const DatalabLoopBoundarySignals *signals,
+                                                 int resize_pending,
+                                                 uint32_t last_present_ticks,
+                                                 uint32_t now_ticks);
+size_t datalab_panel_find_active_index(const DatalabPackPanelCache *cache, const char *active_path);
+void datalab_panel_apply_state(DatalabAppState *app_state,
+                               DatalabPackPanelCache *cache,
+                               const char *root,
+                               int rescanned,
+                               uint32_t now_ticks);
 void datalab_loop_diag_tick(double frame_elapsed_sec,
                             uint32_t wait_blocked_ms,
                             uint32_t wait_call_count);
+int datalab_session_controls_mouse_enabled(const DatalabAppState *app_state);
 
 void datalab_input_frame_begin(DatalabInputFrame *frame);
 void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event);
@@ -205,6 +247,11 @@ void datalab_raster_viewport_derive_frame(SDL_Renderer *renderer,
                                           const DatalabFrame *frame,
                                           DatalabAppState *app_state,
                                           DatalabSketchRenderDeriveFrame *out_derive);
+void datalab_raster_viewport_sync_state(DatalabRasterViewportState *state,
+                                        int view_width,
+                                        int view_height,
+                                        uint32_t content_width,
+                                        uint32_t content_height);
 CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
                                              uint32_t content_width,
                                              uint32_t content_height,

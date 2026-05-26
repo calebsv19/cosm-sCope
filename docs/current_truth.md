@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-05-20
+Last updated: 2026-05-25
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -66,6 +66,39 @@ Last updated: 2026-05-20
   - `make -C datalab run-headless-smoke`
 - Stable tests:
   - `make -C datalab test-stable`
+  - includes an unattended app-contract lane for:
+    - headless `--no-gui` without `--pack` failure
+    - valid direct-load state seed
+    - `selected_pack_path` fallback
+    - unsupported-extension bounded load failure
+    - CLI `--input-root` precedence over persisted prefs
+  - includes an unattended authoring-input contract lane for:
+    - session-control key suppression while authoring is active
+    - session-control mouse suppression while authoring is active
+    - `Tab` overlay cycling
+    - `Enter` apply behavior
+    - `Esc` authoring exit behavior
+    - custom-theme popup `Esc` close-only behavior
+  - includes an unattended raster-viewport contract lane for:
+    - reset requests clearing active drag state
+    - fresh fit bootstrap from invalid viewport state
+    - content-size changes forcing fit recomputation and drag cleanup
+    - manual free-view resize preserving zoom/pan state without forced reset
+  - includes an unattended loop-policy contract lane for:
+    - idle vs busy wait-timeout policy
+    - interaction, resize, and panel-rescan propagation into wait-policy state
+    - render-reason bits for force, heartbeat, resize, input invalidation, and async panel/authoring signals
+  - includes an unattended panel-policy contract lane for:
+    - empty-root panel reset behavior
+    - rescan alignment to the active file
+    - selection-delta clamping plus requested-pack-path emission
+    - autoplay advance and requested-pack-path handoff
+  - includes an unattended profile-interaction contract lane for:
+    - trace cursor stepping plus home/end behavior
+    - trace zoom wrap/reset and selection toggles
+    - image-profile panel stepping and open-selected handoff
+    - physics/reset controls restoring bounded viewport and HUD state
+    - DAW view hotkeys selecting the intended view modes
 - Build-only readiness:
   - `make -C datalab visual-harness`
 - Legacy tests:
@@ -80,6 +113,8 @@ Last updated: 2026-05-20
 ## Current Boundary
 - Continue visualizer UX and profile rendering stability while validating the workspace-authoring host path.
 - Keep data-path precedence and non-crashing load-failure behavior as hard constraints.
+- Treat the remaining runtime-coordination risk as a bounded integration lane rather than broad mode drift across the core visualizer/runtime modes.
+- Treat the remaining GUI/session/authoring risk as concentrated in higher-order loop integration and edge-case runtime coordination rather than the authoring key-routing, session-mouse seam, profile-specific control paths, basic raster-viewport reset path, core render/wait policy seam, or panel-switching handoff seam.
 - Keep the current authoring lane scoped to host/theme validation until a broader authoring contract is intentionally promoted.
 
 ## History and Deep Lane References

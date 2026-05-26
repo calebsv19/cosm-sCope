@@ -51,3 +51,49 @@ int datalab_loop_compute_wait_timeout_ms(const DatalabLoopWaitPolicyInput *input
     }
     return timeout_ms;
 }
+
+void datalab_loop_update_wait_policy_input(DatalabLoopWaitPolicyInput *policy,
+                                           const DatalabInputFrame *input_frame,
+                                           const DatalabAppState *app_state,
+                                           int panel_rescan_pending,
+                                           int resize_pending) {
+    if (!policy || !input_frame || !app_state) {
+        return;
+    }
+    policy->high_intensity_mode = 0u;
+    policy->interaction_active = (input_frame->raw.sdl_event_count > 0u || app_state->workspace_authoring_pending_stub)
+                                     ? 1u
+                                     : 0u;
+    policy->background_busy = panel_rescan_pending ? 1u : 0u;
+    policy->resize_pending = resize_pending ? 1u : 0u;
+}
+
+uint32_t datalab_loop_compute_render_reason_bits(const DatalabLoopBoundarySignals *signals,
+                                                 int resize_pending,
+                                                 uint32_t last_present_ticks,
+                                                 uint32_t now_ticks) {
+    uint32_t reason_bits = 0u;
+    if (!signals) {
+        return 0u;
+    }
+    if (last_present_ticks == 0u) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_FORCE;
+    }
+    if (signals->sync_input_invalidated) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_INPUT_INVALIDATE;
+    }
+    if (signals->async_panel_rescan_pending) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN;
+    }
+    if (signals->async_authoring_pending) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_ASYNC_AUTHORING;
+    }
+    if (resize_pending) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_RESIZE;
+    }
+    if (last_present_ticks == 0u ||
+        (uint32_t)(now_ticks - last_present_ticks) >= DATALAB_LOOP_RENDER_HEARTBEAT_MS) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_HEARTBEAT;
+    }
+    return reason_bits;
+}

@@ -12,6 +12,7 @@ Start here for public repository documentation.
 ## Verification Entry Points
 
 - `make -C datalab test-stable`
+  - includes unattended app-contract, authoring-input contract, raster-viewport contract, loop-policy contract, panel-policy contract, and profile-interaction contract lanes for runtime/load, authoring/session boundary, sketch/image viewport-state behavior, broader visual runtime coordination, in-session panel switching behavior, and remaining profile-specific control behavior
 - `make -C datalab run-headless-smoke`
 - `make -C datalab visual-harness`
   - manual/build-only readiness gate, not an unattended regression pass
@@ -27,6 +28,11 @@ Start here for public repository documentation.
 ## Current Emphasis
 
 - interactive data visualization remains the shipped baseline
+- key non-GUI mode-routing/load edges now have explicit unattended coverage
+- sketch/image raster viewport reset/resize behavior now has explicit unattended coverage
+- broader render/wait coordination policy now has explicit unattended coverage
+- in-session panel switching and requested-pack-path handoff now have explicit unattended coverage
+- remaining profile-specific trace/image/physics/DAW control paths now have explicit unattended coverage
 - workspace-authoring host validation is now an active public-facing pilot:
   - `Alt+C+V` entry
   - pane takeover

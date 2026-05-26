@@ -43,11 +43,11 @@ static void datalab_raster_viewport_apply_fit(DatalabRasterViewportState *state,
     state->content_height = content_height;
 }
 
-static void datalab_raster_viewport_sync(DatalabRasterViewportState *state,
-                                         int view_width,
-                                         int view_height,
-                                         uint32_t content_width,
-                                         uint32_t content_height) {
+void datalab_raster_viewport_sync_state(DatalabRasterViewportState *state,
+                                        int view_width,
+                                        int view_height,
+                                        uint32_t content_width,
+                                        uint32_t content_height) {
     if (!state || view_width <= 0 || view_height <= 0 || content_width == 0u || content_height == 0u) {
         return;
     }
@@ -90,7 +90,7 @@ void datalab_raster_viewport_derive_frame(SDL_Renderer *renderer,
         return;
     }
     state = &app_state->raster_viewport;
-    datalab_raster_viewport_sync(state, view_width, view_height, frame->width, frame->height);
+    datalab_raster_viewport_sync_state(state, view_width, view_height, frame->width, frame->height);
     if (!state->valid) {
         calc_fit_rect(view_width, view_height, frame->width, frame->height, &out_derive->dst);
         out_derive->zoom = 1.0f;

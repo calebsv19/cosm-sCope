@@ -354,6 +354,23 @@ static int datalab_authoring_reserved_key(KitWorkspaceAuthoringKey key) {
     }
 }
 
+static int datalab_authoring_suppresses_session_key(SDL_Keycode key, DatalabProfile profile) {
+    switch (key) {
+        case SDLK_o:
+        case SDLK_F5:
+        case SDLK_u:
+        case SDLK_j:
+        case SDLK_SPACE:
+        case SDLK_h:
+            return 1;
+        case SDLK_LEFT:
+        case SDLK_RIGHT:
+            return profile == DATALAB_PROFILE_IMAGE;
+        default:
+            return 0;
+    }
+}
+
 static void datalab_workspace_authoring_cycle_overlay(DatalabAppState *app_state) {
     if (!app_state) {
         return;
@@ -621,6 +638,13 @@ void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
             default:
                 break;
         }
+    }
+
+    if (datalab_authoring_suppresses_session_key(key->keysym.sym, app_state->profile)) {
+        if (outcome) {
+            outcome->consumed = 1u;
+        }
+        return;
     }
 
     trigger = kit_workspace_authoring_trigger_from_key(authoring_key, mod_bits);

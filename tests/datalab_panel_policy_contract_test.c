@@ -1,0 +1,163 @@
+#include <stdio.h>
+#include <string.h>
+
+#include "app/app_state.h"
+#include "render/render_view_internal.h"
+
+static int datalab_test_assert(int condition, const char *message) {
+    if (!condition) {
+        fprintf(stderr, "panel-policy-contract: %s\n", message ? message : "assertion failed");
+        return 0;
+    }
+    return 1;
+}
+
+static void datalab_test_cache_set_file(DatalabPackPanelCache *cache, size_t index, const char *name) {
+    if (!cache || index >= DATALAB_PANEL_MAX_FILES || !name) {
+        return;
+    }
+    snprintf(cache->files[index], sizeof(cache->files[index]), "%s", name);
+}
+
+static int test_empty_root_resets_panel_state(void) {
+    DatalabAppState state;
+    DatalabPackPanelCache cache;
+
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_IMAGE);
+    memset(&cache, 0, sizeof(cache));
+    cache.file_count = 2u;
+    cache.last_scan_ticks = 99u;
+    state.panel_selected_index = 1u;
+    state.panel_selection_delta = 3;
+    state.panel_open_selected_requested = 1;
+    state.playback_active = 1;
+    snprintf(state.panel_requested_pack_path, sizeof(state.panel_requested_pack_path), "stale.pack");
+
+    datalab_panel_apply_state(&state, &cache, "", 0, 0u);
+    if (!datalab_test_assert(cache.file_count == 0u, "empty root should clear cached files")) {
+        return 0;
+    }
+    if (!datalab_test_assert(cache.last_scan_ticks == 0u, "empty root should clear scan timestamp")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.panel_selected_index == 0u && state.panel_selection_delta == 0,
+                             "empty root should reset panel selection state")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.panel_open_selected_requested == 0,
+                             "empty root should clear open-selected request")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.panel_requested_pack_path[0] == '\0',
+                             "empty root should clear requested pack path")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.playback_active == 0, "empty root should stop playback")) {
+        return 0;
+    }
+    return 1;
+}
+
+static int test_rescan_aligns_selection_to_active_file(void) {
+    DatalabAppState state;
+    DatalabPackPanelCache cache;
+
+    datalab_app_state_init(&state, "/tmp/root/beta.pack", DATALAB_PROFILE_IMAGE);
+    memset(&cache, 0, sizeof(cache));
+    cache.file_count = 3u;
+    datalab_test_cache_set_file(&cache, 0u, "alpha.pack");
+    datalab_test_cache_set_file(&cache, 1u, "beta.pack");
+    datalab_test_cache_set_file(&cache, 2u, "gamma.pack");
+    state.panel_selected_index = 0u;
+
+    datalab_panel_apply_state(&state, &cache, "/tmp/root", 1, 50u);
+    if (!datalab_test_assert(state.panel_selected_index == 1u,
+                             "rescan should realign panel selection to the active file")) {
+        return 0;
+    }
+    return 1;
+}
+
+static int test_selection_delta_and_open_request_emit_requested_path(void) {
+    DatalabAppState state;
+    DatalabPackPanelCache cache;
+
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_IMAGE);
+    memset(&cache, 0, sizeof(cache));
+    cache.file_count = 2u;
+    datalab_test_cache_set_file(&cache, 0u, "alpha.pack");
+    datalab_test_cache_set_file(&cache, 1u, "beta.pack");
+    state.panel_selected_index = 0u;
+    state.panel_selection_delta = 5;
+    state.panel_open_selected_requested = 1;
+
+    datalab_panel_apply_state(&state, &cache, "/tmp/root", 0, 60u);
+    if (!datalab_test_assert(state.panel_selected_index == 1u,
+                             "selection delta should clamp to the last file")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.panel_selection_delta == 0,
+                             "selection delta should clear after being applied")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.panel_open_selected_requested == 0,
+                             "open-selected request should clear after path emission")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strcmp(state.panel_requested_pack_path, "/tmp/root/beta.pack") == 0,
+                             "open-selected request should emit the selected pack path")) {
+        return 0;
+    }
+    return 1;
+}
+
+static int test_playback_advance_updates_selection_and_request(void) {
+    DatalabAppState state;
+    DatalabPackPanelCache cache;
+
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_IMAGE);
+    memset(&cache, 0, sizeof(cache));
+    cache.file_count = 2u;
+    datalab_test_cache_set_file(&cache, 0u, "alpha.pack");
+    datalab_test_cache_set_file(&cache, 1u, "beta.pack");
+    state.playback_active = 1;
+    state.playback_interval_ms = 0u;
+    state.playback_last_advance_ticks = 10u;
+    state.panel_selected_index = 0u;
+
+    datalab_panel_apply_state(&state, &cache, "/tmp/root", 0, 200u);
+    if (!datalab_test_assert(state.playback_interval_ms == DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT,
+                             "playback should seed a default interval when unset")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.panel_selected_index == 1u,
+                             "playback advance should step to the next file")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.playback_last_advance_ticks == 200u,
+                             "playback advance should update the last advance tick")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strcmp(state.panel_requested_pack_path, "/tmp/root/beta.pack") == 0,
+                             "playback advance should emit a requested pack path")) {
+        return 0;
+    }
+    return 1;
+}
+
+int main(void) {
+    if (!test_empty_root_resets_panel_state()) {
+        return 1;
+    }
+    if (!test_rescan_aligns_selection_to_active_file()) {
+        return 1;
+    }
+    if (!test_selection_delta_and_open_request_emit_requested_path()) {
+        return 1;
+    }
+    if (!test_playback_advance_updates_selection_and_request()) {
+        return 1;
+    }
+    puts("datalab panel policy contract test passed");
+    return 0;
+}

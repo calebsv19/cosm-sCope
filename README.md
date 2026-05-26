@@ -72,6 +72,44 @@ make -C datalab visual-harness
 make -C datalab test-stable
 ```
 
+`test-stable` now includes an app-contract lane for key non-GUI runtime modes:
+- headless `--no-gui` without `--pack` must fail
+- valid direct-load state seed must pass
+- `selected_pack_path` fallback must load deterministically
+- unsupported extensions must fail with a bounded loader error
+- CLI `--input-root` must override persisted input-root prefs
+
+`test-stable` also includes an authoring-input contract lane for key GUI/session takeover behavior:
+- session-control keys are suppressed while authoring is active
+- session-control mouse routing is suppressed while authoring is active
+- `Tab` cycles overlay mode
+- `Enter` applies pending authoring state
+- `Esc` exits authoring, except when closing the custom-theme popup
+
+`test-stable` also includes a raster-viewport contract lane for sketch/image interaction state:
+- reset requests must clear active drag state
+- invalid viewport bootstrap must re-enter fit mode deterministically
+- content-size changes must recompute fit and clear drag state
+- manual free-view resize must preserve zoom/pan state without forced reset
+
+`test-stable` also includes a loop-policy contract lane for broader visual runtime coordination:
+- idle vs busy wait-timeout policy must stay deterministic
+- interaction, resize, and panel-rescan state must propagate into wait-policy inputs
+- render-reason bits must cover force, heartbeat, resize, input invalidation, and async panel/authoring signals
+
+`test-stable` also includes a panel-policy contract lane for in-session switching behavior:
+- empty-root panel state must reset cleanly
+- rescans must realign selection to the active file
+- selection movement must clamp and emit the requested pack path deterministically
+- autoplay advance must hand off the next requested pack path deterministically
+
+`test-stable` also includes a profile-interaction contract lane for remaining profile-specific runtime controls:
+- trace cursor stepping and home/end behavior must stay deterministic
+- trace zoom reset/wrap and selection toggles must stay deterministic
+- image-profile panel stepping must emit deterministic open-selected requests
+- physics/reset controls must restore bounded viewport and HUD state
+- DAW view hotkeys must switch to the intended view modes deterministically
+
 ## Known Limitations
 
 - Workspace authoring is still a host-pilot lane, not a full dataset editing/export workflow.
