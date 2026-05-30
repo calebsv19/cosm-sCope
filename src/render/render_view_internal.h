@@ -107,6 +107,19 @@ typedef struct DatalabRenderDiagTotals {
     uint64_t present_count;
 } DatalabRenderDiagTotals;
 
+typedef CoreResult (*DatalabLoopRenderStepFn)(SDL_Window *window,
+                                              SDL_Renderer *renderer,
+                                              const DatalabFrame *frame,
+                                              DatalabAppState *app_state,
+                                              void *lane_ctx,
+                                              DatalabRenderSubmitOutcome *out_submit);
+
+typedef struct DatalabLoopProfileOps {
+    const char *lane_tag;
+    void *lane_ctx;
+    DatalabLoopRenderStepFn render_step;
+} DatalabLoopProfileOps;
+
 typedef struct DatalabPhysicsRenderDeriveFrame {
     DatalabRenderDeriveFrame common;
     const uint8_t *pixels;
@@ -170,6 +183,7 @@ uint32_t datalab_loop_compute_render_reason_bits(const DatalabLoopBoundarySignal
                                                  int resize_pending,
                                                  uint32_t last_present_ticks,
                                                  uint32_t now_ticks);
+void datalab_session_controls_tick(DatalabAppState *app_state);
 size_t datalab_panel_find_active_index(const DatalabPackPanelCache *cache, const char *active_path);
 void datalab_panel_apply_state(DatalabAppState *app_state,
                                DatalabPackPanelCache *cache,
@@ -230,6 +244,11 @@ void render_daw_frame(SDL_Renderer *renderer, const DatalabFrame *frame, const D
 
 void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const DatalabAppState *app_state);
 void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState *app_state);
+CoreResult datalab_loop_run_profile(SDL_Window *window,
+                                    SDL_Renderer *renderer,
+                                    const DatalabFrame *frame,
+                                    DatalabAppState *app_state,
+                                    const DatalabLoopProfileOps *ops);
 void datalab_render_derive_frame(const DatalabFrame *frame,
                                  const DatalabAppState *app_state,
                                  DatalabRenderDeriveFrame *out_derive);
