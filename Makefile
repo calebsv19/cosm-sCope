@@ -6,6 +6,7 @@ include make/flags.mk
 include make/sources.mk
 
 .PHONY: all clean test run run-headless run-headless-smoke visual-harness test-stable test-legacy \
+	memory-check-build memory-check-run memory-check-audit \
 	package-desktop package-desktop-smoke package-desktop-self-test package-desktop-copy-desktop \
 	package-desktop-sync package-desktop-open package-desktop-remove package-desktop-refresh \
 	release-contract release-clean release-build release-bundle-audit release-sign release-verify \
@@ -14,5 +15,6 @@ include make/sources.mk
 
 include make/rules-build.mk
 include make/rules-test.mk
+include make/rules-memory-check.mk
 include make/package-macos.mk
 include make/release.mk
