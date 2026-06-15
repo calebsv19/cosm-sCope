@@ -1,6 +1,6 @@
 # DataLab Desktop Packaging
 
-Last updated: 2026-04-25
+Last updated: 2026-06-06
 
 ## Bundle Contract
 - output app: `dist/sCope.app`
@@ -27,6 +27,11 @@ Last updated: 2026-04-25
   - `make -C datalab release-sign APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)"`
   - `make -C datalab release-notarize APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="cosm-notary"`
   - `make -C datalab release-distribute APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="cosm-notary"`
+  - current 2026-06-06 artifact set:
+    - `build/release/sCope-0.2.0-macOS-arm64-stable.zip`
+    - `build/release/sCope-0.2.0-macOS-arm64-stable.zip.sha256`
+    - `build/release/sCope-0.2.0-macOS-arm64-stable.manifest.txt`
+    - `build/release/notary_submit.json`
 
 ## Launcher Runtime Contract
 - `--print-config` dumps active paths and runtime roots.
