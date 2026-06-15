@@ -2,6 +2,7 @@
 #define DATALAB_RENDER_VIEW_AUTHORING_OVERLAY_SHARED_H
 
 #include "render/render_view_internal.h"
+#include "kit_ui.h"
 #include "kit_workspace_authoring_ui.h"
 
 enum {
@@ -130,6 +131,8 @@ void datalab_overlay_theme_palette(DatalabWorkspaceAuthoringThemePreset preset,
                                    const DatalabWorkspaceCustomTheme *custom_theme,
                                    DatalabAuthoringThemePalette *out_palette);
 DatalabWorkspaceAuthoringThemePreset datalab_overlay_selected_theme(const DatalabAppState *app_state);
+void datalab_overlay_hud_style_from_palette(const DatalabAuthoringThemePalette *palette,
+                                            KitUiHudStyle *out_style);
 int datalab_overlay_custom_theme_token_clamp(int value);
 int datalab_overlay_custom_theme_channel_clamp(int value);
 int datalab_overlay_custom_theme_slot_clamp(int value);

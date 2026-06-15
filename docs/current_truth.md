@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-05-25
+Last updated: 2026-06-14
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -21,7 +21,16 @@ Last updated: 2026-05-25
   - `.bmp` image profile lane
 - Data visualizer behavior is interactive (not static-image only):
   - session HUD collapse/restore (`H`)
+  - top-left session data HUD uses the same shared `kit_ui` floating
+    rounded/alpha surface style as the bottom playback HUD and resolves its
+    text/chrome colors from the active workspace-authoring theme preset
   - directory autoplay (`Space`)
+  - bottom playback HUD controls for previous/next, play/pause, speed, and
+    loop/bounce mode; its floating controls also resolve from the active
+    workspace-authoring theme preset
+  - manual previous/next file navigation wraps at list edges, so previous from
+    the first supported file requests the last supported file and next from the
+    last supported file requests the first
   - viewport zoom/pan/reset for sketch/image lanes (`wheel`, drag, `R`)
 - Oversized-raster handling is active:
   - tiled rendering fallback when full texture exceeds limits
@@ -35,6 +44,8 @@ Last updated: 2026-05-25
   - top-level authoring actions currently route through shared `kit_workspace_authoring` controls (`cycle`, `apply`, `cancel`)
 - Font/theme authoring state persists across sessions:
   - theme preset id persists
+  - `Cmd/Ctrl+T` and `Cmd/Ctrl+Shift+T` cycle runtime UI theme presets through
+    the shared authoring/theme state
   - one active custom theme plus three custom theme slots persist
   - custom slot names and active slot persist alongside text zoom + input-root prefs
 
@@ -59,6 +70,17 @@ Last updated: 2026-05-25
   - `Enter` applies the pending draft state
   - `Esc` cancels the draft state and exits authoring
   - host-authoring input has first-right-of-refusal over profile handlers
+- The active visualizer bottom HUD:
+  - consumes clicks before viewport/session mouse routing
+  - leaves playback policy app-owned
+  - uses shared `kit_ui` HUD button-row layout, alpha-aware floating HUD style,
+    nested corner/inset sizing, and the optional SDL draw adapter for rounded
+    panel/button/readout chrome
+- The active visualizer session data HUD:
+  - remains toggled by `H`
+  - keeps DataLab-owned session/root/active-file/file-list content
+  - uses shared `kit_ui` alpha/rounded SDL surface drawing for the outer panel,
+    inner file-list well, and selected-row highlights
 
 ## Verification Contract
 - Build/harness:
@@ -91,8 +113,9 @@ Last updated: 2026-05-25
   - includes an unattended panel-policy contract lane for:
     - empty-root panel reset behavior
     - rescan alignment to the active file
-    - selection-delta clamping plus requested-pack-path emission
-    - autoplay advance and requested-pack-path handoff
+    - selection-delta edge wrapping plus requested-pack-path emission
+    - autoplay advance, loop/bounce playback policy, speed interval seeding,
+      and requested-pack-path handoff
   - includes an unattended profile-interaction contract lane for:
     - trace cursor stepping plus home/end behavior
     - trace zoom wrap/reset and selection toggles
@@ -109,9 +132,13 @@ Last updated: 2026-05-25
   - `make -C datalab release-bundle-audit`
   - `make -C datalab release-verify ...`
   - `make -C datalab release-distribute ...`
+  - current public release evidence is refreshed for `0.2.0` under `build/release/`, including accepted notary output for the 2026-06-06 pass
 
 ## Current Boundary
 - Continue visualizer UX and profile rendering stability while validating the workspace-authoring host path.
+- Harden the shared `kit_ui` HUD row/SDL adapter through DataLab before
+  adapting the same rounded-button control chrome in another program; broader
+  picker/session-panel rounded-surface polish is intentionally later.
 - Keep data-path precedence and non-crashing load-failure behavior as hard constraints.
 - Treat the remaining runtime-coordination risk as a bounded integration lane rather than broad mode drift across the core visualizer/runtime modes.
 - Treat the remaining GUI/session/authoring risk as concentrated in higher-order loop integration and edge-case runtime coordination rather than the authoring key-routing, session-mouse seam, profile-specific control paths, basic raster-viewport reset path, core render/wait policy seam, or panel-switching handoff seam.

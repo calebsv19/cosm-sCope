@@ -32,6 +32,11 @@ typedef enum DatalabWorkspaceAuthoringThemePreset {
     DATALAB_WORKSPACE_AUTHORING_THEME_CUSTOM = 5
 } DatalabWorkspaceAuthoringThemePreset;
 
+typedef enum DatalabPlaybackMode {
+    DATALAB_PLAYBACK_MODE_LOOP = 0,
+    DATALAB_PLAYBACK_MODE_BOUNCE = 1
+} DatalabPlaybackMode;
+
 typedef struct DatalabWorkspaceCustomTheme {
     uint8_t clear_r, clear_g, clear_b;
     uint8_t pane_fill_r, pane_fill_g, pane_fill_b;
@@ -61,6 +66,9 @@ typedef struct DatalabRasterViewportState {
 #define DATALAB_TEXT_ZOOM_STEP_MIN (-4)
 #define DATALAB_TEXT_ZOOM_STEP_MAX 5
 #define DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT 120u
+#define DATALAB_PLAYBACK_SPEED_INDEX_DEFAULT 2
+#define DATALAB_PLAYBACK_SPEED_INDEX_MIN 0
+#define DATALAB_PLAYBACK_SPEED_INDEX_MAX 4
 
 typedef struct DatalabAppState {
     const char *pack_path;
@@ -85,6 +93,9 @@ typedef struct DatalabAppState {
     int panel_open_selected_requested;
     char panel_requested_pack_path[DATALAB_APP_PATH_CAP];
     int playback_active;
+    DatalabPlaybackMode playback_mode;
+    int playback_direction;
+    int playback_speed_index;
     uint32_t playback_interval_ms;
     uint32_t playback_last_advance_ticks;
     int session_hud_collapsed;
@@ -120,6 +131,8 @@ const char *datalab_view_mode_name(DatalabViewMode mode);
 const char *datalab_workspace_authoring_overlay_mode_name(DatalabWorkspaceAuthoringOverlayMode mode);
 int datalab_text_zoom_step_clamp(int step);
 float datalab_text_zoom_step_multiplier(int step);
+int datalab_playback_speed_index_clamp(int speed_index);
+uint32_t datalab_playback_interval_for_speed_index(int speed_index);
 void datalab_raster_viewport_state_init(DatalabRasterViewportState *state);
 void datalab_raster_viewport_request_reset(DatalabRasterViewportState *state);
 int datalab_profile_supports_raster_viewport(DatalabProfile profile);

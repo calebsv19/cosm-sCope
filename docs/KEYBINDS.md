@@ -5,14 +5,17 @@
 - `Cmd/Ctrl +` `+`: increase text size.
 - `Cmd/Ctrl +` `-`: decrease text size.
 - `Cmd/Ctrl +` `0`: reset text size.
+- `Cmd/Ctrl +` `T`: cycle to the next UI theme preset.
+- `Cmd/Ctrl + Shift +` `T`: cycle to the previous UI theme preset.
 - `R`: reset local view controls for the active profile.
 - `O`: reopen startup picker and switch dataset.
 - `H`: collapse/restore the in-viewer session HUD.
 - `F5`: rescan supported files (`.pack`, `.bmp`) in the active input root.
-- `U` / `J`: move Data Panel selection up/down.
+- `U` / `J`: move Data Panel selection up/down; movement wraps at the first/last file.
 - `Enter`: load selected file from the Data Panel list.
-- `Space`: toggle directory autoplay (play/pause through current file list at default speed).
+- `Space`: toggle directory autoplay (play/pause through current file list).
 - `Click RECENT DIRECTORIES` (active runtime header): open the recent-root MRU list; selecting a root immediately loads the first supported file from that directory.
+- `Click bottom playback HUD`: previous/next, play/pause, speed down/up, and loop/bounce mode controls; previous/next wraps at the first/last file.
 
 ## Startup Picker
 - `E`: toggle path edit mode.
@@ -43,7 +46,7 @@
 - `C`: cycle lane visibility.
 
 ## Image Profile (`.bmp`)
-- `Left` / `Right`: load previous/next file from the active directory list.
+- `Left` / `Right`: load previous/next file from the active directory list; movement wraps at the first/last file.
 - `Mouse Wheel`: zoom at cursor anchor.
 - `Left Drag`: pan the raster viewport.
 - `R`: reset image/sketch viewport to fit.

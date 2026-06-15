@@ -6,6 +6,27 @@ static int datalab_zoom_modifier_active(SDL_Keymod mods) {
     return ((mods & KMOD_CTRL) != 0) || ((mods & KMOD_GUI) != 0);
 }
 
+static uint8_t datalab_cycle_runtime_theme_preset(uint8_t current, int direction) {
+    int preset = (int)current;
+    const int first = (int)DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT;
+    const int last = (int)DATALAB_WORKSPACE_AUTHORING_THEME_GREYSCALE;
+    const int count = (last - first) + 1;
+    if (count <= 0) {
+        return (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    }
+    if (preset < first || preset > last) {
+        preset = (int)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    }
+    preset += (direction < 0) ? -1 : 1;
+    while (preset < first) {
+        preset += count;
+    }
+    while (preset > last) {
+        preset -= count;
+    }
+    return (uint8_t)preset;
+}
+
 static int datalab_map_window_to_renderer_point(SDL_Window *window,
                                                 SDL_Renderer *renderer,
                                                 int window_x,
@@ -129,6 +150,11 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
 
     if (datalab_zoom_modifier_active((SDL_Keymod)key->keysym.mod)) {
         switch (key->keysym.sym) {
+            case SDLK_t:
+                state->workspace_authoring_theme_preset_id =
+                    datalab_cycle_runtime_theme_preset(state->workspace_authoring_theme_preset_id,
+                                                       ((key->keysym.mod & KMOD_SHIFT) != 0) ? -1 : 1);
+                return;
             case SDLK_EQUALS:
             case SDLK_PLUS:
             case SDLK_KP_PLUS:
@@ -235,6 +261,11 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
             state->panel_requested_pack_path[0] = '\0';
             state->recent_input_root_dropdown_open = 0;
             state->playback_active = 0;
+            state->playback_mode = DATALAB_PLAYBACK_MODE_LOOP;
+            state->playback_direction = 1;
+            state->playback_speed_index = DATALAB_PLAYBACK_SPEED_INDEX_DEFAULT;
+            state->playback_interval_ms =
+                datalab_playback_interval_for_speed_index(state->playback_speed_index);
             state->playback_last_advance_ticks = 0u;
             datalab_raster_viewport_request_reset(&state->raster_viewport);
             break;

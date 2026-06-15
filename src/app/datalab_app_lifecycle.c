@@ -66,6 +66,9 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
     }
     runtime->input_root_from_cli = 0;
     runtime->playback_active = 0;
+    runtime->playback_mode = DATALAB_PLAYBACK_MODE_LOOP;
+    runtime->playback_direction = 1;
+    runtime->playback_speed_index = DATALAB_PLAYBACK_SPEED_INDEX_DEFAULT;
     runtime->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
     runtime->session_hud_collapsed = 0;
     datalab_raster_viewport_state_init(&runtime->raster_viewport);

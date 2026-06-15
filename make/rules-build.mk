@@ -2,7 +2,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB)
 	@mkdir -p $(dir $@)
-	$(HOST_CC) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB) $(LIBS)
+	$(HOST_CC) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $(OBJS) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB) $(FISICS_MEMCHECK_LINK_LIBS) $(LIBS)
 
 $(PROGRAM_OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
@@ -37,6 +37,10 @@ $(HOST_BUILD_DIR)/shared/core/core_theme/%.o: $(CORE_THEME_DIR)/src/%.c
 	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
 
 $(HOST_BUILD_DIR)/shared/kit/kit_viz/%.o: $(KIT_VIZ_DIR)/src/%.c
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
+
+$(HOST_BUILD_DIR)/shared/kit/kit_ui/%.o: $(KIT_UI_DIR)/src/%.c
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
 

@@ -66,7 +66,7 @@ COMMON_CFLAGS := $(CSTD) $(WARN) $(DEBUG) -I$(INC_DIR) -I$(SRC_DIR) \
 	-I$(CORE_LAYOUT_DIR)/include -I$(CORE_PANE_DIR)/include \
 	-I$(CORE_PACK_DIR)/include -I$(KIT_VIZ_DIR)/include -I$(KIT_GRAPH_TS_DIR)/include \
 	-I$(KIT_RENDER_DIR)/include -I$(CORE_THEME_DIR)/include -I$(CORE_FONT_DIR)/include \
-	-I$(KIT_WORKSPACE_AUTHORING_DIR)/include \
+	-I$(KIT_WORKSPACE_AUTHORING_DIR)/include -I$(KIT_UI_DIR)/include \
 	$(SDL_CFLAGS) $(SDL_TTF_CFLAGS)
 PROGRAM_CFLAGS := $(COMMON_CFLAGS)
 ifeq ($(BUILD_TOOLCHAIN),clang)

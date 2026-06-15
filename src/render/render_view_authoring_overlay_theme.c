@@ -1,5 +1,7 @@
 #include "render/render_view_authoring_overlay_shared.h"
 
+#include "core_theme.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -220,6 +222,37 @@ DatalabWorkspaceAuthoringThemePreset datalab_overlay_selected_theme(const Datala
         return DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
     }
     return datalab_overlay_theme_preset_clamp((int)app_state->workspace_authoring_theme_preset_id);
+}
+
+void datalab_overlay_hud_style_from_palette(const DatalabAuthoringThemePalette *palette,
+                                            KitUiHudStyle *out_style) {
+    DatalabAuthoringThemePalette fallback;
+
+    if (!out_style) {
+        return;
+    }
+    if (!palette) {
+        datalab_overlay_theme_palette(DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST,
+                                      NULL,
+                                      &fallback);
+        palette = &fallback;
+    }
+
+    kit_ui_hud_style_dark_floating(out_style);
+    out_style->panel_fill =
+        (KitRenderColor){palette->shell_fill_r, palette->shell_fill_g, palette->shell_fill_b, 218u};
+    out_style->readout_fill =
+        (KitRenderColor){palette->pane_fill_r, palette->pane_fill_g, palette->pane_fill_b, 212u};
+    out_style->button_fill =
+        (KitRenderColor){palette->button_fill_r, palette->button_fill_g, palette->button_fill_b, 224u};
+    out_style->button_active_fill =
+        (KitRenderColor){palette->button_active_r, palette->button_active_g, palette->button_active_b, 238u};
+    out_style->button_disabled_fill =
+        (KitRenderColor){palette->shell_fill_r, palette->shell_fill_g, palette->shell_fill_b, 160u};
+    out_style->text =
+        (KitRenderColor){palette->text_primary_r, palette->text_primary_g, palette->text_primary_b, 255u};
+    out_style->text_disabled =
+        (KitRenderColor){palette->text_secondary_r, palette->text_secondary_g, palette->text_secondary_b, 255u};
 }
 
 int datalab_overlay_custom_theme_token_clamp(int value) {

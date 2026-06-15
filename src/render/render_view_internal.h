@@ -194,6 +194,9 @@ void datalab_loop_diag_tick(double frame_elapsed_sec,
                             uint32_t wait_blocked_ms,
                             uint32_t wait_call_count);
 int datalab_session_controls_mouse_enabled(const DatalabAppState *app_state);
+size_t datalab_session_controls_file_count(void);
+const char *datalab_session_controls_selected_file_name(const DatalabAppState *app_state);
+void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *app_state);
 
 void datalab_input_frame_begin(DatalabInputFrame *frame);
 void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event);
@@ -205,6 +208,10 @@ int datalab_session_controls_route_mouse_event(SDL_Window *window,
                                                SDL_Renderer *renderer,
                                                const SDL_Event *event,
                                                DatalabAppState *app_state);
+int datalab_playback_hud_route_mouse_event(SDL_Window *window,
+                                           SDL_Renderer *renderer,
+                                           const SDL_Event *event,
+                                           DatalabAppState *app_state);
 CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_state, const char *action_id);
 
 void datalab_sync_text_zoom(const DatalabAppState *app_state);

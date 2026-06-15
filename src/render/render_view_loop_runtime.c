@@ -57,6 +57,9 @@ static void datalab_loop_handle_event(SDL_Window *window,
     if (datalab_workspace_authoring_route_mouse_event(event, app_state)) {
         return;
     }
+    if (datalab_playback_hud_route_mouse_event(window, renderer, event, app_state)) {
+        return;
+    }
     if (datalab_session_controls_route_mouse_event(window, renderer, event, app_state)) {
         return;
     }

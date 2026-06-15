@@ -8,6 +8,7 @@
 
 #include "app/datalab_runtime_prefs.h"
 #include "data/input_file_loader.h"
+#include "kit_ui_sdl.h"
 #include "render/render_view_authoring_overlay_shared.h"
 
 #define DATALAB_PANEL_REFRESH_MS 1200u
@@ -44,6 +45,13 @@ static int datalab_point_in_rect(const SDL_Rect *rect, int x, int y) {
     }
     return x >= rect->x && y >= rect->y &&
            x < (rect->x + rect->w) && y < (rect->y + rect->h);
+}
+
+static KitRenderColor datalab_session_hud_text_color(const KitUiHudStyle *style, int muted) {
+    if (!style) {
+        return (KitRenderColor){220u, 224u, 232u, 255u};
+    }
+    return muted ? style->text_disabled : style->text;
 }
 
 static int datalab_map_window_to_renderer_point(SDL_Window *window,
@@ -176,6 +184,18 @@ int datalab_session_controls_mouse_enabled(const DatalabAppState *app_state) {
         return 0;
     }
     return 1;
+}
+
+size_t datalab_session_controls_file_count(void) {
+    return g_pack_panel_cache.file_count;
+}
+
+const char *datalab_session_controls_selected_file_name(const DatalabAppState *app_state) {
+    if (!app_state || g_pack_panel_cache.file_count == 0u ||
+        app_state->panel_selected_index >= g_pack_panel_cache.file_count) {
+        return "";
+    }
+    return g_pack_panel_cache.files[app_state->panel_selected_index];
 }
 
 int datalab_session_controls_route_mouse_event(SDL_Window *window,
@@ -366,6 +386,10 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
 void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState *app_state) {
     DatalabAuthoringThemePalette palette = {0};
     DatalabWorkspaceAuthoringThemePreset preset = DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    KitUiHudStyle hud_style;
+    KitRenderColor primary_text = {0};
+    KitRenderColor muted_text = {0};
+    KitRenderColor error_text = {230u, 150u, 140u, 255u};
     SDL_Rect panel = {0};
     SDL_Rect panel_clip = {0};
     SDL_Rect list_box = {0};
@@ -388,6 +412,9 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     int row_h = 0;
     int max_rows = 0;
     int start_y = 0;
+    int panel_radius = 0;
+    int list_radius = 0;
+    int row_radius = 0;
     size_t start_idx = 0u;
     const char *shortcut_line = NULL;
     if (!renderer || !app_state) {
@@ -395,6 +422,8 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     }
     preset = datalab_overlay_selected_theme(app_state);
     datalab_overlay_theme_palette(preset, &app_state->workspace_authoring_custom_theme, &palette);
+    datalab_overlay_hud_style_from_palette(&palette, &hud_style);
+    hud_style.panel_corner_radius = (float)datalab_scaled_px(hud_style.panel_corner_radius);
     root = (app_state->input_root[0] != '\0') ? app_state->input_root : "<not set>";
     pack_path = app_state->pack_path && app_state->pack_path[0] ? app_state->pack_path : "<none>";
     active_name = core_path_basename(pack_path);
@@ -437,10 +466,17 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     panel.y = datalab_header_bar_height_px() + datalab_scaled_px(10.0f);
     panel.w = datalab_clamp_int(content_w + (pad * 2) + datalab_scaled_px(8.0f), min_panel_w, max_panel_w);
     panel.h = datalab_clamp_int((line_h * 7) + (section_gap * 6) + datalab_scaled_px(120.0f), min_panel_h, max_panel_h);
-    SDL_SetRenderDrawColor(renderer, palette.pane_fill_r, palette.pane_fill_g, palette.pane_fill_b, 204);
-    SDL_RenderFillRect(renderer, &panel);
-    SDL_SetRenderDrawColor(renderer, palette.shell_border_r, palette.shell_border_g, palette.shell_border_b, 220);
-    SDL_RenderDrawRect(renderer, &panel);
+    panel_radius = (int)kit_ui_corner_radius_clamp(hud_style.panel_corner_radius,
+                                                   (float)panel.w,
+                                                   (float)panel.h);
+    list_radius = (int)kit_ui_corner_radius_clamp(kit_ui_corner_radius_for_inset(hud_style.panel_corner_radius,
+                                                                                 (float)pad),
+                                                  (float)(panel.w - (pad * 2)),
+                                                  (float)(panel.h - (pad * 2)));
+    hud_style.button_corner_radius = (float)list_radius;
+    primary_text = datalab_session_hud_text_color(&hud_style, 0);
+    muted_text = datalab_session_hud_text_color(&hud_style, 1);
+    kit_ui_sdl_fill_rounded_rect(renderer, &panel, panel_radius, hud_style.panel_fill);
     panel_clip.x = panel.x + pad;
     panel_clip.y = panel.y + pad;
     panel_clip.w = panel.w - (pad * 2);
@@ -452,30 +488,30 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                   y_cursor,
                   "SESSION DATA",
                   1,
-                  palette.text_primary_r,
-                  palette.text_primary_g,
-                  palette.text_primary_b,
-                  255);
+                  primary_text.r,
+                  primary_text.g,
+                  primary_text.b,
+                  primary_text.a);
     y_cursor += line_h + section_gap;
     draw_text_5x7(renderer,
                   panel.x + pad,
                   y_cursor,
                   shortcut_line,
                   1,
-                  palette.text_secondary_r,
-                  palette.text_secondary_g,
-                  palette.text_secondary_b,
-                  255);
+                  muted_text.r,
+                  muted_text.g,
+                  muted_text.b,
+                  muted_text.a);
     y_cursor += line_h + section_gap;
     draw_text_5x7(renderer,
                   panel.x + pad,
                   y_cursor,
                   "ROOT",
                   1,
-                  palette.text_secondary_r,
-                  palette.text_secondary_g,
-                  palette.text_secondary_b,
-                  255);
+                  muted_text.r,
+                  muted_text.g,
+                  muted_text.b,
+                  muted_text.a);
     y_cursor += line_h + section_gap;
     draw_text_5x7_clipped(renderer,
                           &panel_clip,
@@ -483,20 +519,20 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                           y_cursor,
                           root,
                           1,
-                          palette.text_primary_r,
-                          palette.text_primary_g,
-                          palette.text_primary_b,
-                          255);
+                          primary_text.r,
+                          primary_text.g,
+                          primary_text.b,
+                          primary_text.a);
     y_cursor += line_h + section_gap;
     draw_text_5x7(renderer,
                   panel.x + pad,
                   y_cursor,
                   "ACTIVE",
                   1,
-                  palette.text_secondary_r,
-                  palette.text_secondary_g,
-                  palette.text_secondary_b,
-                  255);
+                  muted_text.r,
+                  muted_text.g,
+                  muted_text.b,
+                  muted_text.a);
     y_cursor += line_h + section_gap;
     draw_text_5x7_clipped(renderer,
                           &panel_clip,
@@ -504,20 +540,20 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                           y_cursor,
                           pack_path,
                           1,
-                          palette.text_primary_r,
-                          palette.text_primary_g,
-                          palette.text_primary_b,
-                          255);
+                          primary_text.r,
+                          primary_text.g,
+                          primary_text.b,
+                          primary_text.a);
     y_cursor += line_h + section_gap;
     draw_text_5x7(renderer,
                   panel.x + pad,
                   y_cursor,
                   g_pack_panel_cache.status[0] ? g_pack_panel_cache.status : "scanning...",
                   1,
-                  palette.text_primary_r,
-                  palette.text_primary_g,
-                  palette.text_primary_b,
-                  255);
+                  primary_text.r,
+                  primary_text.g,
+                  primary_text.b,
+                  primary_text.a);
     y_cursor += line_h + section_gap;
 
     {
@@ -527,10 +563,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
             panel.w - (pad * 2),
             panel.y + panel.h - y_cursor - pad
         };
-        SDL_SetRenderDrawColor(renderer, palette.shell_fill_r, palette.shell_fill_g, palette.shell_fill_b, 220);
-        SDL_RenderFillRect(renderer, &list_box);
-        SDL_SetRenderDrawColor(renderer, palette.shell_border_r, palette.shell_border_g, palette.shell_border_b, 220);
-        SDL_RenderDrawRect(renderer, &list_box);
+        kit_ui_sdl_fill_rounded_rect(renderer, &list_box, list_radius, hud_style.readout_fill);
 
         row_h = datalab_text_line_height(1) + datalab_scaled_px(2.0f);
         if (row_h < datalab_scaled_px(9.0f)) {
@@ -567,10 +600,10 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                                   start_y,
                                   "NO SUPPORTED FILES (.PACK/.BMP) IN INPUT ROOT",
                                   1,
-                                  230,
-                                  150,
-                                  140,
-                                  255);
+                                  error_text.r,
+                                  error_text.g,
+                                  error_text.b,
+                                  error_text.a);
         } else {
             SDL_Rect list_clip = {
                 list_box.x + datalab_scaled_px(2.0f),
@@ -598,18 +631,12 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                         list_box.w - datalab_scaled_px(4.0f),
                         row_h
                     };
-                    SDL_SetRenderDrawColor(renderer,
-                                           is_selected ? palette.button_active_r : palette.button_fill_r,
-                                           is_selected ? palette.button_active_g : palette.button_fill_g,
-                                           is_selected ? palette.button_active_b : palette.button_fill_b,
-                                           220);
-                    SDL_RenderFillRect(renderer, &hi);
-                    SDL_SetRenderDrawColor(renderer,
-                                           is_selected ? palette.button_hover_r : palette.shell_border_r,
-                                           is_selected ? palette.button_hover_g : palette.shell_border_g,
-                                           is_selected ? palette.button_hover_b : palette.shell_border_b,
-                                           255);
-                    SDL_RenderDrawRect(renderer, &hi);
+                    KitRenderColor hi_fill = is_selected ? hud_style.button_active_fill : hud_style.button_fill;
+                    row_radius = (int)kit_ui_corner_radius_clamp(kit_ui_corner_radius_for_inset((float)list_radius,
+                                                                                               datalab_scaled_px(2.0f)),
+                                                                 (float)hi.w,
+                                                                 (float)hi.h);
+                    kit_ui_sdl_fill_rounded_rect(renderer, &hi, row_radius, hi_fill);
                 }
                 draw_text_5x7_clipped(renderer,
                                       &list_clip,
@@ -617,10 +644,10 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                                       y,
                                       name,
                                       1,
-                                      (is_selected || is_active) ? palette.text_primary_r : palette.text_secondary_r,
-                                      (is_selected || is_active) ? palette.text_primary_g : palette.text_secondary_g,
-                                      (is_selected || is_active) ? palette.text_primary_b : palette.text_secondary_b,
-                                      255);
+                                      (is_selected || is_active) ? primary_text.r : muted_text.r,
+                                      (is_selected || is_active) ? primary_text.g : muted_text.g,
+                                      (is_selected || is_active) ? primary_text.b : muted_text.b,
+                                      (is_selected || is_active) ? primary_text.a : muted_text.a);
             }
         }
     }

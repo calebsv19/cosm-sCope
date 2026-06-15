@@ -7,6 +7,7 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
 - Profile-aware `.pack` loading for Physics, DAW, Trace, and sketCh snapshot payloads.
 - `.bmp` image-sequence inspection in the same runtime session model.
 - Interactive visualizer controls for raster/image lanes (zoom/pan/reset) backed by shared `core_viewport2d`.
+- Bottom playback HUD controls for active visualizer sessions.
 - Startup picker + in-session source panel for switching files without relaunch.
 - Workspace-authoring host pilot for pane + font/theme overlay validation.
 - Headless validation mode for deterministic CLI checks.
@@ -19,11 +20,26 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
   - selecting a recent root reorders it to the top instead of duplicating it
   - selecting a recent root rescans and highlights the first supported file in that directory
 - In-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan).
+- Manual previous/next file movement wraps at list edges, so stepping
+  backward from the first supported file loads the last supported file and
+  stepping forward from the last file loads the first.
 - In-session recent-directories header dropdown:
   - uses the same persisted 16-entry MRU list as the startup picker
   - selecting a recent root reorders it to the top and immediately loads the first supported file from that directory
-- Session HUD collapse/restore (`H`).
+- Session HUD collapse/restore (`H`) with shared rounded/alpha HUD chrome.
 - Directory autoplay (`Space`) across current supported-file list.
+- Runtime UI theme cycling through the shared authoring/theme state:
+  - `Cmd/Ctrl+T` selects the next UI theme preset
+  - `Cmd/Ctrl+Shift+T` selects the previous UI theme preset
+  - active HUD chrome resolves colors from the selected theme/custom palette
+- Bottom playback HUD:
+  - previous/next file
+  - play/pause
+  - speed down/up across bounded presets
+  - loop or bounce playback mode
+  - compact active-position/speed/file readout
+  - rounded control chrome is laid out and drawn through the shared `kit_ui`
+    HUD row and SDL adapter path
 - Shared viewport controls for sketch/image profiles:
   - mouse-wheel cursor-anchor zoom
   - left-drag pan
@@ -100,8 +116,9 @@ make -C datalab test-stable
 `test-stable` also includes a panel-policy contract lane for in-session switching behavior:
 - empty-root panel state must reset cleanly
 - rescans must realign selection to the active file
-- selection movement must clamp and emit the requested pack path deterministically
-- autoplay advance must hand off the next requested pack path deterministically
+- selection movement must wrap at list edges and emit the requested pack path deterministically
+- autoplay advance must hand off the next requested pack path deterministically,
+  including loop/bounce mode and speed-index behavior
 
 `test-stable` also includes a profile-interaction contract lane for remaining profile-specific runtime controls:
 - trace cursor stepping and home/end behavior must stay deterministic

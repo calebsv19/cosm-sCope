@@ -26,6 +26,22 @@ float datalab_text_zoom_step_multiplier(int step) {
     return multiplier;
 }
 
+int datalab_playback_speed_index_clamp(int speed_index) {
+    if (speed_index < DATALAB_PLAYBACK_SPEED_INDEX_MIN) {
+        return DATALAB_PLAYBACK_SPEED_INDEX_MIN;
+    }
+    if (speed_index > DATALAB_PLAYBACK_SPEED_INDEX_MAX) {
+        return DATALAB_PLAYBACK_SPEED_INDEX_MAX;
+    }
+    return speed_index;
+}
+
+uint32_t datalab_playback_interval_for_speed_index(int speed_index) {
+    static const uint32_t k_intervals_ms[] = {480u, 240u, 120u, 60u, 30u};
+    speed_index = datalab_playback_speed_index_clamp(speed_index);
+    return k_intervals_ms[speed_index];
+}
+
 void datalab_raster_viewport_state_init(DatalabRasterViewportState *state) {
     if (!state) {
         return;
@@ -74,6 +90,9 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->panel_open_selected_requested = 0;
     state->panel_requested_pack_path[0] = '\0';
     state->playback_active = 0;
+    state->playback_mode = DATALAB_PLAYBACK_MODE_LOOP;
+    state->playback_direction = 1;
+    state->playback_speed_index = DATALAB_PLAYBACK_SPEED_INDEX_DEFAULT;
     state->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
     state->playback_last_advance_ticks = 0u;
     state->session_hud_collapsed = 0;

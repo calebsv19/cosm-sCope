@@ -51,8 +51,13 @@ void datalab_runtime_copy_to_app_state(const DatalabAppRuntime *runtime,
     app_state->open_picker_requested = 0;
     app_state->panel_rescan_requested = panel_rescan_requested;
     app_state->playback_active = runtime->playback_active;
+    app_state->playback_mode = runtime->playback_mode;
+    app_state->playback_direction = runtime->playback_direction ? runtime->playback_direction : 1;
+    app_state->playback_speed_index = datalab_playback_speed_index_clamp(runtime->playback_speed_index);
     app_state->playback_interval_ms =
-        runtime->playback_interval_ms ? runtime->playback_interval_ms : DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
+        runtime->playback_interval_ms
+            ? runtime->playback_interval_ms
+            : datalab_playback_interval_for_speed_index(app_state->playback_speed_index);
     app_state->playback_last_advance_ticks = SDL_GetTicks();
     app_state->session_hud_collapsed = runtime->session_hud_collapsed;
     app_state->raster_viewport = runtime->raster_viewport;
@@ -88,6 +93,9 @@ void datalab_runtime_copy_from_app_state(DatalabAppRuntime *runtime,
                  app_state->recent_input_roots[i]);
     }
     runtime->playback_active = app_state->playback_active;
+    runtime->playback_mode = app_state->playback_mode;
+    runtime->playback_direction = app_state->playback_direction ? app_state->playback_direction : 1;
+    runtime->playback_speed_index = datalab_playback_speed_index_clamp(app_state->playback_speed_index);
     runtime->playback_interval_ms = app_state->playback_interval_ms;
     runtime->session_hud_collapsed = app_state->session_hud_collapsed;
     runtime->raster_viewport = app_state->raster_viewport;

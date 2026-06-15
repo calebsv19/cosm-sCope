@@ -179,6 +179,39 @@ static int test_authoring_disables_session_mouse_controls(void) {
     return 1;
 }
 
+static int test_runtime_theme_cycle_keys(void) {
+    DatalabAppState state;
+    int quit = 0;
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_IMAGE);
+
+    state.workspace_authoring_theme_preset_id = (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    datalab_test_simulate_keydown(&state, SDLK_t, KMOD_GUI, &quit);
+    if (!datalab_test_assert(state.workspace_authoring_theme_preset_id ==
+                                 (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT,
+                             "cmd/ctrl+t should cycle to the next runtime theme")) {
+        return 0;
+    }
+
+    datalab_test_simulate_keydown(&state, SDLK_t, KMOD_GUI | KMOD_SHIFT, &quit);
+    if (!datalab_test_assert(state.workspace_authoring_theme_preset_id ==
+                                 (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST,
+                             "cmd/ctrl+shift+t should cycle to the previous runtime theme")) {
+        return 0;
+    }
+
+    state.workspace_authoring_theme_preset_id = (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_CUSTOM;
+    datalab_test_simulate_keydown(&state, SDLK_t, KMOD_CTRL, &quit);
+    if (!datalab_test_assert(state.workspace_authoring_theme_preset_id ==
+                                 (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT,
+                             "runtime theme cycling should leave custom mode through the preset ring")) {
+        return 0;
+    }
+    if (!datalab_test_assert(quit == 0, "theme cycling should not quit")) {
+        return 0;
+    }
+    return 1;
+}
+
 int main(void) {
     if (!test_authoring_consumes_session_keys()) {
         return 1;
@@ -190,6 +223,9 @@ int main(void) {
         return 1;
     }
     if (!test_authoring_disables_session_mouse_controls()) {
+        return 1;
+    }
+    if (!test_runtime_theme_cycle_keys()) {
         return 1;
     }
     puts("datalab authoring input contract test passed");
