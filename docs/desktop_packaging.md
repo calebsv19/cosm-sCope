@@ -1,6 +1,6 @@
 # DataLab Desktop Packaging
 
-Last updated: 2026-06-06
+Last updated: 2026-06-18
 
 ## Bundle Contract
 - output app: `dist/sCope.app`
@@ -32,6 +32,24 @@ Last updated: 2026-06-06
     - `build/release/sCope-0.2.0-macOS-arm64-stable.zip.sha256`
     - `build/release/sCope-0.2.0-macOS-arm64-stable.manifest.txt`
     - `build/release/notary_submit.json`
+- local Intel package artifact:
+  - `HOME=/private/tmp/codex-datalab-x86-home make -C datalab release-artifact TARGET_ARCH=x86_64 BUILD_TOOLCHAIN=clang PACKAGE_TOOLCHAIN=clang`
+  - current local artifact set:
+    - `build/release/sCope-0.2.0-macOS-x86_64-stable.zip`
+    - `build/release/sCope-0.2.0-macOS-x86_64-stable.zip.sha256`
+    - `build/release/sCope-0.2.0-macOS-x86_64-stable.manifest.txt`
+  - local ad-hoc artifacts intentionally record `signed=ad-hoc` and
+    `notarized=0`
+  - Developer ID release artifacts still require notarization before artifact
+    generation and record `signed=developer-id` / `notarized=1`
+- local Intel staging lane:
+  - `intel_mac_packages/scope/stable/sCope.app`
+  - `intel_mac_packages/scope/stable/sCope-0.2.0-macOS-x86_64-stable.zip`
+  - `intel_mac_packages/scope/stable/sCope-0.2.0-macOS-x86_64-stable.zip.sha256`
+  - `intel_mac_packages/scope/stable/sCope-0.2.0-macOS-x86_64-stable.manifest.txt`
+  - `bin/stage_intel_mac_desktop_and_packages.sh --apps-only --dry-run`
+    confirms the helper will stage the app and `scope` release artifacts to
+    the Intel Mac lane
 
 ## Launcher Runtime Contract
 - `--print-config` dumps active paths and runtime roots.
@@ -63,3 +81,12 @@ Last updated: 2026-06-06
 7. `/Users/<user>/Desktop/sCope.app/Contents/MacOS/datalab-launcher --print-config`
 8. `open /Users/<user>/Desktop/sCope.app`
 9. `tail -n 120 ~/Library/Logs/DataLab/launcher.log`
+
+## Multi-Arch Notes
+- default local Apple Silicon builds use `TARGET_ARCH=arm64` and Homebrew under
+  `/opt/homebrew`.
+- Intel package builds use `TARGET_ARCH=x86_64` and Homebrew under `/usr/local`.
+- target outputs stay separated under `build/targets/macOS-arm64/` and
+  `build/targets/macOS-x86_64/`.
+- real Intel Mac GUI launch is a separate machine validation step after local
+  x86 package/audit success.

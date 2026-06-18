@@ -10,7 +10,8 @@ Start here for public repository documentation.
 - `docs/memory_check_audit.md`: default-off fisiCs memory-check audit lane.
 - current public docs include the startup-picker, active-runtime
   recent-directories behavior, bottom playback HUD controls, theme-cycle keys,
-  and edge-wrapping file navigation.
+  edge-wrapping file navigation, shared trace graph rendering, and the
+  multi-arch macOS package artifact contract.
 
 ## Verification Entry Points
 
@@ -27,7 +28,8 @@ Start here for public repository documentation.
 
 - `README.md` (repo root): product overview, runtime behavior, build/run usage.
 - `KNOWN_ISSUES.md`: release-facing caveats and known limitations.
-- `docs/desktop_packaging.md`: `.app` packaging contract and launcher validation flow.
+- `docs/desktop_packaging.md`: `.app` packaging contract, launcher validation
+  flow, and local Intel artifact staging lane.
 
 ## Current Emphasis
 
@@ -42,10 +44,15 @@ Start here for public repository documentation.
 - broader render/wait coordination policy now has explicit unattended coverage
 - in-session panel switching, edge wrapping, and requested-pack-path handoff now have explicit unattended coverage
 - remaining profile-specific trace/image/physics/DAW control paths now have explicit unattended coverage
+- trace graph view math, zoom, hover inspection, draw commands, and hover
+  overlay now route through shared `kit_graph_timeseries` while DataLab keeps
+  profile/session meaning local
 - workspace-authoring host validation is now an active public-facing pilot:
   - `Alt+C+V` entry
   - pane takeover
   - font/theme takeover with persisted custom theme slots
+- local `macOS-x86_64` package artifact generation and staging are available
+  for Intel Mac validation
 
 ## Private Planning Docs
 

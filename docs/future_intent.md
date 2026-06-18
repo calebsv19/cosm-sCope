@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-05-04
+Last updated: 2026-06-18
 
 ## Direction
 
@@ -21,6 +21,9 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 - keep input-root/runtime-preference precedence deterministic
 - keep load-failure recovery routed back to picker state
 - keep authoring theme/custom-slot persistence deterministic across sessions
+- preserve the completed trace graph boundary where generic graph view math,
+  zoom, hover inspection, and plot drawing route through
+  `kit_graph_timeseries` while DataLab keeps trace/profile semantics local
 
 3. Use DataLab as a bounded host-validation lane for shared workspace-authoring UI:
 - preserve the pane takeover path
@@ -50,6 +53,8 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 - No implied claim that DataLab mutates datasets or exports authoring results today.
 - No broad speculative refactor that weakens stable visualizer behavior.
 - No widening of legacy test lane scope unless promoted intentionally into stable contract.
+- No reopening of the completed graph-kit adoption lane for broader plotting
+  work unless a fresh host requirement is scoped first.
 
 ## Private Planning Reference
 

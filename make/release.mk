@@ -136,7 +136,12 @@ release-verify-notarized: release-staple
 	@xcrun stapler validate "$(PACKAGE_APP_DIR)"
 	@echo "release-verify-notarized passed."
 
-release-artifact: release-verify-notarized
+release-artifact:
+	@if [ "$(RELEASE_CODESIGN_IDENTITY)" = "-" ]; then \
+		$(MAKE) BUILD_TOOLCHAIN="$(BUILD_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" release-verify-signed; \
+	else \
+		$(MAKE) BUILD_TOOLCHAIN="$(BUILD_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" release-verify-notarized; \
+	fi
 	@mkdir -p "$(RELEASE_DIR)"
 	@rm -f "$(RELEASE_APP_ZIP)" "$(RELEASE_APP_ZIP_SHA256)" "$(RELEASE_MANIFEST)"
 	@/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$(PACKAGE_APP_DIR)" "$(RELEASE_APP_ZIP)"
@@ -154,11 +159,18 @@ release-artifact: release-verify-notarized
 		echo "version=$(RELEASE_VERSION)"; \
 		echo "channel=$(RELEASE_CHANNEL)"; \
 		echo "bundle_id=$(RELEASE_BUNDLE_ID)"; \
-		echo "signed=1"; \
-		echo "notarized=1"; \
+		if [ "$(RELEASE_CODESIGN_IDENTITY)" = "-" ]; then \
+			echo "signed=ad-hoc"; \
+			echo "notarized=0"; \
+		else \
+			echo "signed=developer-id"; \
+			echo "notarized=1"; \
+		fi; \
 		echo "zip=$(RELEASE_APP_ZIP)"; \
 		echo "sha256=$$(cut -d' ' -f1 "$(RELEASE_APP_ZIP_SHA256)")"; \
-		echo "notary_json=$(RELEASE_DIR)/notary_submit.json"; \
+		if [ "$(RELEASE_CODESIGN_IDENTITY)" != "-" ]; then \
+			echo "notary_json=$(RELEASE_DIR)/notary_submit.json"; \
+		fi; \
 	} > "$(RELEASE_MANIFEST)"
 	@echo "release-artifact complete: $(RELEASE_APP_ZIP)"
 

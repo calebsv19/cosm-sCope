@@ -8,6 +8,7 @@
 
 #include "core_base.h"
 #include "datalab/datalab_app_main.h"
+#include "kit_graph_timeseries.h"
 #include "kit_viz.h"
 
 typedef enum DatalabInputRouteTargetPolicy {
@@ -197,6 +198,16 @@ int datalab_session_controls_mouse_enabled(const DatalabAppState *app_state);
 size_t datalab_session_controls_file_count(void);
 const char *datalab_session_controls_selected_file_name(const DatalabAppState *app_state);
 void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *app_state);
+CoreResult datalab_trace_graph_draw_shared(SDL_Renderer *renderer,
+                                           int frame_width,
+                                           int frame_height,
+                                           const SDL_Rect *band,
+                                           const KitGraphTsSeries *series,
+                                           float zoom_factor,
+                                           int inspect_active,
+                                           float inspect_x,
+                                           float inspect_y,
+                                           KitGraphTsHover *out_hover);
 
 void datalab_input_frame_begin(DatalabInputFrame *frame);
 void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event);

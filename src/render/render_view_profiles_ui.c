@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "kit_graph_timeseries.h"
-
 typedef struct TraceLaneMeta {
     char lane[32];
     float min_v;
@@ -23,8 +21,6 @@ typedef struct TraceGridSpec {
     double time_unit_scale;
     float value_unit_scale;
 } TraceGridSpec;
-
-static const float TRACE_FLATLINE_BASELINE = 0.12f;
 
 static int cmp_double_asc(const void *a, const void *b) {
     const double da = *(const double *)a;
@@ -491,73 +487,83 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
         size_t visible_lane_count = (app_state->trace_lane_visibility_index == 0u) ? lane_count : 1u;
         size_t visible_lane_cursor = 0u;
         for (size_t l = 0; l < lane_count; ++l) {
-        if (app_state->trace_lane_visibility_index > 0u &&
-            app_state->trace_lane_visibility_index != (l + 1u)) {
-            continue;
-        }
+            if (app_state->trace_lane_visibility_index > 0u &&
+                app_state->trace_lane_visibility_index != (l + 1u)) {
+                continue;
+            }
             int by = plot.y + (int)((double)visible_lane_cursor * (double)plot.h / (double)visible_lane_count);
             int bh = (int)((double)plot.h / (double)visible_lane_count);
-        SDL_Rect band = {
-            plot.x + datalab_scaled_px(8.0f),
-            by + datalab_scaled_px(4.0f),
-            plot.w - datalab_scaled_px(16.0f),
-            bh - datalab_scaled_px(8.0f)
-        };
-        if (band.h < 12) continue;
+            SDL_Rect band = {
+                plot.x + datalab_scaled_px(8.0f),
+                by + datalab_scaled_px(4.0f),
+                plot.w - datalab_scaled_px(16.0f),
+                bh - datalab_scaled_px(8.0f)
+            };
+            if (band.h < 12) continue;
 
-        SDL_SetRenderDrawColor(renderer, 31, 35, 46, 255);
-        SDL_RenderFillRect(renderer, &band);
-        SDL_SetRenderDrawColor(renderer, 64, 70, 86, 255);
-        SDL_RenderDrawRect(renderer, &band);
-        draw_trace_value_grid(renderer, &band, lanes[l].min_v, lanes[l].max_v, &grid);
-
-        draw_text_5x7(renderer,
-                      band.x + datalab_scaled_px(6.0f),
-                      band.y + datalab_scaled_px(6.0f),
-                      lanes[l].lane,
-                      1,
-                      170,
-                      220,
-                      240,
-                      255);
-
-        float span = lanes[l].max_v - lanes[l].min_v;
-        int is_flat_lane = fabsf(span) < 1e-8f;
-        uint32_t lane_stride = kit_graph_ts_recommended_stride((uint32_t)lanes[l].count, (float)band.w, 0u);
-        size_t lane_sample_index = 0u;
-        size_t last_lane_sample_index = lanes[l].count > 0 ? lanes[l].count - 1u : 0u;
-        if (is_flat_lane) span = 1.0f;
-        int have_prev = 0;
-        int prev_x = 0;
-        int prev_y = 0;
-        {
-            SDL_Color lane_color = trace_lane_color(l);
-            SDL_SetRenderDrawColor(renderer, lane_color.r, lane_color.g, lane_color.b, 255);
-        }
-        for (size_t i = 0; i < frame->trace_sample_count; ++i) {
-            const DatalabTraceSample *s = &frame->trace_samples[i];
-            if (!lane_name_eq(s->lane, lanes[l].lane)) continue;
             {
-                int should_draw = ((lane_sample_index % lane_stride) == 0u) ||
-                                  (lane_sample_index == last_lane_sample_index);
-                lane_sample_index++;
-                if (!should_draw) {
-                    continue;
+                SDL_Color lane_color = trace_lane_color(l);
+                float *series_x = NULL;
+                float *series_y = NULL;
+                KitGraphTsSeries series;
+                KitGraphTsHover hover;
+                size_t lane_sample_index = 0u;
+                float zoom_factor = 1.0f;
+                CoreResult graph_result;
+                if (app_state->trace_zoom_stub > 0.0f) {
+                    zoom_factor = 1.0f / app_state->trace_zoom_stub;
                 }
+                series_x = (float *)core_alloc(lanes[l].count * sizeof(float));
+                series_y = (float *)core_alloc(lanes[l].count * sizeof(float));
+                if (!series_x || !series_y) {
+                    core_free(series_x);
+                    core_free(series_y);
+                    core_free(time_points);
+                    return;
+                }
+                for (size_t i = 0; i < frame->trace_sample_count; ++i) {
+                    const DatalabTraceSample *s = &frame->trace_samples[i];
+                    if (!lane_name_eq(s->lane, lanes[l].lane)) continue;
+                    if (lane_sample_index < lanes[l].count) {
+                        series_x[lane_sample_index] = (float)s->time_seconds;
+                        series_y[lane_sample_index] = s->value;
+                        lane_sample_index++;
+                    }
+                }
+                series.xs = series_x;
+                series.ys = series_y;
+                series.point_count = (uint32_t)lane_sample_index;
+                series.label = lanes[l].lane;
+                series.color = (KitRenderColor){lane_color.r, lane_color.g, lane_color.b, 255u};
+                graph_result = datalab_trace_graph_draw_shared(renderer,
+                                                               ww,
+                                                               wh,
+                                                               &band,
+                                                               &series,
+                                                               zoom_factor,
+                                                               lanes[l].has_current_value,
+                                                               (float)play_t,
+                                                               lanes[l].current_value,
+                                                               &hover);
+                core_free(series_x);
+                core_free(series_y);
+                if (graph_result.code != CORE_OK) {
+                    SDL_SetRenderDrawColor(renderer, 31, 35, 46, 255);
+                    SDL_RenderFillRect(renderer, &band);
+                    SDL_SetRenderDrawColor(renderer, 64, 70, 86, 255);
+                    SDL_RenderDrawRect(renderer, &band);
+                    draw_trace_value_grid(renderer, &band, lanes[l].min_v, lanes[l].max_v, &grid);
+                }
+                draw_text_5x7(renderer,
+                              band.x + datalab_scaled_px(6.0f),
+                              band.y + datalab_scaled_px(6.0f),
+                              lanes[l].lane,
+                              1,
+                              170,
+                              220,
+                              240,
+                              255);
             }
-            double tr = (max_t > min_t) ? ((s->time_seconds - min_t) / (max_t - min_t)) : 0.0;
-            float vr = is_flat_lane ? TRACE_FLATLINE_BASELINE : ((s->value - lanes[l].min_v) / span);
-            if (vr < 0.0f) vr = 0.0f;
-            if (vr > 1.0f) vr = 1.0f;
-            int x = band.x + (int)(tr * (double)(band.w - 1));
-            int y = band.y + band.h - 1 - (int)(vr * (float)(band.h - 1));
-            if (have_prev) {
-                SDL_RenderDrawLine(renderer, prev_x, prev_y, x, y);
-            }
-            prev_x = x;
-            prev_y = y;
-            have_prev = 1;
-        }
             visible_lane_cursor++;
         }
     }

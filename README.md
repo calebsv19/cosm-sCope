@@ -7,9 +7,12 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
 - Profile-aware `.pack` loading for Physics, DAW, Trace, and sketCh snapshot payloads.
 - `.bmp` image-sequence inspection in the same runtime session model.
 - Interactive visualizer controls for raster/image lanes (zoom/pan/reset) backed by shared `core_viewport2d`.
+- Trace graph view math, zoom, hover inspection, and plot drawing routed through
+  shared `kit_graph_timeseries`.
 - Bottom playback HUD controls for active visualizer sessions.
 - Startup picker + in-session source panel for switching files without relaunch.
 - Workspace-authoring host pilot for pane + font/theme overlay validation.
+- Multi-arch macOS package targets for Apple Silicon and Intel builds.
 - Headless validation mode for deterministic CLI checks.
 
 ## Implemented Today
@@ -44,6 +47,12 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
   - mouse-wheel cursor-anchor zoom
   - left-drag pan
   - `R` reset-to-fit
+- Shared trace graph rendering for trace profiles:
+  - visible view ranges derive through `kit_graph_timeseries`
+  - trace zoom uses the shared zoom helper
+  - cursor inspection uses shared nearest-point hover lookup
+  - plot lines and hover crosshair/marker draw through shared graph commands
+    replayed by DataLab's SDL bridge
 - Oversized-raster fallback:
   - tiled rendering with visible-tile cache and short halo prefetch when full texture exceeds renderer limits.
 - Persistent render session path:
@@ -67,6 +76,12 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
 make -C datalab
 make -C datalab run
 make -C datalab run-headless
+```
+
+Intel package artifact:
+
+```bash
+HOME=/private/tmp/codex-datalab-x86-home make -C datalab release-artifact TARGET_ARCH=x86_64 BUILD_TOOLCHAIN=clang PACKAGE_TOOLCHAIN=clang
 ```
 
 Explicit input examples:

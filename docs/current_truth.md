@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-06-14
+Last updated: 2026-06-18
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -31,6 +31,9 @@ Last updated: 2026-06-14
   - manual previous/next file navigation wraps at list edges, so previous from
     the first supported file requests the last supported file and next from the
     last supported file requests the first
+  - trace graph view math, zoom, hover inspection, plot drawing, and hover
+    overlay now route through shared `kit_graph_timeseries`; trace sample
+    ownership, lane meaning, cursor policy, and SDL replay remain DataLab-owned
   - viewport zoom/pan/reset for sketch/image lanes (`wheel`, drag, `R`)
 - Oversized-raster handling is active:
   - tiled rendering fallback when full texture exceeds limits
@@ -81,6 +84,12 @@ Last updated: 2026-06-14
   - keeps DataLab-owned session/root/active-file/file-list content
   - uses shared `kit_ui` alpha/rounded SDL surface drawing for the outer panel,
     inner file-list well, and selected-row highlights
+- The active trace graph path:
+  - builds borrowed `KitGraphTsSeries` views over DataLab-owned trace samples
+  - uses shared `kit_graph_timeseries` helpers for view computation, zoom,
+    hover inspection, plot draw command emission, and hover overlay drawing
+  - keeps profile semantics, cursor/control policy, session state, and SDL
+    command replay app-owned
 
 ## Verification Contract
 - Build/harness:
@@ -128,17 +137,24 @@ Last updated: 2026-06-14
   - `make -C datalab test-legacy`
 - Packaging/release lanes:
   - `make -C datalab package-desktop*`
+  - `make -C datalab release-artifact TARGET_ARCH=x86_64 BUILD_TOOLCHAIN=clang PACKAGE_TOOLCHAIN=clang`
   - `make -C datalab release-contract`
   - `make -C datalab release-bundle-audit`
   - `make -C datalab release-verify ...`
   - `make -C datalab release-distribute ...`
   - current public release evidence is refreshed for `0.2.0` under `build/release/`, including accepted notary output for the 2026-06-06 pass
+  - local Intel artifact generation now emits
+    `sCope-0.2.0-macOS-x86_64-stable.*` with ad-hoc signing and no
+    notarization requirement for local staging
 
 ## Current Boundary
 - Continue visualizer UX and profile rendering stability while validating the workspace-authoring host path.
-- Harden the shared `kit_ui` HUD row/SDL adapter through DataLab before
-  adapting the same rounded-button control chrome in another program; broader
-  picker/session-panel rounded-surface polish is intentionally later.
+- The bounded `kit_graph_timeseries` trace graph adoption is complete; broader
+  graph features such as panning, multi-series inspection, or style-aware hover
+  mapping should start as fresh scoped lanes when a concrete host need appears.
+- Harden the shared `kit_ui` HUD row/SDL adapter in a second program before
+  promoting broader app-agnostic action semantics; broader picker/session-panel
+  rounded-surface polish is intentionally later.
 - Keep data-path precedence and non-crashing load-failure behavior as hard constraints.
 - Treat the remaining runtime-coordination risk as a bounded integration lane rather than broad mode drift across the core visualizer/runtime modes.
 - Treat the remaining GUI/session/authoring risk as concentrated in higher-order loop integration and edge-case runtime coordination rather than the authoring key-routing, session-mouse seam, profile-specific control paths, basic raster-viewport reset path, core render/wait policy seam, or panel-switching handoff seam.
