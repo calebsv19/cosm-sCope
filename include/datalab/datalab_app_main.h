@@ -36,6 +36,7 @@ typedef struct DatalabAppRuntime {
     char recent_input_roots[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP];
     size_t recent_input_root_count;
     char selected_pack_path[DATALAB_APP_PATH_CAP];
+    char visual_artifact_path[DATALAB_APP_PATH_CAP];
     char last_load_error[256];
     DatalabFrame frame;
     DatalabFramePrefetchSlot prefetch_slots[DATALAB_FRAME_PREFETCH_SLOT_COUNT];

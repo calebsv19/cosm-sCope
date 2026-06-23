@@ -318,6 +318,163 @@ static int test_playback_speed_index_seeds_interval(void) {
     return 1;
 }
 
+static int test_requested_pack_path_helper_consumes_once(void) {
+    DatalabAppState state;
+    char consumed[DATALAB_APP_PATH_CAP];
+
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_IMAGE);
+    memset(consumed, 0, sizeof(consumed));
+
+    datalab_panel_request_pack_under_root(&state, "/tmp/root", "alpha.pack");
+    if (!datalab_test_assert(datalab_panel_consume_requested_pack_path(&state,
+                                                                       consumed,
+                                                                       sizeof(consumed)) == 1,
+                             "requested pack helper should consume an emitted path")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strcmp(consumed, "/tmp/root/alpha.pack") == 0,
+                             "requested pack helper should preserve the emitted path")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.panel_requested_pack_path[0] == '\0',
+                             "requested pack helper should clear app-state storage after consume")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_panel_consume_requested_pack_path(&state,
+                                                                       consumed,
+                                                                       sizeof(consumed)) == 0,
+                             "requested pack helper should not consume the same path twice")) {
+        return 0;
+    }
+    return 1;
+}
+
+static int test_input_root_child_join_rejects_non_child_names(void) {
+    char joined[DATALAB_APP_PATH_CAP];
+    char tiny[8];
+
+    memset(joined, 0, sizeof(joined));
+    if (!datalab_test_assert(datalab_input_root_join_child_file("/tmp/root",
+                                                               "alpha.pack",
+                                                               joined,
+                                                               sizeof(joined)) == 1,
+                             "child join should accept a direct file name")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strcmp(joined, "/tmp/root/alpha.pack") == 0,
+                             "child join should produce a root-contained path")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_input_root_join_child_file("/tmp/root",
+                                                               "../escape.pack",
+                                                               joined,
+                                                               sizeof(joined)) == 0,
+                             "child join should reject parent traversal")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_input_root_join_child_file("/tmp/root",
+                                                               "nested/escape.pack",
+                                                               joined,
+                                                               sizeof(joined)) == 0,
+                             "child join should reject slash-separated names")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_input_root_join_child_file("/tmp/root",
+                                                               "nested\\escape.pack",
+                                                               joined,
+                                                               sizeof(joined)) == 0,
+                             "child join should reject backslash-separated names")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_input_root_join_child_file("/tmp/root",
+                                                               "..",
+                                                               joined,
+                                                               sizeof(joined)) == 0,
+                             "child join should reject dot-dot as a filename")) {
+        return 0;
+    }
+    memset(tiny, 0, sizeof(tiny));
+    if (!datalab_test_assert(datalab_input_root_join_child_file("/tmp/root",
+                                                               "alpha.pack",
+                                                               tiny,
+                                                               sizeof(tiny)) == 0,
+                             "child join should reject truncated output paths")) {
+        return 0;
+    }
+    if (!datalab_test_assert(tiny[0] == '\0',
+                             "child join should clear truncated output paths")) {
+        return 0;
+    }
+    return 1;
+}
+
+static int test_panel_open_selected_rejects_non_child_cache_name(void) {
+    DatalabAppState state;
+    DatalabPackPanelCache cache;
+
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_IMAGE);
+    memset(&cache, 0, sizeof(cache));
+    cache.file_count = 1u;
+    datalab_test_cache_set_file(&cache, 0u, "../escape.pack");
+    state.panel_selected_index = 0u;
+    state.panel_open_selected_requested = 1;
+
+    datalab_panel_apply_state(&state, &cache, "/tmp/root", 0, 60u);
+    if (!datalab_test_assert(state.panel_open_selected_requested == 0,
+                             "rejected non-child open request should still clear the request flag")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.panel_requested_pack_path[0] == '\0',
+                             "rejected non-child cache file should not emit a requested path")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strstr(cache.status, "outside input root") != NULL,
+                             "rejected non-child cache file should leave an actionable panel status")) {
+        return 0;
+    }
+    return 1;
+}
+
+static int test_supported_file_scan_status_is_actionable(void) {
+    DatalabSupportedFileScanResult scan;
+    char status[160];
+
+    memset(&scan, 0, sizeof(scan));
+    memset(status, 0, sizeof(status));
+    scan.root_unavailable = 1;
+    datalab_format_supported_file_scan_status(&scan,
+                                              "/tmp/missing-root",
+                                              "press O to reselect",
+                                              status,
+                                              sizeof(status));
+    if (!datalab_test_assert(strstr(status, "input root unavailable: /tmp/missing-root") != NULL,
+                             "root-unavailable status should include the unavailable root")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strstr(status, "press O to reselect") != NULL,
+                             "root-unavailable status should include recovery action")) {
+        return 0;
+    }
+
+    memset(&scan, 0, sizeof(scan));
+    memset(status, 0, sizeof(status));
+    scan.invalid_request = 1;
+    datalab_format_supported_file_scan_status(&scan,
+                                              "",
+                                              "choose folder",
+                                              status,
+                                              sizeof(status));
+    if (!datalab_test_assert(strstr(status, "invalid file scan request") != NULL,
+                             "invalid-scan status should identify the request problem")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strstr(status, "root=(empty)") != NULL,
+                             "invalid-scan status should include bounded root context")) {
+        return 0;
+    }
+    return 1;
+}
+
 int main(void) {
     if (!test_empty_root_resets_panel_state()) {
         return 1;
@@ -341,6 +498,18 @@ int main(void) {
         return 1;
     }
     if (!test_playback_speed_index_seeds_interval()) {
+        return 1;
+    }
+    if (!test_requested_pack_path_helper_consumes_once()) {
+        return 1;
+    }
+    if (!test_input_root_child_join_rejects_non_child_names()) {
+        return 1;
+    }
+    if (!test_panel_open_selected_rejects_non_child_cache_name()) {
+        return 1;
+    }
+    if (!test_supported_file_scan_status_is_actionable()) {
         return 1;
     }
     puts("datalab panel policy contract test passed");

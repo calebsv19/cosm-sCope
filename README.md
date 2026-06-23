@@ -100,8 +100,23 @@ make -C datalab clean && make -C datalab
 make -C datalab test
 make -C datalab run-headless-smoke
 make -C datalab visual-harness
+make -C datalab visual-artifact
 make -C datalab test-stable
 ```
+
+`visual-artifact` is the one-command source-render demo proof. It runs the
+default sample pack with `SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software`,
+writes `datalab/visual_artifacts/datalab_first_frame.bmp`, checks the file is
+nonempty, and finishes with:
+
+```text
+visual artifact ready: visual_artifacts/datalab_first_frame.bmp
+```
+
+`visual_artifacts/` is ignored local proof output. `visual-harness` remains only
+a build/readiness/manual-validation gate, `run-headless-smoke` proves
+load/summary/wrapper behavior, and `package-desktop-self-test` proves packaged
+launcher/runtime boundaries.
 
 `test-stable` now includes an app-contract lane for key non-GUI runtime modes:
 - headless `--no-gui` without `--pack` must fail

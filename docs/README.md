@@ -12,6 +12,9 @@ Start here for public repository documentation.
   recent-directories behavior, bottom playback HUD controls, theme-cycle keys,
   edge-wrapping file navigation, shared trace graph rendering, and the
   multi-arch macOS package artifact contract.
+- DataLab's R0-R6 scaffold refinement pass is complete. The R6 demo proof is
+  the source-render `visual-artifact` target, not the manual `visual-harness`
+  readiness gate.
 
 ## Verification Entry Points
 
@@ -21,6 +24,9 @@ Start here for public repository documentation.
 - `make -C datalab memory-check-audit`
 - `make -C datalab visual-harness`
   - manual/build-only readiness gate, not an unattended regression pass
+- `make -C datalab visual-artifact`
+  - source-render first-frame proof that writes
+    `visual_artifacts/datalab_first_frame.bmp` and prints the artifact path
 - `make -C datalab test-legacy`
 - `make -C datalab package-desktop-self-test`
 
@@ -53,6 +59,8 @@ Start here for public repository documentation.
   - font/theme takeover with persisted custom theme slots
 - local `macOS-x86_64` package artifact generation and staging are available
   for Intel Mac validation
+- R0-R6 refinement is closed at the current source-render visual proof
+  boundary; choose a fresh DataLab lane before reopening implementation work
 
 ## Private Planning Docs
 

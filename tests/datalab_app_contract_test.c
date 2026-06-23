@@ -7,11 +7,35 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <SDL2/SDL.h>
+
+#include "app/datalab_app_internal.h"
+#include "app/datalab_runtime_prefs.h"
 #include "datalab/datalab_app_main.h"
+#include "data/input_file_loader.h"
+#include "render/render_view.h"
+#include "render/render_view_internal.h"
 
 #ifndef DATALAB_TEST_DEFAULT_PACK
 #define DATALAB_TEST_DEFAULT_PACK ""
 #endif
+
+static int g_wrapper_lifecycle_dispatch_calls = 0;
+static const DatalabAppRuntime *g_wrapper_lifecycle_runtime = NULL;
+
+static int datalab_test_wrapper_lifecycle_dispatch(const DatalabDispatchRequest *request,
+                                                   DatalabDispatchOutcome *outcome) {
+    if (!request || !request->runtime || !outcome) {
+        return 1;
+    }
+    ++g_wrapper_lifecycle_dispatch_calls;
+    g_wrapper_lifecycle_runtime = request->runtime;
+    memset(outcome, 0, sizeof(*outcome));
+    outcome->exit_code = 0;
+    outcome->dispatched = 1;
+    outcome->runtime_started = 1;
+    return 0;
+}
 
 static int datalab_test_mkdir_if_needed(const char *path) {
     if (!path || path[0] == '\0') {
@@ -37,6 +61,31 @@ static int datalab_test_write_text_file(const char *path, const char *text) {
         return 0;
     }
     fclose(fp);
+    return 1;
+}
+
+static int datalab_test_write_tiny_bmp(const char *path) {
+    SDL_Surface *surface = NULL;
+    uint32_t *pixels = NULL;
+    int pitch_pixels = 0;
+    if (!path) {
+        return 0;
+    }
+    surface = SDL_CreateRGBSurfaceWithFormat(0, 2, 2, 32, SDL_PIXELFORMAT_RGBA32);
+    if (!surface) {
+        return 0;
+    }
+    pixels = (uint32_t *)surface->pixels;
+    pitch_pixels = surface->pitch / (int)sizeof(uint32_t);
+    pixels[0] = SDL_MapRGBA(surface->format, 255u, 0u, 0u, 255u);
+    pixels[1] = SDL_MapRGBA(surface->format, 0u, 255u, 0u, 255u);
+    pixels[pitch_pixels] = SDL_MapRGBA(surface->format, 0u, 0u, 255u, 255u);
+    pixels[pitch_pixels + 1] = SDL_MapRGBA(surface->format, 255u, 255u, 0u, 255u);
+    if (SDL_SaveBMP(surface, path) != 0) {
+        SDL_FreeSurface(surface);
+        return 0;
+    }
+    SDL_FreeSurface(surface);
     return 1;
 }
 
@@ -160,6 +209,114 @@ static int test_selected_pack_path_fallback(const char *default_pack) {
     return 1;
 }
 
+static int test_generated_bmp_load_path_and_state_seed(const char *temp_dir) {
+    DatalabFrame frame = {0};
+    DatalabAppRuntime runtime;
+    CoreResult result;
+    char bmp_path[PATH_MAX];
+    char *argv[] = { (char *)"datalab", (char *)"--pack", bmp_path, (char *)"--no-gui" };
+
+    snprintf(bmp_path, sizeof(bmp_path), "%s/tiny_fixture.bmp", temp_dir);
+    if (!datalab_test_write_tiny_bmp(bmp_path)) {
+        fprintf(stderr, "contract: failed to create bmp fixture: %s\n", SDL_GetError());
+        return 0;
+    }
+
+    result = datalab_load_input_file(bmp_path, &frame);
+    if (!datalab_test_assert(result.code == CORE_OK, "generated bmp should load through input loader") ||
+        !datalab_test_assert(frame.profile == DATALAB_PROFILE_IMAGE, "generated bmp should seed image profile") ||
+        !datalab_test_assert(frame.width == 2u && frame.height == 2u, "generated bmp dimensions should load") ||
+        !datalab_test_assert(frame.logical_width == 2u && frame.logical_height == 2u,
+                             "generated bmp logical dimensions should match raster") ||
+        !datalab_test_assert(frame.drawing_rgba != NULL, "generated bmp should produce rgba pixels")) {
+        datalab_frame_free(&frame);
+        return 0;
+    }
+    datalab_frame_free(&frame);
+
+    datalab_app_runtime_init(&runtime);
+    if (!datalab_test_assert(datalab_app_bootstrap(4, argv, &runtime) == 0,
+                             "bootstrap failed for generated bmp")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_app_config_load(&runtime) == 0,
+                             "config load failed for generated bmp")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_app_state_seed(&runtime) == 0,
+                             "state seed failed for generated bmp")) {
+        datalab_app_shutdown(&runtime);
+        return 0;
+    }
+    if (!datalab_test_assert(runtime.frame_loaded == 1, "generated bmp should load a runtime frame") ||
+        !datalab_test_assert(runtime.frame.profile == DATALAB_PROFILE_IMAGE,
+                             "generated bmp runtime frame should use image profile") ||
+        !datalab_test_assert(runtime.frame.width == 2u && runtime.frame.height == 2u,
+                             "generated bmp runtime dimensions should load") ||
+        !datalab_test_assert(runtime.frame.drawing_rgba != NULL,
+                             "generated bmp runtime frame should own rgba pixels")) {
+        datalab_app_shutdown(&runtime);
+        return 0;
+    }
+    datalab_app_shutdown(&runtime);
+    return 1;
+}
+
+static int test_wrapper_lifecycle_stub_dispatch_and_shutdown(void) {
+    DatalabAppRuntime runtime;
+    DatalabAppContext ctx;
+    int rc = 0;
+
+    datalab_app_runtime_init(&runtime);
+    runtime.no_gui = 1;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.runtime = &runtime;
+    ctx.stage = DATALAB_APP_STAGE_STATE_SEEDED;
+    ctx.runtime_dispatch = datalab_test_wrapper_lifecycle_dispatch;
+    ctx.wrapper_error = DATALAB_WRAPPER_ERROR_NONE;
+    ctx.ownership.bootstrap_owned = 1;
+    ctx.ownership.config_owned = 1;
+    ctx.ownership.state_seed_owned = 1;
+
+    g_wrapper_lifecycle_dispatch_calls = 0;
+    g_wrapper_lifecycle_runtime = NULL;
+    rc = datalab_app_run_loop_ctx(&ctx);
+    if (!datalab_test_assert(rc == 0, "stub dispatch wrapper run loop should succeed") ||
+        !datalab_test_assert(g_wrapper_lifecycle_dispatch_calls == 1,
+                             "stub dispatch should be called exactly once") ||
+        !datalab_test_assert(g_wrapper_lifecycle_runtime == &runtime,
+                             "stub dispatch should receive runtime ownership") ||
+        !datalab_test_assert(ctx.stage == DATALAB_APP_STAGE_LOOP_COMPLETED,
+                             "stub dispatch should advance wrapper to loop completed") ||
+        !datalab_test_assert(ctx.dispatch_summary.dispatch_count == 1u,
+                             "wrapper dispatch summary should count handoff") ||
+        !datalab_test_assert(ctx.dispatch_summary.dispatch_succeeded == 1,
+                             "wrapper dispatch summary should mark success") ||
+        !datalab_test_assert(ctx.dispatch_summary.last_dispatch_exit_code == 0,
+                             "wrapper dispatch summary should record exit code") ||
+        !datalab_test_assert(ctx.wrapper_error == DATALAB_WRAPPER_ERROR_NONE,
+                             "successful stub dispatch should not set wrapper error") ||
+        !datalab_test_assert(ctx.ownership.dispatch_owned == 1 &&
+                             ctx.ownership.run_loop_handoff_owned == 1 &&
+                             ctx.ownership.runtime_owned == 1,
+                             "wrapper should own dispatch, handoff, and runtime before shutdown")) {
+        return 0;
+    }
+
+    datalab_app_shutdown_ctx(&ctx);
+    return datalab_test_assert(ctx.stage == DATALAB_APP_STAGE_SHUTDOWN_COMPLETED,
+                               "shutdown should mark wrapper stage complete") &&
+           datalab_test_assert(ctx.ownership.shutdown_owned == 1,
+                               "shutdown should mark shutdown ownership") &&
+           datalab_test_assert(ctx.ownership.bootstrap_owned == 0 &&
+                               ctx.ownership.config_owned == 0 &&
+                               ctx.ownership.state_seed_owned == 0 &&
+                               ctx.ownership.dispatch_owned == 0 &&
+                               ctx.ownership.run_loop_handoff_owned == 0 &&
+                               ctx.ownership.runtime_owned == 0,
+                               "shutdown should release earlier lifecycle ownership");
+}
+
 static int test_unsupported_extension_sets_bounded_error(const char *temp_dir) {
     DatalabAppRuntime runtime;
     char invalid_path[PATH_MAX];
@@ -181,6 +338,14 @@ static int test_unsupported_extension_sets_bounded_error(const char *temp_dir) {
     }
     if (!datalab_test_assert(strstr(runtime.last_load_error, "unsupported input file extension") != NULL,
                              "unsupported extension should preserve a clear loader error")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strstr(runtime.last_load_error, "input=invalid_input.txt") != NULL,
+                             "unsupported extension should include bounded input context")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strlen(runtime.last_load_error) < sizeof(runtime.last_load_error),
+                             "unsupported extension diagnostic should stay bounded")) {
         return 0;
     }
     return 1;
@@ -221,6 +386,213 @@ static int test_cli_input_root_precedence(const char *temp_dir) {
     return ok;
 }
 
+static int test_missing_prefs_stay_quiet(const char *temp_dir) {
+    DatalabAppRuntime runtime;
+    char previous_cwd[PATH_MAX];
+    char quiet_root[PATH_MAX];
+    char *argv[] = { (char *)"datalab" };
+    int ok = 0;
+
+    snprintf(quiet_root, sizeof(quiet_root), "%s/prefs_quiet", temp_dir);
+    if (!datalab_test_enter_temp_runtime_root(quiet_root, previous_cwd, sizeof(previous_cwd))) {
+        fprintf(stderr, "contract: failed to enter quiet prefs root\n");
+        return 0;
+    }
+
+    datalab_runtime_prefs_clear_diagnostic();
+    datalab_app_runtime_init(&runtime);
+    if (datalab_test_assert(datalab_app_bootstrap(1, argv, &runtime) == 0, "bootstrap failed for quiet prefs") &&
+        datalab_test_assert(datalab_app_config_load(&runtime) == 0, "config load failed for quiet prefs") &&
+        datalab_test_assert(datalab_runtime_prefs_last_diagnostic()[0] == '\0',
+                            "missing first-run prefs should not emit diagnostics")) {
+        ok = 1;
+    }
+
+    datalab_test_restore_cwd(previous_cwd);
+    return ok;
+}
+
+static int test_malformed_prefs_report_diagnostic(const char *temp_dir) {
+    int loaded_step = 0;
+    char previous_cwd[PATH_MAX];
+    char prefs_root[PATH_MAX];
+    char text_zoom_path[PATH_MAX];
+    int ok = 0;
+
+    snprintf(prefs_root, sizeof(prefs_root), "%s/prefs_malformed", temp_dir);
+    snprintf(text_zoom_path, sizeof(text_zoom_path), "%s/data/runtime/text_zoom_step.txt", prefs_root);
+    if (!datalab_test_enter_temp_runtime_root(prefs_root, previous_cwd, sizeof(previous_cwd))) {
+        fprintf(stderr, "contract: failed to enter malformed prefs root\n");
+        return 0;
+    }
+    if (!datalab_test_write_text_file(text_zoom_path, "not-a-number\n")) {
+        datalab_test_restore_cwd(previous_cwd);
+        fprintf(stderr, "contract: failed to write malformed prefs fixture\n");
+        return 0;
+    }
+
+    datalab_runtime_prefs_clear_diagnostic();
+    if (datalab_test_assert(datalab_runtime_prefs_load_text_zoom_step(&loaded_step) == 0,
+                            "malformed text zoom prefs should fail to load") &&
+        datalab_test_assert(strstr(datalab_runtime_prefs_last_diagnostic(), "prefs load failed") != NULL,
+                            "malformed prefs should report load diagnostic") &&
+        datalab_test_assert(strstr(datalab_runtime_prefs_last_diagnostic(), "text_zoom_step.txt") != NULL,
+                            "malformed prefs diagnostic should include bounded path context")) {
+        ok = 1;
+    }
+
+    datalab_test_restore_cwd(previous_cwd);
+    return ok;
+}
+
+static int test_prefs_save_failure_reports_diagnostic(const char *temp_dir) {
+    char previous_cwd[PATH_MAX];
+    char prefs_root[PATH_MAX];
+    char data_path[PATH_MAX];
+    int ok = 0;
+
+    snprintf(prefs_root, sizeof(prefs_root), "%s/prefs_save_failure", temp_dir);
+    snprintf(data_path, sizeof(data_path), "%s/data", prefs_root);
+    if (!datalab_test_mkdir_if_needed(prefs_root)) {
+        fprintf(stderr, "contract: failed to create prefs save root\n");
+        return 0;
+    }
+    if (!getcwd(previous_cwd, sizeof(previous_cwd))) {
+        return 0;
+    }
+    if (!datalab_test_write_text_file(data_path, "not a directory\n")) {
+        return 0;
+    }
+    if (chdir(prefs_root) != 0) {
+        return 0;
+    }
+
+    datalab_runtime_prefs_clear_diagnostic();
+    if (datalab_test_assert(datalab_runtime_prefs_save_text_zoom_step(2) == 0,
+                            "prefs save should fail when runtime directory cannot be created") &&
+        datalab_test_assert(strstr(datalab_runtime_prefs_last_diagnostic(), "prefs save failed") != NULL,
+                            "prefs save failure should report diagnostic") &&
+        datalab_test_assert(strstr(datalab_runtime_prefs_last_diagnostic(), "text_zoom_step.txt") != NULL,
+                            "prefs save diagnostic should include bounded path context")) {
+        ok = 1;
+    }
+
+    datalab_test_restore_cwd(previous_cwd);
+    return ok;
+}
+
+static int test_render_open_failure_reports_context(void) {
+    CoreResult result;
+    const DatalabRenderFailureDiagnostic *diag = NULL;
+    const char *summary = NULL;
+
+    datalab_render_clear_failure_diagnostic();
+    result = datalab_render_session_open(NULL);
+    diag = datalab_render_last_failure_diagnostic();
+    summary = datalab_render_last_failure_summary();
+
+    return datalab_test_assert(result.code == CORE_ERR_INVALID_ARG,
+                               "null render session open should fail") &&
+           datalab_test_assert(diag && strcmp(diag->stage, "session_open") == 0,
+                               "render open diagnostic should include stage") &&
+           datalab_test_assert(strcmp(diag->route, "validate") == 0,
+                               "render open diagnostic should include route") &&
+           datalab_test_assert(strcmp(diag->profile, "unknown") == 0,
+                               "render open diagnostic should include unknown profile") &&
+           datalab_test_assert(diag->result_code == CORE_ERR_INVALID_ARG,
+                               "render open diagnostic should include result code") &&
+           datalab_test_assert(strstr(diag->detail, "invalid render session request") != NULL,
+                               "render open diagnostic should include bounded detail") &&
+           datalab_test_assert(summary && strstr(summary, "stage=session_open") != NULL,
+                               "render open summary should include stage") &&
+           datalab_test_assert(strstr(summary, "route=validate") != NULL,
+                               "render open summary should include route") &&
+           datalab_test_assert(strlen(summary) < 256u,
+                               "render open summary should stay bounded");
+}
+
+static int test_render_submit_failure_reports_context(void) {
+    DatalabFrame frame;
+    DatalabAppState state;
+    CoreResult result;
+    const DatalabRenderFailureDiagnostic *diag = NULL;
+    const char *summary = NULL;
+    float density[4] = { 0.0f, 0.1f, 0.2f, 0.3f };
+    float velx[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float vely[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+    datalab_frame_init(&frame);
+    frame.profile = DATALAB_PROFILE_PHYSICS;
+    frame.width = 2u;
+    frame.height = 2u;
+    frame.density = density;
+    frame.velx = velx;
+    frame.vely = vely;
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_PHYSICS);
+
+    datalab_render_clear_failure_diagnostic();
+    result = datalab_render_run_with_session(NULL, &frame, &state);
+    diag = datalab_render_last_failure_diagnostic();
+    summary = datalab_render_last_failure_summary();
+
+    return datalab_test_assert(result.code == CORE_ERR_INVALID_ARG,
+                               "null render submit session should fail") &&
+           datalab_test_assert(diag && strcmp(diag->stage, "render_submit") == 0,
+                               "render submit diagnostic should include stage") &&
+           datalab_test_assert(strcmp(diag->route, "session_state") == 0,
+                               "render submit diagnostic should include route") &&
+           datalab_test_assert(strcmp(diag->profile, "physics") == 0,
+                               "render submit diagnostic should include profile") &&
+           datalab_test_assert(diag->result_code == CORE_ERR_INVALID_ARG,
+                               "render submit diagnostic should include result code") &&
+           datalab_test_assert(strstr(diag->detail, "render session is not open") != NULL,
+                               "render submit diagnostic should include bounded detail") &&
+           datalab_test_assert(summary && strstr(summary, "stage=render_submit") != NULL,
+                               "render submit summary should include stage") &&
+           datalab_test_assert(strstr(summary, "route=session_state") != NULL,
+                               "render submit summary should include route") &&
+           datalab_test_assert(strstr(summary, "profile=physics") != NULL,
+                               "render submit summary should include profile") &&
+           datalab_test_assert(strlen(summary) < 256u,
+                               "render submit summary should stay bounded");
+}
+
+static int test_bmp_bounds_reject_oversized_inputs(void) {
+    CoreResult result;
+    size_t row_bytes = 0u;
+    size_t image_bytes = 0u;
+
+    result = datalab_input_image_bounds(32u, 16u, &row_bytes, &image_bytes);
+    if (!datalab_test_assert(result.code == CORE_OK, "ordinary bmp bounds should pass") ||
+        !datalab_test_assert(row_bytes == 128u, "ordinary bmp row bytes should be exact") ||
+        !datalab_test_assert(image_bytes == 2048u, "ordinary bmp image bytes should be exact")) {
+        return 0;
+    }
+
+    result = datalab_input_image_bounds(0u, 16u, &row_bytes, &image_bytes);
+    if (!datalab_test_assert(result.code == CORE_ERR_FORMAT, "zero-width bmp should fail bounds")) {
+        return 0;
+    }
+
+    result = datalab_input_image_bounds(DATALAB_INPUT_IMAGE_MAX_DIMENSION + 1u,
+                                        16u,
+                                        &row_bytes,
+                                        &image_bytes);
+    if (!datalab_test_assert(result.code == CORE_ERR_FORMAT, "oversized bmp width should fail bounds")) {
+        return 0;
+    }
+
+    result = datalab_input_image_bounds(DATALAB_INPUT_IMAGE_MAX_DIMENSION,
+                                        DATALAB_INPUT_IMAGE_MAX_DIMENSION,
+                                        &row_bytes,
+                                        &image_bytes);
+    if (!datalab_test_assert(result.code == CORE_ERR_FORMAT, "oversized bmp pixel count should fail bounds")) {
+        return 0;
+    }
+
+    return 1;
+}
+
 int main(void) {
     char temp_dir[PATH_MAX];
     const char *default_pack = DATALAB_TEST_DEFAULT_PACK;
@@ -239,10 +611,34 @@ int main(void) {
     if (!test_selected_pack_path_fallback(default_pack)) {
         return 1;
     }
+    if (!test_generated_bmp_load_path_and_state_seed(temp_dir)) {
+        return 1;
+    }
+    if (!test_wrapper_lifecycle_stub_dispatch_and_shutdown()) {
+        return 1;
+    }
     if (!test_unsupported_extension_sets_bounded_error(temp_dir)) {
         return 1;
     }
     if (!test_cli_input_root_precedence(temp_dir)) {
+        return 1;
+    }
+    if (!test_missing_prefs_stay_quiet(temp_dir)) {
+        return 1;
+    }
+    if (!test_malformed_prefs_report_diagnostic(temp_dir)) {
+        return 1;
+    }
+    if (!test_prefs_save_failure_reports_diagnostic(temp_dir)) {
+        return 1;
+    }
+    if (!test_render_open_failure_reports_context()) {
+        return 1;
+    }
+    if (!test_render_submit_failure_reports_context()) {
+        return 1;
+    }
+    if (!test_bmp_bounds_reject_oversized_inputs()) {
         return 1;
     }
 

@@ -115,11 +115,8 @@ void datalab_panel_apply_state(DatalabAppState *app_state,
         cache->scanned_root[0] = '\0';
         cache->last_scan_ticks = 0u;
         snprintf(cache->status, sizeof(cache->status), "no input root selected (press O)");
-        app_state->panel_selected_index = 0u;
-        app_state->panel_selection_delta = 0;
-        app_state->panel_open_selected_requested = 0;
-        app_state->panel_requested_pack_path[0] = '\0';
-        app_state->playback_active = 0;
+        datalab_panel_reset_interaction_state(app_state);
+        datalab_playback_stop(app_state);
         return;
     }
 
@@ -133,7 +130,7 @@ void datalab_panel_apply_state(DatalabAppState *app_state,
     if (cache->file_count == 0u) {
         app_state->panel_selected_index = 0u;
         app_state->panel_selection_delta = 0;
-        app_state->playback_active = 0;
+        datalab_playback_stop(app_state);
     } else {
         int delta = app_state->panel_selection_delta;
         if (delta != 0) {
@@ -169,14 +166,15 @@ void datalab_panel_apply_state(DatalabAppState *app_state,
 
     if (app_state->panel_open_selected_requested) {
         app_state->panel_open_selected_requested = 0;
-        app_state->panel_requested_pack_path[0] = '\0';
         if (cache->file_count > 0u && app_state->panel_selected_index < cache->file_count) {
-            snprintf(app_state->panel_requested_pack_path,
-                     sizeof(app_state->panel_requested_pack_path),
-                     "%s/%s",
-                     root,
-                     cache->files[app_state->panel_selected_index]);
+            if (!datalab_panel_request_pack_under_root(app_state,
+                                                       root,
+                                                       cache->files[app_state->panel_selected_index])) {
+                snprintf(cache->status, sizeof(cache->status), "selected file is outside input root");
+                datalab_playback_stop(app_state);
+            }
         } else {
+            datalab_panel_request_pack_path(app_state, NULL);
             snprintf(cache->status, sizeof(cache->status), "no file selected");
         }
     }

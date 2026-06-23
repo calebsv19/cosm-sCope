@@ -5,6 +5,7 @@
 #include "app/datalab_runtime_pack.h"
 #include "app/datalab_runtime_prefs.h"
 #include "render/render_view.h"
+#include "render/render_view_internal.h"
 
 typedef struct DatalabRunLoopHandoffRequest {
     DatalabAppContext *ctx;
@@ -26,6 +27,7 @@ static int datalab_app_dispatch_finalize_ctx(DatalabAppContext *ctx, const Datal
 static int datalab_app_run_loop_handoff_ctx(const DatalabRunLoopHandoffRequest *request,
                                             DatalabRunLoopHandoffOutcome *outcome);
 static void datalab_app_release_ownership_ctx(DatalabAppContext *ctx);
+static void datalab_log_render_failure(const char *label, CoreResult result);
 
 void datalab_log_wrapper_error(const char *fn_name,
                                DatalabWrapperError wrapper_error,
@@ -39,6 +41,22 @@ void datalab_log_wrapper_error(const char *fn_name,
             (int)stage,
             exit_code,
             detail ? detail : "n/a");
+}
+
+static void datalab_log_render_failure(const char *label, CoreResult result) {
+    const char *summary = datalab_render_last_failure_summary();
+    if (summary && summary[0] != '\0') {
+        fprintf(stderr,
+                "datalab: %s failed: %s (%s)\n",
+                label ? label : "render",
+                result.message ? result.message : "unknown",
+                summary);
+        return;
+    }
+    fprintf(stderr,
+            "datalab: %s failed: %s\n",
+            label ? label : "render",
+            result.message ? result.message : "unknown");
 }
 
 int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app_state) {
@@ -88,10 +106,12 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                     goto cleanup;
                 }
                 runtime->last_load_error[0] = '\0';
-                datalab_recent_input_roots_add(runtime->recent_input_roots,
-                                               &runtime->recent_input_root_count,
-                                               DATALAB_RECENT_INPUT_ROOT_LIMIT,
-                                               runtime->input_root);
+                (void)datalab_input_root_select_recent(runtime->input_root,
+                                                       sizeof(runtime->input_root),
+                                                       runtime->recent_input_roots,
+                                                       &runtime->recent_input_root_count,
+                                                       DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                                       runtime->input_root);
                 runtime->pack_path = runtime->selected_pack_path;
             }
             if (!runtime->pack_path || runtime->pack_path[0] == '\0') {
@@ -102,10 +122,11 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             {
                 int load_rc = datalab_runtime_load_frame(runtime);
                 if (load_rc != 0) {
-                    snprintf(runtime->last_load_error,
-                             sizeof(runtime->last_load_error),
-                             "load failed: %s",
-                             runtime->last_load_error[0] ? runtime->last_load_error : "unsupported or invalid file");
+                    if (runtime->last_load_error[0] == '\0') {
+                        snprintf(runtime->last_load_error,
+                                 sizeof(runtime->last_load_error),
+                                 "input load failed: unsupported or invalid file");
+                    }
                     runtime->pack_path = NULL;
                     runtime->selected_pack_path[0] = '\0';
                     datalab_frame_free(&runtime->frame);
@@ -121,13 +142,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             if (app_state) {
                 datalab_runtime_copy_to_app_state(runtime, app_state, 1);
                 if (picker_enter_authoring) {
-                    app_state->workspace_authoring_stub_active = 1;
-                    app_state->workspace_authoring_overlay_mode =
-                        DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
-                    app_state->workspace_authoring_pending_stub = 0u;
-                    app_state->workspace_authoring_entry_theme_preset_id =
-                        app_state->workspace_authoring_theme_preset_id;
-                    app_state->workspace_authoring_entry_count += 1u;
+                    datalab_workspace_authoring_begin_takeover(app_state);
                     picker_enter_authoring = 0;
                 }
             }
@@ -136,10 +151,25 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
         if (!render_session) {
             run_r = datalab_render_session_open(&render_session);
             if (run_r.code != CORE_OK) {
-                fprintf(stderr, "datalab: render session failed: %s\n", run_r.message);
+                datalab_log_render_failure("render session", run_r);
                 exit_code = 4;
                 goto cleanup;
             }
+        }
+
+        if (runtime->visual_artifact_path[0] != '\0') {
+            run_r = datalab_render_capture_first_frame(render_session,
+                                                       &runtime->frame,
+                                                       app_state,
+                                                       runtime->visual_artifact_path);
+            if (run_r.code != CORE_OK) {
+                datalab_log_render_failure("visual artifact", run_r);
+                exit_code = 4;
+                goto cleanup;
+            }
+            printf("visual-artifact: %s\n", runtime->visual_artifact_path);
+            exit_code = 0;
+            goto cleanup;
         }
 
         run_r = datalab_render_run_with_session(render_session, &runtime->frame, app_state);
@@ -157,26 +187,26 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
         datalab_runtime_prefs_save_input_root(runtime->input_root);
         datalab_runtime_prefs_save_recent_input_roots(runtime->recent_input_roots, runtime->recent_input_root_count);
         if (run_r.code != CORE_OK) {
-            fprintf(stderr, "datalab: render failed: %s\n", run_r.message);
+            datalab_log_render_failure("render", run_r);
             exit_code = 4;
             goto cleanup;
         }
-        if (app_state && app_state->panel_requested_pack_path[0] != '\0') {
-            snprintf(runtime->selected_pack_path,
-                     sizeof(runtime->selected_pack_path),
-                     "%s",
-                     app_state->panel_requested_pack_path);
+        if (app_state &&
+            datalab_panel_consume_requested_pack_path(app_state,
+                                                      runtime->selected_pack_path,
+                                                      sizeof(runtime->selected_pack_path))) {
             runtime->pack_path = runtime->selected_pack_path;
-            app_state->panel_requested_pack_path[0] = '\0';
         } else if (app_state && app_state->open_picker_requested) {
             datalab_render_session_close(render_session);
             render_session = NULL;
             runtime->pack_path = NULL;
             app_state->open_picker_requested = 0;
-            datalab_recent_input_roots_add(runtime->recent_input_roots,
-                                           &runtime->recent_input_root_count,
-                                           DATALAB_RECENT_INPUT_ROOT_LIMIT,
-                                           runtime->input_root);
+            (void)datalab_input_root_select_recent(runtime->input_root,
+                                                   sizeof(runtime->input_root),
+                                                   runtime->recent_input_roots,
+                                                   &runtime->recent_input_root_count,
+                                                   DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                                   runtime->input_root);
         } else {
             exit_code = 0;
             goto cleanup;

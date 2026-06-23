@@ -127,6 +127,7 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                                               int ww,
                                               int wh);
 const char *datalab_overlay_theme_name(DatalabWorkspaceAuthoringThemePreset preset);
+DatalabWorkspaceAuthoringThemePreset datalab_overlay_theme_preset_clamp(int value);
 void datalab_overlay_theme_palette(DatalabWorkspaceAuthoringThemePreset preset,
                                    const DatalabWorkspaceCustomTheme *custom_theme,
                                    DatalabAuthoringThemePalette *out_palette);

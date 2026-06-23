@@ -40,6 +40,9 @@ release-bundle-audit: release-build
 	case "$$runtime_dir" in *"/Contents/Resources"*) echo "runtime dir incorrectly points into app bundle: $$runtime_dir"; exit 1;; esac
 	@input_root="$$(/usr/bin/grep '^DATALAB_INPUT_ROOT=' "$(RELEASE_DIR)/print_config.txt" | /usr/bin/cut -d= -f2-)"; \
 	case "$$input_root" in *"/Contents/Resources"*) echo "input root incorrectly points into app bundle: $$input_root"; exit 1;; esac
+	@! find "$(PACKAGE_RESOURCES_DIR)/data/runtime" -type f -print -quit | /usr/bin/grep -q . || (echo "Packaged runtime defaults contain repo-local files"; exit 1)
+	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --self-test > "$(RELEASE_DIR)/launcher_self_test.txt"
+	@! rg -q '/Contents/Resources|/Users/|args=' "$(RELEASE_DIR)/launcher_self_test.txt" || (echo "Launcher self-test leaked private paths"; exit 1)
 	@echo "release-bundle-audit passed."
 
 release-sign: release-bundle-audit
@@ -178,6 +181,7 @@ release-distribute: release-artifact
 	@echo "release-distribute passed."
 
 release-desktop-refresh: release-distribute
+	@"$(PACKAGE_APP_RM_GUARD)" "$(DESKTOP_APP_DIR)" "$(PACKAGE_APP_NAME)" desktop
 	@mkdir -p "$$(dirname "$(DESKTOP_APP_DIR)")"
 	@rm -rf "$(DESKTOP_APP_DIR)"
 	@cp -R "$(PACKAGE_APP_DIR)" "$(DESKTOP_APP_DIR)"

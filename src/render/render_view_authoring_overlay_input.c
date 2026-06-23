@@ -136,7 +136,7 @@ static int datalab_overlay_apply_top_button(KitWorkspaceAuthoringOverlayButtonId
             return 0;
     }
 
-    (void)datalab_workspace_authoring_dispatch_action(app_state, action_id);
+    (void)datalab_workspace_authoring_dispatch_action_for_route(app_state, action_id, "mouse.top_button");
     return 1;
 }
 

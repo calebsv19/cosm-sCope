@@ -190,6 +190,43 @@ static int test_daw_view_mode_contract(void) {
     return 1;
 }
 
+static int test_trace_render_state_helper_contract(void) {
+    DatalabAppState state;
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_TRACE);
+
+    state.trace_cursor_index = (size_t)-1;
+    datalab_trace_clamp_cursor_to_count(&state, 4u);
+    if (!datalab_test_assert(state.trace_cursor_index == 3u,
+                             "trace clamp should resolve sentinel end to the last sample")) {
+        return 0;
+    }
+
+    state.trace_cursor_index = 99u;
+    datalab_trace_clamp_cursor_to_count(&state, 5u);
+    if (!datalab_test_assert(state.trace_cursor_index == 4u,
+                             "trace clamp should bound oversized cursor to the last sample")) {
+        return 0;
+    }
+
+    state.trace_lane_visibility_index = 0u;
+    state.trace_lane_cycle_requested = 1;
+    datalab_trace_apply_lane_cycle(&state, 2u);
+    if (!datalab_test_assert(state.trace_lane_visibility_index == 1u &&
+                             state.trace_lane_cycle_requested == 0,
+                             "trace lane cycle should advance and clear the request")) {
+        return 0;
+    }
+
+    state.trace_lane_visibility_index = 9u;
+    state.trace_lane_cycle_requested = 0;
+    datalab_trace_apply_lane_cycle(&state, 2u);
+    if (!datalab_test_assert(state.trace_lane_visibility_index == 0u,
+                             "trace lane cycle helper should reset out-of-range visibility")) {
+        return 0;
+    }
+    return 1;
+}
+
 int main(void) {
     if (!test_trace_profile_navigation_and_toggle_contract()) {
         return 1;
@@ -201,6 +238,9 @@ int main(void) {
         return 1;
     }
     if (!test_daw_view_mode_contract()) {
+        return 1;
+    }
+    if (!test_trace_render_state_helper_contract()) {
         return 1;
     }
     puts("datalab profile interaction contract test passed");

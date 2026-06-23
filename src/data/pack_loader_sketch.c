@@ -8,6 +8,10 @@
 
 enum {
     DATALAB_DRAWING_MAX_LAYERS = 16u,
+    DATALAB_DRAWING_MAX_DIMENSION = 16384u,
+    DATALAB_DRAWING_MAX_RASTER_SAMPLES = 67108864u,
+    DATALAB_DRAWING_MAX_OBJECTS = 65536u,
+    DATALAB_DRAWING_MAX_CHUNK_BYTES = 268435456u,
     DATALAB_DRAWING_OBJECT_TYPE_RECT = 1u,
     DATALAB_DRAWING_OBJECT_TYPE_ELLIPSE = 2u,
     DATALAB_DRAWING_PALETTE_COUNT = 8u,
@@ -239,6 +243,80 @@ static int datalab_drawing_sample_is_transparent(uint32_t sample) {
     return (((sample >> 24u) & 0xffu) == 0u) ? 1 : 0;
 }
 
+static int datalab_drawing_u64_fits_size(uint64_t value) {
+    return value <= (uint64_t)SIZE_MAX;
+}
+
+static CoreResult datalab_drawing_checked_chunk_size(uint64_t size, size_t *out_size) {
+    if (!out_size) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid drawing chunk size request" };
+    }
+    *out_size = 0u;
+    if (size > DATALAB_DRAWING_MAX_CHUNK_BYTES || !datalab_drawing_u64_fits_size(size)) {
+        return (CoreResult){ CORE_ERR_FORMAT, "drawing chunk exceeds safety limit" };
+    }
+    *out_size = (size_t)size;
+    return core_result_ok();
+}
+
+static CoreResult datalab_drawing_checked_raster_bounds(const DrawingDocumentMetadataCanonical *document,
+                                                        size_t *out_sample_count,
+                                                        size_t *out_rgba_size) {
+    uint64_t sample_count64 = 0u;
+    if (!document || !out_sample_count || !out_rgba_size) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid drawing bounds request" };
+    }
+    *out_sample_count = 0u;
+    *out_rgba_size = 0u;
+    if (document->layer_count == 0u ||
+        document->layer_count > DATALAB_DRAWING_MAX_LAYERS ||
+        document->raster_width == 0u ||
+        document->raster_height == 0u ||
+        document->raster_width > DATALAB_DRAWING_MAX_DIMENSION ||
+        document->raster_height > DATALAB_DRAWING_MAX_DIMENSION) {
+        return (CoreResult){ CORE_ERR_FORMAT, "invalid drawing snapshot bounds" };
+    }
+    sample_count64 = (uint64_t)document->raster_width * (uint64_t)document->raster_height;
+    if (sample_count64 == 0u ||
+        sample_count64 > DATALAB_DRAWING_MAX_RASTER_SAMPLES ||
+        document->raster_sample_count != sample_count64 ||
+        !datalab_drawing_u64_fits_size(sample_count64)) {
+        return (CoreResult){ CORE_ERR_FORMAT, "invalid drawing snapshot bounds" };
+    }
+    if ((size_t)sample_count64 > (SIZE_MAX / sizeof(uint32_t)) / (size_t)document->layer_count ||
+        (size_t)sample_count64 > SIZE_MAX / 4u) {
+        return (CoreResult){ CORE_ERR_FORMAT, "drawing snapshot allocation too large" };
+    }
+    *out_sample_count = (size_t)sample_count64;
+    *out_rgba_size = (size_t)sample_count64 * 4u;
+    return core_result_ok();
+}
+
+static CoreResult datalab_drawing_checked_object_chunk_shape(uint64_t payload_size,
+                                                            uint32_t object_count,
+                                                            size_t entry_size) {
+    uint64_t expected_entries = 0u;
+    uint64_t expected_size = 0u;
+    if (entry_size == 0u) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid drawing object entry size" };
+    }
+    if (object_count > DATALAB_DRAWING_MAX_OBJECTS) {
+        return (CoreResult){ CORE_ERR_FORMAT, "drawing object count exceeds safety limit" };
+    }
+    if ((uint64_t)object_count > (UINT64_MAX / (uint64_t)entry_size)) {
+        return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+    }
+    expected_entries = (uint64_t)object_count * (uint64_t)entry_size;
+    if (expected_entries > UINT64_MAX - sizeof(DrawingObjectChunkHeaderCanonical)) {
+        return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+    }
+    expected_size = sizeof(DrawingObjectChunkHeaderCanonical) + expected_entries;
+    if (payload_size != expected_size) {
+        return (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+    }
+    return core_result_ok();
+}
+
 static void datalab_drawing_rgba_from_sample(uint32_t sample,
                                              uint8_t *out_r,
                                              uint8_t *out_g,
@@ -463,24 +541,10 @@ CoreResult datalab_pack_loader_load_sketch_profile(CorePackReader *reader,
         layers = legacy.document.layers;
     }
 
-    if (!document ||
-        document->layer_count == 0u ||
-        document->layer_count > DATALAB_DRAWING_MAX_LAYERS ||
-        document->raster_width == 0u ||
-        document->raster_height == 0u ||
-        document->raster_sample_count == 0u ||
-        document->raster_sample_count != document->raster_width * document->raster_height) {
-        return (CoreResult){ CORE_ERR_FORMAT, "invalid drawing snapshot bounds" };
+    rr = datalab_drawing_checked_raster_bounds(document, &sample_count, &rgba_size);
+    if (rr.code != CORE_OK) {
+        return rr;
     }
-
-    sample_count = (size_t)document->raster_sample_count;
-    if (sample_count > (SIZE_MAX / sizeof(uint32_t)) / (size_t)document->layer_count) {
-        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "drawing snapshot allocation too large" };
-    }
-    if (sample_count > SIZE_MAX / 4u) {
-        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "drawing rgba allocation too large" };
-    }
-    rgba_size = sample_count * 4u;
 
     layer_storage = (uint32_t *)core_alloc(sample_count * (size_t)document->layer_count * sizeof(*layer_storage));
     composed_samples = (uint32_t *)core_alloc(sample_count * sizeof(*composed_samples));
@@ -537,8 +601,13 @@ CoreResult datalab_pack_loader_load_sketch_profile(CorePackReader *reader,
     memset(&dplr, 0, sizeof(dplr));
     rr = core_pack_reader_find_chunk(reader, "DPLR", 0u, &dplr);
     if (rr.code == CORE_OK) {
+        size_t layer_chunk_size = 0u;
         if (dplr.size < sizeof(layer_hdr)) {
             rr = (CoreResult){ CORE_ERR_FORMAT, "drawing layer chunk too small" };
+            goto cleanup;
+        }
+        rr = datalab_drawing_checked_chunk_size(dplr.size, &layer_chunk_size);
+        if (rr.code != CORE_OK) {
             goto cleanup;
         }
         memset(&layer_hdr, 0, sizeof(layer_hdr));
@@ -555,7 +624,7 @@ CoreResult datalab_pack_loader_load_sketch_profile(CorePackReader *reader,
             rr = (CoreResult){ CORE_ERR_FORMAT, "drawing layer chunk shape mismatch" };
             goto cleanup;
         }
-        layer_chunk_data = (uint8_t *)core_alloc((size_t)dplr.size);
+        layer_chunk_data = (uint8_t *)core_alloc(layer_chunk_size);
         if (!layer_chunk_data) {
             rr = (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "out of memory" };
             goto cleanup;
@@ -566,7 +635,7 @@ CoreResult datalab_pack_loader_load_sketch_profile(CorePackReader *reader,
         }
         {
             const uint8_t *cursor = layer_chunk_data + sizeof(layer_hdr);
-            const uint8_t *end = layer_chunk_data + dplr.size;
+            const uint8_t *end = layer_chunk_data + layer_chunk_size;
             uint64_t bytes_per_sample = (layer_hdr.version == DATALAB_DRAWING_LAYER_RASTER_CHUNK_VERSION_V2)
                                             ? (uint64_t)sizeof(uint32_t)
                                             : 1u;
@@ -627,12 +696,17 @@ CoreResult datalab_pack_loader_load_sketch_profile(CorePackReader *reader,
     if (rr.code == CORE_OK) {
         uint8_t *object_chunk_data = NULL;
         DrawingObjectChunkHeaderCanonical object_hdr;
+        size_t object_chunk_size = 0u;
         memset(&object_hdr, 0, sizeof(object_hdr));
         if (dpob.size < sizeof(object_hdr)) {
             rr = (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk too small" };
             goto cleanup;
         }
-        object_chunk_data = (uint8_t *)core_alloc((size_t)dpob.size);
+        rr = datalab_drawing_checked_chunk_size(dpob.size, &object_chunk_size);
+        if (rr.code != CORE_OK) {
+            goto cleanup;
+        }
+        object_chunk_data = (uint8_t *)core_alloc(object_chunk_size);
         if (!object_chunk_data) {
             rr = (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "out of memory" };
             goto cleanup;
@@ -646,10 +720,9 @@ CoreResult datalab_pack_loader_load_sketch_profile(CorePackReader *reader,
         out_frame->drawing_object_count = object_hdr.object_count;
         if (object_hdr.version == DATALAB_DRAWING_OBJECT_CHUNK_VERSION_V1) {
             const uint8_t *cursor = object_chunk_data + sizeof(object_hdr);
-            const uint8_t *end = object_chunk_data + dpob.size;
             const size_t entry_size = sizeof(DrawingObjectChunkEntryV1Canonical);
-            if ((size_t)(end - cursor) != entry_size * (size_t)object_hdr.object_count) {
-                rr = (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+            rr = datalab_drawing_checked_object_chunk_shape(dpob.size, object_hdr.object_count, entry_size);
+            if (rr.code != CORE_OK) {
                 core_free(object_chunk_data);
                 goto cleanup;
             }
@@ -703,15 +776,14 @@ CoreResult datalab_pack_loader_load_sketch_profile(CorePackReader *reader,
                    object_hdr.version == DATALAB_DRAWING_OBJECT_CHUNK_VERSION_V3 ||
                    object_hdr.version == DATALAB_DRAWING_OBJECT_CHUNK_VERSION_V4) {
             const uint8_t *cursor = object_chunk_data + sizeof(object_hdr);
-            const uint8_t *end = object_chunk_data + dpob.size;
             size_t entry_size = sizeof(DrawingObjectChunkEntryV2Canonical);
             if (object_hdr.version == DATALAB_DRAWING_OBJECT_CHUNK_VERSION_V3) {
                 entry_size = sizeof(DrawingObjectChunkEntryV3Canonical);
             } else if (object_hdr.version == DATALAB_DRAWING_OBJECT_CHUNK_VERSION_V4) {
                 entry_size = sizeof(DrawingObjectChunkEntryV4Canonical);
             }
-            if ((size_t)(end - cursor) != entry_size * (size_t)object_hdr.object_count) {
-                rr = (CoreResult){ CORE_ERR_FORMAT, "drawing object chunk size mismatch" };
+            rr = datalab_drawing_checked_object_chunk_shape(dpob.size, object_hdr.object_count, entry_size);
+            if (rr.code != CORE_OK) {
                 core_free(object_chunk_data);
                 goto cleanup;
             }
@@ -900,4 +972,3 @@ cleanup:
     core_free(rgba);
     return rr;
 }
-

@@ -7,6 +7,15 @@
 #include "data/pack_loader_internal.h"
 #include "data/pack_loader_sketch.h"
 
+enum {
+    DATALAB_PACK_MAX_PHYSICS_CELLS = 67108864u,
+    DATALAB_PACK_MAX_DAW_POINTS = 16777216u,
+    DATALAB_PACK_MAX_DAW_MARKERS = 1048576u,
+    DATALAB_PACK_MAX_TRACE_SAMPLES = 4194304u,
+    DATALAB_PACK_MAX_TRACE_MARKERS = 1048576u,
+    DATALAB_PACK_MAX_MANIFEST_BYTES = 8388608u
+};
+
 typedef struct Vf2dHeaderCanonical {
     uint32_t version;
     uint32_t grid_w;
@@ -38,6 +47,22 @@ typedef struct TraceHeaderCanonical {
     uint64_t marker_count;
 } TraceHeaderCanonical;
 
+static int datalab_u64_fits_size(uint64_t value) {
+    return value <= (uint64_t)SIZE_MAX;
+}
+
+static CoreResult datalab_checked_float_byte_count(size_t value_count, size_t *out_bytes) {
+    if (!out_bytes) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid argument" };
+    }
+    *out_bytes = 0u;
+    if (value_count > SIZE_MAX / sizeof(float)) {
+        return (CoreResult){ CORE_ERR_FORMAT, "float field allocation too large" };
+    }
+    *out_bytes = value_count * sizeof(float);
+    return core_result_ok();
+}
+
 void datalab_frame_init(DatalabFrame *frame) {
     if (!frame) return;
     memset(frame, 0, sizeof(*frame));
@@ -68,7 +93,11 @@ static CoreResult read_float_chunk(CorePackReader *reader,
         return r;
     }
 
-    const size_t expected_bytes = expected_count * sizeof(float);
+    size_t expected_bytes = 0u;
+    CoreResult size_r = datalab_checked_float_byte_count(expected_count, &expected_bytes);
+    if (size_r.code != CORE_OK) {
+        return size_r;
+    }
     if (chunk->size != (uint64_t)expected_bytes) {
         CoreResult r = { CORE_ERR_FORMAT, "unexpected field chunk size" };
         return r;
@@ -103,8 +132,16 @@ static CoreResult read_marker_chunk(CorePackReader *reader,
         CoreResult r = { CORE_ERR_FORMAT, "invalid marker chunk size" };
         return r;
     }
+    if (!datalab_u64_fits_size(chunk->size)) {
+        CoreResult r = { CORE_ERR_FORMAT, "marker chunk too large" };
+        return r;
+    }
 
     size_t count = (size_t)(chunk->size / sizeof(DatalabDawMarker));
+    if (count > DATALAB_PACK_MAX_DAW_MARKERS) {
+        CoreResult r = { CORE_ERR_FORMAT, "marker count exceeds safety limit" };
+        return r;
+    }
     if (count == 0) {
         *out_markers = NULL;
         *out_count = 0;
@@ -133,6 +170,10 @@ CoreResult datalab_pack_loader_read_optional_manifest(CorePackReader *reader, Da
     CoreResult fj = core_pack_reader_find_chunk(reader, "JSON", 0, &json);
     if (fj.code != CORE_OK || json.size == 0) {
         return core_result_ok();
+    }
+    if (json.size > DATALAB_PACK_MAX_MANIFEST_BYTES || json.size > (uint64_t)(SIZE_MAX - 1u)) {
+        CoreResult r = { CORE_ERR_FORMAT, "manifest chunk exceeds safety limit" };
+        return r;
     }
 
     char *manifest = (char *)core_alloc((size_t)json.size + 1u);
@@ -183,7 +224,15 @@ static CoreResult load_physics_profile(CorePackReader *reader, const CorePackChu
     out_frame->cell_size = hdr.cell_size;
     out_frame->obstacle_mask_crc32 = hdr.obstacle_mask_crc32;
 
-    const size_t count = (size_t)out_frame->width * (size_t)out_frame->height;
+    uint64_t cell_count64 = (uint64_t)out_frame->width * (uint64_t)out_frame->height;
+    size_t count = 0u;
+    if (out_frame->width == 0u || out_frame->height == 0u ||
+        cell_count64 > DATALAB_PACK_MAX_PHYSICS_CELLS ||
+        !datalab_u64_fits_size(cell_count64)) {
+        CoreResult r = { CORE_ERR_FORMAT, "physics grid bounds exceed safety limit" };
+        return r;
+    }
+    count = (size_t)cell_count64;
 
     CorePackChunkInfo dens;
     CorePackChunkInfo velx;
@@ -243,7 +292,8 @@ static CoreResult load_daw_profile(CorePackReader *reader, const CorePackChunkIn
     out_frame->end_frame = hdr.end_frame;
     out_frame->project_duration_frames = hdr.project_duration_frames;
 
-    if (hdr.point_count == 0) {
+    if (hdr.point_count == 0 || hdr.point_count > DATALAB_PACK_MAX_DAW_POINTS ||
+        !datalab_u64_fits_size(hdr.point_count)) {
         CoreResult r = { CORE_ERR_FORMAT, "invalid daw point count" };
         return r;
     }
@@ -301,6 +351,14 @@ static CoreResult load_trace_profile(CorePackReader *reader, const CorePackChunk
 
     out_frame->profile = DATALAB_PROFILE_TRACE;
     out_frame->trace_version = hdr.trace_profile_version;
+    if (hdr.sample_count > DATALAB_PACK_MAX_TRACE_SAMPLES ||
+        hdr.marker_count > DATALAB_PACK_MAX_TRACE_MARKERS ||
+        !datalab_u64_fits_size(hdr.sample_count) ||
+        !datalab_u64_fits_size(hdr.marker_count)) {
+        CoreResult r = { CORE_ERR_FORMAT, "trace counts exceed safety limit" };
+        return r;
+    }
+
     out_frame->trace_sample_count = (size_t)hdr.sample_count;
     out_frame->trace_marker_count = (size_t)hdr.marker_count;
 
@@ -310,7 +368,8 @@ static CoreResult load_trace_profile(CorePackReader *reader, const CorePackChunk
             CoreResult r = { CORE_ERR_NOT_FOUND, "required trace samples chunk missing" };
             return r;
         }
-        if (trsm.size != hdr.sample_count * sizeof(DatalabTraceSample)) {
+        if (hdr.sample_count > UINT64_MAX / sizeof(DatalabTraceSample) ||
+            trsm.size != hdr.sample_count * sizeof(DatalabTraceSample)) {
             CoreResult r = { CORE_ERR_FORMAT, "invalid trsm chunk size" };
             return r;
         }
@@ -331,7 +390,8 @@ static CoreResult load_trace_profile(CorePackReader *reader, const CorePackChunk
             CoreResult r = { CORE_ERR_NOT_FOUND, "required trace marker chunk missing" };
             return r;
         }
-        if (trev.size != hdr.marker_count * sizeof(DatalabTraceMarker)) {
+        if (hdr.marker_count > UINT64_MAX / sizeof(DatalabTraceMarker) ||
+            trev.size != hdr.marker_count * sizeof(DatalabTraceMarker)) {
             CoreResult r = { CORE_ERR_FORMAT, "invalid trev chunk size" };
             return r;
         }

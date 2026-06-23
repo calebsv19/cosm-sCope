@@ -23,9 +23,11 @@ typedef struct DatalabWorkspaceAuthoringDiagState {
     uint64_t action_failures;
     uint64_t entry_chord_matches;
     uint64_t trigger_suppressed;
+    uint64_t route_sequence;
 } DatalabWorkspaceAuthoringDiagState;
 
 static DatalabWorkspaceAuthoringDiagState g_datalab_authoring_diag = {0};
+static DatalabWorkspaceAuthoringRouteDiagnostic g_datalab_authoring_route_diag = {0};
 
 static int datalab_env_flag_enabled(const char *name) {
     const char *value = NULL;
@@ -45,6 +47,54 @@ static int datalab_env_flag_enabled(const char *name) {
 
 static int datalab_sx4_diag_enabled(void) {
     return datalab_env_flag_enabled("DATALAB_SX4_DIAG");
+}
+
+static void datalab_authoring_copy_diag_text(char *dst, size_t dst_cap, const char *src) {
+    if (!dst || dst_cap == 0u) {
+        return;
+    }
+    (void)snprintf(dst, dst_cap, "%s", (src && src[0] != '\0') ? src : "none");
+}
+
+static void datalab_authoring_set_route_diag(const char *route,
+                                             const char *action,
+                                             const char *detail,
+                                             int result_code,
+                                             int consumed,
+                                             const DatalabAppState *before,
+                                             const DatalabAppState *after) {
+    DatalabWorkspaceAuthoringRouteDiagnostic diag;
+    memset(&diag, 0, sizeof(diag));
+    datalab_authoring_copy_diag_text(diag.route, sizeof(diag.route), route);
+    datalab_authoring_copy_diag_text(diag.action, sizeof(diag.action), action);
+    datalab_authoring_copy_diag_text(diag.detail, sizeof(diag.detail), detail);
+    diag.result_code = result_code;
+    diag.consumed = consumed ? 1u : 0u;
+    if (before) {
+        diag.active_before = before->workspace_authoring_stub_active ? 1u : 0u;
+        diag.pending_before = before->workspace_authoring_pending_stub ? 1u : 0u;
+        diag.overlay_before = before->workspace_authoring_overlay_mode;
+    }
+    if (after) {
+        diag.active_after = after->workspace_authoring_stub_active ? 1u : 0u;
+        diag.pending_after = after->workspace_authoring_pending_stub ? 1u : 0u;
+        diag.overlay_after = after->workspace_authoring_overlay_mode;
+    } else if (before) {
+        diag.active_after = diag.active_before;
+        diag.pending_after = diag.pending_before;
+        diag.overlay_after = diag.overlay_before;
+    }
+    g_datalab_authoring_diag.route_sequence += 1u;
+    diag.sequence = g_datalab_authoring_diag.route_sequence;
+    g_datalab_authoring_route_diag = diag;
+}
+
+const DatalabWorkspaceAuthoringRouteDiagnostic *datalab_workspace_authoring_last_route_diagnostic(void) {
+    return &g_datalab_authoring_route_diag;
+}
+
+void datalab_workspace_authoring_clear_route_diagnostic(void) {
+    memset(&g_datalab_authoring_route_diag, 0, sizeof(g_datalab_authoring_route_diag));
 }
 
 static uint32_t datalab_authoring_mod_bits_from_sdl(SDL_Keymod mods) {
@@ -123,44 +173,16 @@ static int datalab_authoring_layout_mode(const DatalabAppState *app_state) {
                : DATALAB_AUTHORING_LAYOUT_MODE_RUNTIME;
 }
 
-static uint8_t datalab_authoring_theme_preset_clamp(int value) {
-    if (value < (int)DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT) {
-        return (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT;
-    }
-    if (value > (int)DATALAB_WORKSPACE_AUTHORING_THEME_CUSTOM) {
-        return (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_CUSTOM;
-    }
-    return (uint8_t)value;
-}
-
 static int datalab_custom_theme_token_clamp(int value) {
-    if (value < 0) {
-        return 0;
-    }
-    if (value >= DATALAB_CUSTOM_THEME_TOKEN_COUNT) {
-        return DATALAB_CUSTOM_THEME_TOKEN_COUNT - 1;
-    }
-    return value;
+    return datalab_workspace_authoring_custom_theme_token_clamp(value);
 }
 
 static int datalab_custom_theme_channel_clamp(int value) {
-    if (value < 0) {
-        return 0;
-    }
-    if (value >= DATALAB_CUSTOM_THEME_CHANNEL_COUNT) {
-        return DATALAB_CUSTOM_THEME_CHANNEL_COUNT - 1;
-    }
-    return value;
+    return datalab_workspace_authoring_custom_theme_channel_clamp(value);
 }
 
 static int datalab_custom_theme_slot_clamp(int value) {
-    if (value < 0) {
-        return 0;
-    }
-    if (value >= DATALAB_CUSTOM_THEME_SLOT_COUNT) {
-        return DATALAB_CUSTOM_THEME_SLOT_COUNT - 1;
-    }
-    return value;
+    return datalab_workspace_authoring_custom_theme_slot_clamp(value);
 }
 
 static DatalabWorkspaceCustomTheme *datalab_custom_theme_active_slot_ptr(DatalabAppState *app_state) {
@@ -171,14 +193,6 @@ static DatalabWorkspaceCustomTheme *datalab_custom_theme_active_slot_ptr(Datalab
     slot_index = datalab_custom_theme_slot_clamp((int)app_state->workspace_authoring_custom_theme_active_slot);
     app_state->workspace_authoring_custom_theme_active_slot = (uint8_t)slot_index;
     return &app_state->workspace_authoring_custom_theme_slots[slot_index];
-}
-
-static void datalab_custom_theme_sync_from_slot(DatalabAppState *app_state) {
-    DatalabWorkspaceCustomTheme *slot_theme = datalab_custom_theme_active_slot_ptr(app_state);
-    if (!slot_theme) {
-        return;
-    }
-    app_state->workspace_authoring_custom_theme = *slot_theme;
 }
 
 static uint8_t *datalab_custom_theme_channel_ptr(DatalabWorkspaceCustomTheme *theme,
@@ -302,37 +316,6 @@ static int datalab_workspace_authoring_custom_theme_assist(DatalabAppState *app_
     return 1;
 }
 
-static void datalab_workspace_authoring_capture_entry_baseline(DatalabAppState *app_state) {
-    int slot_index = 0;
-    int selected_token = 0;
-    int selected_channel = 0;
-    if (!app_state) {
-        return;
-    }
-    slot_index = datalab_custom_theme_slot_clamp((int)app_state->workspace_authoring_custom_theme_active_slot);
-    app_state->workspace_authoring_custom_theme_active_slot = (uint8_t)slot_index;
-    datalab_custom_theme_sync_from_slot(app_state);
-    selected_token = datalab_custom_theme_token_clamp(
-        (int)app_state->workspace_authoring_custom_theme_selected_token);
-    selected_channel = datalab_custom_theme_channel_clamp(
-        (int)app_state->workspace_authoring_custom_theme_selected_channel);
-    app_state->workspace_authoring_custom_theme_selected_token = (uint8_t)selected_token;
-    app_state->workspace_authoring_custom_theme_selected_channel = (uint8_t)selected_channel;
-    app_state->workspace_authoring_entry_text_zoom_step = app_state->text_zoom_step;
-    app_state->workspace_authoring_entry_theme_preset_id =
-        datalab_authoring_theme_preset_clamp((int)app_state->workspace_authoring_theme_preset_id);
-    app_state->workspace_authoring_entry_custom_theme = app_state->workspace_authoring_custom_theme;
-    app_state->workspace_authoring_entry_custom_theme_active_slot = (uint8_t)slot_index;
-    memcpy(app_state->workspace_authoring_entry_custom_theme_slots,
-           app_state->workspace_authoring_custom_theme_slots,
-           sizeof(app_state->workspace_authoring_entry_custom_theme_slots));
-    memcpy(app_state->workspace_authoring_entry_custom_theme_slot_names,
-           app_state->workspace_authoring_custom_theme_slot_names,
-           sizeof(app_state->workspace_authoring_entry_custom_theme_slot_names));
-    app_state->workspace_authoring_entry_custom_theme_selected_token = (uint8_t)selected_token;
-    app_state->workspace_authoring_entry_custom_theme_selected_channel = (uint8_t)selected_channel;
-}
-
 static int datalab_authoring_reserved_key(KitWorkspaceAuthoringKey key) {
     switch (key) {
         case KIT_WORKSPACE_AUTHORING_KEY_H:
@@ -371,81 +354,6 @@ static int datalab_authoring_suppresses_session_key(SDL_Keycode key, DatalabProf
     }
 }
 
-static void datalab_workspace_authoring_cycle_overlay(DatalabAppState *app_state) {
-    if (!app_state) {
-        return;
-    }
-    if (app_state->workspace_authoring_overlay_mode == DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE) {
-        app_state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME;
-    } else {
-        app_state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
-    }
-    app_state->workspace_authoring_pending_stub = 1u;
-    app_state->workspace_authoring_overlay_cycle_count += 1u;
-}
-
-static void datalab_workspace_authoring_apply(DatalabAppState *app_state) {
-    if (!app_state) {
-        return;
-    }
-    app_state->workspace_authoring_pending_stub = 0u;
-    app_state->workspace_authoring_custom_theme_popup_open = 0u;
-    datalab_workspace_authoring_capture_entry_baseline(app_state);
-    app_state->workspace_authoring_apply_count += 1u;
-}
-
-static void datalab_workspace_authoring_cancel_and_exit(DatalabAppState *app_state) {
-    if (!app_state) {
-        return;
-    }
-    if (app_state->workspace_authoring_pending_stub) {
-        app_state->text_zoom_step = datalab_text_zoom_step_clamp(app_state->workspace_authoring_entry_text_zoom_step);
-        app_state->workspace_authoring_theme_preset_id =
-            datalab_authoring_theme_preset_clamp((int)app_state->workspace_authoring_entry_theme_preset_id);
-        app_state->workspace_authoring_custom_theme_active_slot =
-            (uint8_t)datalab_custom_theme_slot_clamp(
-                (int)app_state->workspace_authoring_entry_custom_theme_active_slot);
-        memcpy(app_state->workspace_authoring_custom_theme_slots,
-               app_state->workspace_authoring_entry_custom_theme_slots,
-               sizeof(app_state->workspace_authoring_custom_theme_slots));
-        memcpy(app_state->workspace_authoring_custom_theme_slot_names,
-               app_state->workspace_authoring_entry_custom_theme_slot_names,
-               sizeof(app_state->workspace_authoring_custom_theme_slot_names));
-        app_state->workspace_authoring_custom_theme = app_state->workspace_authoring_entry_custom_theme;
-        datalab_custom_theme_sync_from_slot(app_state);
-        datalab_set_text_zoom_step(app_state->text_zoom_step);
-    }
-    app_state->workspace_authoring_custom_theme_selected_token =
-        (uint8_t)datalab_custom_theme_token_clamp(
-            (int)app_state->workspace_authoring_entry_custom_theme_selected_token);
-    app_state->workspace_authoring_custom_theme_selected_channel =
-        (uint8_t)datalab_custom_theme_channel_clamp(
-            (int)app_state->workspace_authoring_entry_custom_theme_selected_channel);
-    app_state->workspace_authoring_pending_stub = 0u;
-    app_state->workspace_authoring_stub_active = 0;
-    app_state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
-    app_state->workspace_authoring_custom_theme_popup_open = 0u;
-    app_state->workspace_authoring_entry_chord_mask = 0u;
-    app_state->workspace_authoring_cancel_count += 1u;
-}
-
-static void datalab_workspace_authoring_toggle_mode(DatalabAppState *app_state) {
-    if (!app_state) {
-        return;
-    }
-    if (app_state->workspace_authoring_stub_active) {
-        datalab_workspace_authoring_cancel_and_exit(app_state);
-        return;
-    }
-    app_state->workspace_authoring_stub_active = 1;
-    app_state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
-    app_state->workspace_authoring_pending_stub = 0u;
-    app_state->workspace_authoring_custom_theme_popup_open = 0u;
-    datalab_workspace_authoring_capture_entry_baseline(app_state);
-    app_state->workspace_authoring_entry_count += 1u;
-    app_state->workspace_authoring_entry_chord_mask = 0u;
-}
-
 static CoreResult datalab_workspace_authoring_execute_action_callback(void *host_context,
                                                                       const char *action_id,
                                                                       uint32_t *io_selected_pane_id,
@@ -456,13 +364,21 @@ static CoreResult datalab_workspace_authoring_execute_action_callback(void *host
     }
 
     if (strcmp(action_id, "workspace.toggle_mode") == 0) {
-        datalab_workspace_authoring_toggle_mode(ctx->app_state);
+        if (ctx->app_state->workspace_authoring_stub_active) {
+            if (datalab_workspace_authoring_cancel_and_exit(ctx->app_state)) {
+                datalab_set_text_zoom_step(ctx->app_state->text_zoom_step);
+            }
+        } else {
+            datalab_workspace_authoring_begin_takeover(ctx->app_state);
+        }
     } else if (strcmp(action_id, "workspace.cycle_overlay") == 0) {
         datalab_workspace_authoring_cycle_overlay(ctx->app_state);
     } else if (strcmp(action_id, "workspace.apply") == 0) {
-        datalab_workspace_authoring_apply(ctx->app_state);
+        datalab_workspace_authoring_apply_takeover(ctx->app_state);
     } else if (strcmp(action_id, "workspace.cancel_or_quit") == 0) {
-        datalab_workspace_authoring_cancel_and_exit(ctx->app_state);
+        if (datalab_workspace_authoring_cancel_and_exit(ctx->app_state)) {
+            datalab_set_text_zoom_step(ctx->app_state->text_zoom_step);
+        }
     } else {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "unsupported datalab authoring action" };
     }
@@ -471,18 +387,29 @@ static CoreResult datalab_workspace_authoring_execute_action_callback(void *host
     return core_result_ok();
 }
 
-CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_state, const char *action_id) {
+CoreResult datalab_workspace_authoring_dispatch_action_for_route(DatalabAppState *app_state,
+                                                                 const char *action_id,
+                                                                 const char *route) {
     DatalabWorkspaceAuthoringActionContext ctx = {0};
     KitWorkspaceAuthoringActionHooks hooks = {0};
     uint32_t selected_stub = 0u;
     int pending_apply = 0;
     CoreResult result = core_result_ok();
+    DatalabAppState before_state;
 
     if (!app_state || !action_id) {
+        datalab_authoring_set_route_diag(route,
+                                         action_id,
+                                         "invalid dispatch request",
+                                         CORE_ERR_INVALID_ARG,
+                                         0,
+                                         app_state,
+                                         app_state);
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid datalab authoring dispatch request" };
     }
 
     g_datalab_authoring_diag.action_calls += 1u;
+    before_state = *app_state;
     ctx.app_state = app_state;
     hooks.execute_action = datalab_workspace_authoring_execute_action_callback;
 
@@ -498,10 +425,18 @@ CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_stat
     if (result.code != CORE_OK) {
         g_datalab_authoring_diag.action_failures += 1u;
     }
+    datalab_authoring_set_route_diag(route,
+                                     action_id,
+                                     result.message,
+                                     result.code,
+                                     1,
+                                     &before_state,
+                                     app_state);
     if (datalab_sx4_diag_enabled()) {
         fprintf(stdout,
-                "[sx4-datalab] action=%s code=%d auth=%d overlay=%d pending=%u totals(action=%" PRIu64
+                "[sx4-datalab] route=%s action=%s code=%d auth=%d overlay=%d pending=%u totals(action=%" PRIu64
                 " fail=%" PRIu64 " chord=%" PRIu64 " suppress=%" PRIu64 ")\n",
+                g_datalab_authoring_route_diag.route,
                 action_id,
                 result.code,
                 app_state->workspace_authoring_stub_active,
@@ -513,6 +448,10 @@ CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_stat
                 g_datalab_authoring_diag.trigger_suppressed);
     }
     return result;
+}
+
+CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_state, const char *action_id) {
+    return datalab_workspace_authoring_dispatch_action_for_route(app_state, action_id, "direct");
 }
 
 void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
@@ -551,13 +490,25 @@ void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
     }
 
     if (kit_workspace_authoring_entry_chord_pressed(authoring_key, mod_bits, key_c_down, key_v_down)) {
+        DatalabAppState before_state = *app_state;
         g_datalab_authoring_diag.entry_chord_matches += 1u;
-        result = datalab_workspace_authoring_dispatch_action(app_state, "workspace.toggle_mode");
+        result = datalab_workspace_authoring_dispatch_action_for_route(app_state,
+                                                                       "workspace.toggle_mode",
+                                                                       "key.entry_chord");
         if (result.code == CORE_OK && datalab_authoring_is_active(app_state) && outcome) {
             outcome->entered_authoring = 1u;
         }
         if (outcome) {
             outcome->consumed = 1u;
+        }
+        if (result.code != CORE_OK) {
+            datalab_authoring_set_route_diag("key.entry_chord",
+                                             "workspace.toggle_mode",
+                                             result.message,
+                                             result.code,
+                                             1,
+                                             &before_state,
+                                             app_state);
         }
         return;
     }
@@ -568,7 +519,15 @@ void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
 
     if (app_state->workspace_authoring_custom_theme_popup_open &&
         authoring_key == KIT_WORKSPACE_AUTHORING_KEY_ESCAPE) {
-        app_state->workspace_authoring_custom_theme_popup_open = 0u;
+        DatalabAppState before_state = *app_state;
+        (void)datalab_workspace_authoring_close_custom_theme_popup(app_state);
+        datalab_authoring_set_route_diag("key.popup",
+                                         "popup.close",
+                                         "closed custom theme popup",
+                                         CORE_OK,
+                                         1,
+                                         &before_state,
+                                         app_state);
         if (outcome) {
             outcome->consumed = 1u;
         }
@@ -657,10 +616,18 @@ void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
             action_id = "workspace.cancel_or_quit";
         }
         if (action_id) {
-            result = datalab_workspace_authoring_dispatch_action(app_state, action_id);
+            result = datalab_workspace_authoring_dispatch_action_for_route(app_state, action_id, "key.trigger");
             (void)result;
         } else {
+            DatalabAppState before_state = *app_state;
             g_datalab_authoring_diag.trigger_suppressed += 1u;
+            datalab_authoring_set_route_diag("key.suppressed",
+                                             trigger,
+                                             "unsupported active authoring trigger",
+                                             CORE_ERR_INVALID_ARG,
+                                             1,
+                                             &before_state,
+                                             app_state);
             if (datalab_sx4_diag_enabled()) {
                 fprintf(stdout,
                         "[sx4-datalab] trigger suppressed while active key=%d mods=0x%x count=%" PRIu64 "\n",
@@ -676,7 +643,15 @@ void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
     }
 
     if (datalab_authoring_reserved_key(authoring_key)) {
+        DatalabAppState before_state = *app_state;
         g_datalab_authoring_diag.trigger_suppressed += 1u;
+        datalab_authoring_set_route_diag("key.reserved",
+                                         "reserved",
+                                         "reserved authoring key suppressed",
+                                         CORE_OK,
+                                         1,
+                                         &before_state,
+                                         app_state);
         if (outcome) {
             outcome->consumed = 1u;
         }

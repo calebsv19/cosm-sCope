@@ -93,6 +93,21 @@ typedef struct DatalabWorkspaceAuthoringAdapterResult {
     uint8_t entered_authoring;
 } DatalabWorkspaceAuthoringAdapterResult;
 
+typedef struct DatalabWorkspaceAuthoringRouteDiagnostic {
+    char route[32];
+    char action[48];
+    char detail[96];
+    int result_code;
+    uint8_t consumed;
+    uint8_t active_before;
+    uint8_t active_after;
+    uint8_t pending_before;
+    uint8_t pending_after;
+    DatalabWorkspaceAuthoringOverlayMode overlay_before;
+    DatalabWorkspaceAuthoringOverlayMode overlay_after;
+    uint64_t sequence;
+} DatalabWorkspaceAuthoringRouteDiagnostic;
+
 typedef struct DatalabRenderDeriveFrame {
     char title[256];
 } DatalabRenderDeriveFrame;
@@ -107,6 +122,15 @@ typedef struct DatalabRenderDiagTotals {
     uint64_t submit_count;
     uint64_t present_count;
 } DatalabRenderDiagTotals;
+
+typedef struct DatalabRenderFailureDiagnostic {
+    char stage[32];
+    char route[48];
+    char profile[32];
+    char detail[128];
+    int result_code;
+    uint64_t sequence;
+} DatalabRenderFailureDiagnostic;
 
 typedef CoreResult (*DatalabLoopRenderStepFn)(SDL_Window *window,
                                               SDL_Renderer *renderer,
@@ -172,6 +196,12 @@ typedef struct DatalabPackPanelCache {
     char status[160];
 } DatalabPackPanelCache;
 
+typedef struct DatalabSupportedFileScanResult {
+    size_t file_count;
+    int invalid_request;
+    int root_unavailable;
+} DatalabSupportedFileScanResult;
+
 int datalab_ir1_diag_enabled(void);
 int datalab_rs1_diag_enabled(void);
 int datalab_loop_compute_wait_timeout_ms(const DatalabLoopWaitPolicyInput *input);
@@ -186,6 +216,22 @@ uint32_t datalab_loop_compute_render_reason_bits(const DatalabLoopBoundarySignal
                                                  uint32_t now_ticks);
 void datalab_session_controls_tick(DatalabAppState *app_state);
 size_t datalab_panel_find_active_index(const DatalabPackPanelCache *cache, const char *active_path);
+DatalabSupportedFileScanResult datalab_scan_supported_files(const char *root,
+                                                            char files[][DATALAB_APP_PATH_CAP],
+                                                            size_t max_files);
+void datalab_format_supported_file_count_status(size_t file_count, char *status, size_t status_cap);
+void datalab_format_supported_file_scan_status(const DatalabSupportedFileScanResult *scan,
+                                               const char *root,
+                                               const char *recovery_hint,
+                                               char *status,
+                                               size_t status_cap);
+int datalab_render_point_in_rect(const SDL_Rect *rect, int x, int y);
+int datalab_render_map_window_to_renderer_point(SDL_Window *window,
+                                                SDL_Renderer *renderer,
+                                                int window_x,
+                                                int window_y,
+                                                int *out_render_x,
+                                                int *out_render_y);
 void datalab_panel_apply_state(DatalabAppState *app_state,
                                DatalabPackPanelCache *cache,
                                const char *root,
@@ -208,6 +254,9 @@ CoreResult datalab_trace_graph_draw_shared(SDL_Renderer *renderer,
                                            float inspect_x,
                                            float inspect_y,
                                            KitGraphTsHover *out_hover);
+const DatalabRenderFailureDiagnostic *datalab_render_last_failure_diagnostic(void);
+void datalab_render_clear_failure_diagnostic(void);
+const char *datalab_render_last_failure_summary(void);
 
 void datalab_input_frame_begin(DatalabInputFrame *frame);
 void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event);
@@ -224,6 +273,11 @@ int datalab_playback_hud_route_mouse_event(SDL_Window *window,
                                            const SDL_Event *event,
                                            DatalabAppState *app_state);
 CoreResult datalab_workspace_authoring_dispatch_action(DatalabAppState *app_state, const char *action_id);
+CoreResult datalab_workspace_authoring_dispatch_action_for_route(DatalabAppState *app_state,
+                                                                 const char *action_id,
+                                                                 const char *route);
+const DatalabWorkspaceAuthoringRouteDiagnostic *datalab_workspace_authoring_last_route_diagnostic(void);
+void datalab_workspace_authoring_clear_route_diagnostic(void);
 
 void datalab_sync_text_zoom(const DatalabAppState *app_state);
 void datalab_set_text_zoom_step(int step);
@@ -284,11 +338,6 @@ void datalab_raster_viewport_derive_frame(SDL_Renderer *renderer,
                                           const DatalabFrame *frame,
                                           DatalabAppState *app_state,
                                           DatalabSketchRenderDeriveFrame *out_derive);
-void datalab_raster_viewport_sync_state(DatalabRasterViewportState *state,
-                                        int view_width,
-                                        int view_height,
-                                        uint32_t content_width,
-                                        uint32_t content_height);
 CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
                                              uint32_t content_width,
                                              uint32_t content_height,

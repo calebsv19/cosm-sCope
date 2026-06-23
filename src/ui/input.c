@@ -6,27 +6,6 @@ static int datalab_zoom_modifier_active(SDL_Keymod mods) {
     return ((mods & KMOD_CTRL) != 0) || ((mods & KMOD_GUI) != 0);
 }
 
-static uint8_t datalab_cycle_runtime_theme_preset(uint8_t current, int direction) {
-    int preset = (int)current;
-    const int first = (int)DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT;
-    const int last = (int)DATALAB_WORKSPACE_AUTHORING_THEME_GREYSCALE;
-    const int count = (last - first) + 1;
-    if (count <= 0) {
-        return (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
-    }
-    if (preset < first || preset > last) {
-        preset = (int)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
-    }
-    preset += (direction < 0) ? -1 : 1;
-    while (preset < first) {
-        preset += count;
-    }
-    while (preset > last) {
-        preset -= count;
-    }
-    return (uint8_t)preset;
-}
-
 static int datalab_map_window_to_renderer_point(SDL_Window *window,
                                                 SDL_Renderer *renderer,
                                                 int window_x,
@@ -80,17 +59,12 @@ int datalab_handle_mouse_event(SDL_Window *window,
             if (zoom_factor <= 0.0f) {
                 return 0;
             }
-            if (core_viewport2d_zoom_at_screen_anchor(&viewport_state->viewport,
-                                                      (float)render_x,
-                                                      (float)render_y,
-                                                      zoom_factor)
-                .code != CORE_OK) {
+            if (!datalab_raster_viewport_zoom_at_screen_anchor(viewport_state,
+                                                               render_x,
+                                                               render_y,
+                                                               zoom_factor)) {
                 return 0;
             }
-            viewport_state->fit_mode = 0;
-            viewport_state->reset_requested = 0;
-            viewport_state->valid = 1;
-            viewport_state->drag_active = 0;
             return 1;
         }
         case SDL_MOUSEBUTTONDOWN:
@@ -105,15 +79,12 @@ int datalab_handle_mouse_event(SDL_Window *window,
                                                       &render_y)) {
                 return 0;
             }
-            viewport_state->drag_active = 1;
-            viewport_state->last_mouse_x = render_x;
-            viewport_state->last_mouse_y = render_y;
-            return 1;
+            return datalab_raster_viewport_begin_drag(viewport_state, render_x, render_y);
         case SDL_MOUSEBUTTONUP:
             if (event->button.button != SDL_BUTTON_LEFT) {
                 return 0;
             }
-            viewport_state->drag_active = 0;
+            datalab_raster_viewport_end_drag(viewport_state);
             return 1;
         case SDL_MOUSEMOTION:
             if (!viewport_state->drag_active || (event->motion.state & SDL_BUTTON_LMASK) == 0 || !viewport_state->valid) {
@@ -127,19 +98,7 @@ int datalab_handle_mouse_event(SDL_Window *window,
                                                       &render_y)) {
                 return 0;
             }
-            if (core_viewport2d_pan_by(&viewport_state->viewport,
-                                       (float)(render_x - viewport_state->last_mouse_x),
-                                       (float)(render_y - viewport_state->last_mouse_y))
-                .code != CORE_OK) {
-                viewport_state->drag_active = 0;
-                return 0;
-            }
-            viewport_state->fit_mode = 0;
-            viewport_state->reset_requested = 0;
-            viewport_state->valid = 1;
-            viewport_state->last_mouse_x = render_x;
-            viewport_state->last_mouse_y = render_y;
-            return 1;
+            return datalab_raster_viewport_drag_to(viewport_state, render_x, render_y);
         default:
             return 0;
     }
@@ -152,8 +111,9 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
         switch (key->keysym.sym) {
             case SDLK_t:
                 state->workspace_authoring_theme_preset_id =
-                    datalab_cycle_runtime_theme_preset(state->workspace_authoring_theme_preset_id,
-                                                       ((key->keysym.mod & KMOD_SHIFT) != 0) ? -1 : 1);
+                    datalab_workspace_authoring_cycle_runtime_theme_preset(
+                        state->workspace_authoring_theme_preset_id,
+                        ((key->keysym.mod & KMOD_SHIFT) != 0) ? -1 : 1);
                 return;
             case SDLK_EQUALS:
             case SDLK_PLUS:
@@ -178,122 +138,70 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
             *quit = 1;
             break;
         case SDLK_1:
-            if (state->profile == DATALAB_PROFILE_DAW) {
-                state->view_mode = DATALAB_VIEW_SPEED; /* waveform */
-            } else {
-                state->view_mode = DATALAB_VIEW_DENSITY;
-            }
+            datalab_profile_select_view_slot(state, 1);
             break;
         case SDLK_2:
-            if (state->profile == DATALAB_PROFILE_DAW) {
-                state->view_mode = DATALAB_VIEW_DENSITY_VECTOR; /* waveform + markers */
-            } else {
-                state->view_mode = DATALAB_VIEW_SPEED;
-            }
+            datalab_profile_select_view_slot(state, 2);
             break;
         case SDLK_3:
-            if (state->profile == DATALAB_PROFILE_DAW) {
-                state->view_mode = DATALAB_VIEW_DENSITY; /* markers */
-            } else {
-                state->view_mode = DATALAB_VIEW_DENSITY_VECTOR;
-            }
+            datalab_profile_select_view_slot(state, 3);
             break;
         case SDLK_LEFTBRACKET:
-            if (state->profile == DATALAB_PROFILE_PHYSICS && state->vector_stride > 1) state->vector_stride--;
+            datalab_physics_adjust_vector_stride(state, -1);
             break;
         case SDLK_RIGHTBRACKET:
-            if (state->profile == DATALAB_PROFILE_PHYSICS && state->vector_stride < 64) state->vector_stride++;
+            datalab_physics_adjust_vector_stride(state, 1);
             break;
         case SDLK_LEFT:
-            if (state->profile == DATALAB_PROFILE_TRACE && state->trace_cursor_index > 0u) {
-                state->trace_cursor_index--;
+            if (state->profile == DATALAB_PROFILE_TRACE) {
+                datalab_trace_step_cursor(state, -1);
             } else if (state->profile == DATALAB_PROFILE_IMAGE) {
-                state->panel_selection_delta -= 1;
-                state->panel_open_selected_requested = 1;
+                datalab_panel_request_step(state, -1, 1);
             }
             break;
         case SDLK_RIGHT:
             if (state->profile == DATALAB_PROFILE_TRACE) {
-                state->trace_cursor_index++;
+                datalab_trace_step_cursor(state, 1);
             } else if (state->profile == DATALAB_PROFILE_IMAGE) {
-                state->panel_selection_delta += 1;
-                state->panel_open_selected_requested = 1;
+                datalab_panel_request_step(state, 1, 1);
             }
             break;
         case SDLK_HOME:
-            if (state->profile == DATALAB_PROFILE_TRACE) {
-                state->trace_cursor_index = 0u;
-            }
+            datalab_trace_set_cursor_home(state);
             break;
         case SDLK_END:
-            if (state->profile == DATALAB_PROFILE_TRACE) {
-                state->trace_cursor_index = (size_t)-1;
-            }
+            datalab_trace_set_cursor_end(state);
             break;
         case SDLK_z:
-            if (state->profile == DATALAB_PROFILE_TRACE) {
-                state->trace_zoom_stub += 0.25f;
-                if (state->trace_zoom_stub > 4.0f) state->trace_zoom_stub = 1.0f;
-            }
+            datalab_trace_cycle_zoom(state);
             break;
         case SDLK_x:
-            if (state->profile == DATALAB_PROFILE_TRACE) {
-                state->trace_selection_stub_active = !state->trace_selection_stub_active;
-            }
+            datalab_trace_toggle_selection(state);
             break;
         case SDLK_c:
-            if (state->profile == DATALAB_PROFILE_TRACE) {
-                state->trace_lane_cycle_requested = 1;
-            }
+            datalab_trace_request_lane_cycle(state);
             break;
         case SDLK_r:
-            state->vector_stride = 8;
-            state->vector_scale = 0.15f;
-            state->view_mode = (state->profile == DATALAB_PROFILE_DAW) ? DATALAB_VIEW_SPEED : DATALAB_VIEW_DENSITY;
-            state->trace_cursor_index = 0u;
-            state->trace_zoom_stub = 1.0f;
-            state->trace_selection_stub_active = 0;
-            state->trace_lane_visibility_index = 0u;
-            state->trace_lane_cycle_requested = 0;
-            state->panel_rescan_requested = 0;
-            state->panel_selection_delta = 0;
-            state->panel_open_selected_requested = 0;
-            state->panel_requested_pack_path[0] = '\0';
-            state->recent_input_root_dropdown_open = 0;
-            state->playback_active = 0;
-            state->playback_mode = DATALAB_PLAYBACK_MODE_LOOP;
-            state->playback_direction = 1;
-            state->playback_speed_index = DATALAB_PLAYBACK_SPEED_INDEX_DEFAULT;
-            state->playback_interval_ms =
-                datalab_playback_interval_for_speed_index(state->playback_speed_index);
-            state->playback_last_advance_ticks = 0u;
-            datalab_raster_viewport_request_reset(&state->raster_viewport);
+            datalab_app_state_reset_interactions(state);
             break;
         case SDLK_o:
-            state->recent_input_root_dropdown_open = 0;
-            state->open_picker_requested = 1;
+            datalab_app_state_request_picker(state);
             break;
         case SDLK_F5:
-            state->panel_rescan_requested = 1;
+            datalab_app_state_request_panel_rescan(state);
             break;
         case SDLK_u:
-            state->panel_selection_delta -= 1;
+            datalab_panel_request_step(state, -1, 0);
             break;
         case SDLK_j:
-            state->panel_selection_delta += 1;
+            datalab_panel_request_step(state, 1, 0);
             break;
         case SDLK_RETURN:
         case SDLK_KP_ENTER:
-            state->panel_open_selected_requested = 1;
+            datalab_panel_request_open_selected(state);
             break;
         case SDLK_SPACE:
-            state->playback_active = !state->playback_active;
-            if (state->playback_interval_ms == 0u) {
-                state->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
-            }
-            if (state->playback_active) {
-                state->playback_last_advance_ticks = SDL_GetTicks();
-            }
+            datalab_playback_toggle_active(state, SDL_GetTicks(), DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT);
             break;
         case SDLK_h:
             if (!state->workspace_authoring_stub_active) {

@@ -3,6 +3,7 @@
 /dist/
 /dist_*/
 /datalab
+/visual_artifacts/
 *.o
 *.d
 *.a

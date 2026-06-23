@@ -145,6 +145,51 @@ static int test_free_view_resize_preserves_manual_viewport(void) {
     return 1;
 }
 
+static int test_manual_zoom_and_drag_helpers_switch_to_free_view(void) {
+    DatalabRasterViewportState state;
+    datalab_raster_viewport_state_init(&state);
+    datalab_raster_viewport_sync_state(&state, 800, 600, 400u, 200u);
+
+    if (!datalab_test_assert(datalab_raster_viewport_zoom_at_screen_anchor(&state,
+                                                                           200,
+                                                                           150,
+                                                                           1.5f) == 1,
+                             "zoom helper should apply valid anchored zoom")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.fit_mode == 0 && state.reset_requested == 0 && state.drag_active == 0,
+                             "zoom helper should switch to free view and clear drag")) {
+        return 0;
+    }
+    if (!datalab_test_float_eq(state.viewport.zoom, 3.0f, 0.0001f, "zoom helper should use core viewport zoom")) {
+        return 0;
+    }
+
+    if (!datalab_test_assert(datalab_raster_viewport_begin_drag(&state, 100, 90) == 1,
+                             "begin drag helper should activate drag on valid viewport")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_raster_viewport_drag_to(&state, 130, 120) == 1,
+                             "drag helper should pan a valid active drag")) {
+        return 0;
+    }
+    if (!datalab_test_float_eq(state.viewport.pan_x, -70.0f, 0.0001f, "drag helper should pan x through core viewport")) {
+        return 0;
+    }
+    if (!datalab_test_float_eq(state.viewport.pan_y, 105.0f, 0.0001f, "drag helper should pan y through core viewport")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.last_mouse_x == 130 && state.last_mouse_y == 120,
+                             "drag helper should update the last pointer anchor")) {
+        return 0;
+    }
+    datalab_raster_viewport_end_drag(&state);
+    if (!datalab_test_assert(state.drag_active == 0, "end drag helper should clear drag state")) {
+        return 0;
+    }
+    return 1;
+}
+
 int main(void) {
     if (!test_request_reset_clears_drag_state()) {
         return 1;
@@ -156,6 +201,9 @@ int main(void) {
         return 1;
     }
     if (!test_free_view_resize_preserves_manual_viewport()) {
+        return 1;
+    }
+    if (!test_manual_zoom_and_drag_helpers_switch_to_free_view()) {
         return 1;
     }
     puts("datalab raster viewport contract test passed");

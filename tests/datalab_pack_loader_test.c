@@ -1,8 +1,10 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "core_pack.h"
 #include "data/pack_loader.h"
@@ -182,6 +184,25 @@ typedef struct DrawingObjectChunkEntryV4Disk {
     DrawingPathPointDisk path_points[128];
 } DrawingObjectChunkEntryV4Disk;
 
+static void make_test_temp_dir(char *out, size_t out_cap) {
+    int n = snprintf(out, out_cap, "/tmp/dl_pack_loader_XXXXXX");
+    assert(n > 0);
+    assert((size_t)n < out_cap);
+    assert(mkdtemp(out) != NULL);
+}
+
+static void make_test_fixture_path(char *out, size_t out_cap, const char *dir, const char *name) {
+    int n = snprintf(out, out_cap, "%s/%s", dir, name);
+    assert(n > 0);
+    assert((size_t)n < out_cap);
+}
+
+static void cleanup_test_fixture(const char *path) {
+    if (path != NULL && path[0] != '\0') {
+        (void)remove(path);
+    }
+}
+
 static uint32_t pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     return ((uint32_t)r << 16u) |
            ((uint32_t)g << 8u) |
@@ -283,6 +304,71 @@ static void write_trace_pack_with_unknown_chunk(const char *path) {
     assert(core_pack_writer_add_chunk(&w, "TRSM", samples, sizeof(samples)).code == CORE_OK);
     assert(core_pack_writer_add_chunk(&w, "TREV", markers, sizeof(markers)).code == CORE_OK);
     assert(core_pack_writer_add_chunk(&w, "UNKN", &unknown, sizeof(unknown)).code == CORE_OK);
+    assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
+static void write_physics_pack_with_huge_grid(const char *path) {
+    CorePackWriter w = {0};
+    CoreResult r = core_pack_writer_open(path, &w);
+    Vf2dHeaderCanonical hdr = {0};
+    assert(r.code == CORE_OK);
+    hdr.version = 2;
+    hdr.grid_w = UINT32_MAX;
+    hdr.grid_h = UINT32_MAX;
+    hdr.cell_size = 1.0f;
+    assert(core_pack_writer_add_chunk(&w, "VFHD", &hdr, sizeof(hdr)).code == CORE_OK);
+    assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
+static void write_daw_pack_with_huge_point_count(const char *path) {
+    CorePackWriter w = {0};
+    CoreResult r = core_pack_writer_open(path, &w);
+    DawHeaderCanonical hdr = {0};
+    assert(r.code == CORE_OK);
+    hdr.version = 1;
+    hdr.sample_rate = 48000u;
+    hdr.channels = 2u;
+    hdr.samples_per_pixel = 256u;
+    hdr.point_count = UINT64_MAX;
+    assert(core_pack_writer_add_chunk(&w, "DAWH", &hdr, sizeof(hdr)).code == CORE_OK);
+    assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
+static void write_trace_pack_with_huge_counts(const char *path) {
+    CorePackWriter w = {0};
+    CoreResult r = core_pack_writer_open(path, &w);
+    TraceHeaderCanonical hdr = {0};
+    assert(r.code == CORE_OK);
+    hdr.trace_profile_version = 1u;
+    hdr.sample_count = UINT64_MAX;
+    hdr.marker_count = UINT64_MAX;
+    assert(core_pack_writer_add_chunk(&w, "TRHD", &hdr, sizeof(hdr)).code == CORE_OK);
+    assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
+static void write_daw_pack_with_huge_manifest(const char *path) {
+    CorePackWriter w = {0};
+    CoreResult r = core_pack_writer_open(path, &w);
+    DawHeaderCanonical hdr = {0};
+    float wmin[1] = { -0.1f };
+    float wmax[1] = { 0.1f };
+    char *manifest = NULL;
+    size_t manifest_size = 9u * 1024u * 1024u;
+    assert(r.code == CORE_OK);
+    hdr.version = 1;
+    hdr.sample_rate = 48000u;
+    hdr.channels = 2u;
+    hdr.samples_per_pixel = 256u;
+    hdr.point_count = 1u;
+    manifest = (char *)malloc(manifest_size);
+    assert(manifest != NULL);
+    memset(manifest, 'x', manifest_size);
+    assert(core_pack_writer_add_chunk(&w, "DAWH", &hdr, sizeof(hdr)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "WMIN", wmin, sizeof(wmin)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "WMAX", wmax, sizeof(wmax)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "MRKS", NULL, 0u).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "JSON", manifest, (uint64_t)manifest_size).code == CORE_OK);
+    free(manifest);
     assert(core_pack_writer_close(&w).code == CORE_OK);
 }
 
@@ -495,18 +581,97 @@ static void write_sketch_true_color_pack(const char *path) {
     assert(core_pack_writer_close(&w).code == CORE_OK);
 }
 
+static void write_sketch_pack_with_huge_raster_bounds(const char *path) {
+    CorePackWriter w = {0};
+    DrawingSnapshotShellPrefixDisk shell;
+    CoreResult r = core_pack_writer_open(path, &w);
+    assert(r.code == CORE_OK);
+
+    memset(&shell, 0, sizeof(shell));
+    shell.header.version = 2u;
+    shell.header.schema_version = 4u;
+    shell.header.logical_width = 65536u;
+    shell.header.logical_height = 65536u;
+    shell.header.sample_density = 1u;
+    shell.header.layer_count = 1u;
+    shell.header.next_layer_id = 2u;
+    shell.header.raster_width = 65536u;
+    shell.header.raster_height = 65536u;
+    shell.header.raster_sample_count = 1u;
+    shell.layers[0].layer_id = 1u;
+    shell.layers[0].visible = 1u;
+
+    assert(core_pack_writer_add_chunk(&w, "DPS3", &shell, sizeof(shell)).code == CORE_OK);
+    assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
+static void write_sketch_pack_with_huge_object_count(const char *path) {
+    CorePackWriter w = {0};
+    DrawingSnapshotShellPrefixDisk shell;
+    DrawingObjectChunkHeaderDisk object_hdr = {0};
+    CoreResult r = core_pack_writer_open(path, &w);
+    assert(r.code == CORE_OK);
+
+    memset(&shell, 0, sizeof(shell));
+    shell.header.version = 2u;
+    shell.header.schema_version = 4u;
+    shell.header.logical_width = 4u;
+    shell.header.logical_height = 4u;
+    shell.header.sample_density = 1u;
+    shell.header.layer_count = 1u;
+    shell.header.next_layer_id = 2u;
+    shell.header.raster_width = 4u;
+    shell.header.raster_height = 4u;
+    shell.header.raster_sample_count = 16u;
+    shell.layers[0].layer_id = 1u;
+    shell.layers[0].visible = 1u;
+
+    object_hdr.version = 4u;
+    object_hdr.object_count = UINT32_MAX;
+
+    assert(core_pack_writer_add_chunk(&w, "DPS3", &shell, sizeof(shell)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&w, "DPOB", &object_hdr, sizeof(object_hdr)).code == CORE_OK);
+    assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
 int main(void) {
-    const char *physics_path = "/tmp/datalab_unknown_physics.pack";
-    const char *daw_path = "/tmp/datalab_unknown_daw.pack";
-    const char *trace_path = "/tmp/datalab_unknown_trace.pack";
-    const char *sketch_path = "/tmp/datalab_sketch_rects.pack";
-    const char *sketch_true_color_path = "/tmp/datalab_sketch_true_color.pack";
+    char fixture_dir[PATH_MAX];
+    char physics_path[PATH_MAX];
+    char daw_path[PATH_MAX];
+    char trace_path[PATH_MAX];
+    char sketch_path[PATH_MAX];
+    char sketch_true_color_path[PATH_MAX];
+    char huge_physics_path[PATH_MAX];
+    char huge_daw_path[PATH_MAX];
+    char huge_trace_path[PATH_MAX];
+    char huge_manifest_path[PATH_MAX];
+    char huge_sketch_raster_path[PATH_MAX];
+    char huge_sketch_objects_path[PATH_MAX];
+
+    make_test_temp_dir(fixture_dir, sizeof(fixture_dir));
+    make_test_fixture_path(physics_path, sizeof(physics_path), fixture_dir, "unknown_physics.pack");
+    make_test_fixture_path(daw_path, sizeof(daw_path), fixture_dir, "unknown_daw.pack");
+    make_test_fixture_path(trace_path, sizeof(trace_path), fixture_dir, "unknown_trace.pack");
+    make_test_fixture_path(sketch_path, sizeof(sketch_path), fixture_dir, "sketch_rects.pack");
+    make_test_fixture_path(sketch_true_color_path, sizeof(sketch_true_color_path), fixture_dir, "sketch_true_color.pack");
+    make_test_fixture_path(huge_physics_path, sizeof(huge_physics_path), fixture_dir, "huge_physics.pack");
+    make_test_fixture_path(huge_daw_path, sizeof(huge_daw_path), fixture_dir, "huge_daw.pack");
+    make_test_fixture_path(huge_trace_path, sizeof(huge_trace_path), fixture_dir, "huge_trace.pack");
+    make_test_fixture_path(huge_manifest_path, sizeof(huge_manifest_path), fixture_dir, "huge_manifest.pack");
+    make_test_fixture_path(huge_sketch_raster_path, sizeof(huge_sketch_raster_path), fixture_dir, "huge_sketch_raster.pack");
+    make_test_fixture_path(huge_sketch_objects_path, sizeof(huge_sketch_objects_path), fixture_dir, "huge_sketch_objects.pack");
 
     write_physics_pack_with_unknown_chunk(physics_path);
     write_daw_pack_with_unknown_chunk(daw_path);
     write_trace_pack_with_unknown_chunk(trace_path);
     write_sketch_pack(sketch_path);
     write_sketch_true_color_pack(sketch_true_color_path);
+    write_physics_pack_with_huge_grid(huge_physics_path);
+    write_daw_pack_with_huge_point_count(huge_daw_path);
+    write_trace_pack_with_huge_counts(huge_trace_path);
+    write_daw_pack_with_huge_manifest(huge_manifest_path);
+    write_sketch_pack_with_huge_raster_bounds(huge_sketch_raster_path);
+    write_sketch_pack_with_huge_object_count(huge_sketch_objects_path);
 
     DatalabFrame physics = {0};
     CoreResult r = datalab_load_pack(physics_path, &physics);
@@ -592,6 +757,44 @@ int main(void) {
         assert(sketch_true_color.drawing_rgba[object + 3u] == 255u);
     }
     datalab_frame_free(&sketch_true_color);
+
+    DatalabFrame hostile = {0};
+    r = datalab_load_pack(huge_physics_path, &hostile);
+    assert(r.code == CORE_ERR_FORMAT);
+    datalab_frame_free(&hostile);
+
+    r = datalab_load_pack(huge_daw_path, &hostile);
+    assert(r.code == CORE_ERR_FORMAT);
+    datalab_frame_free(&hostile);
+
+    r = datalab_load_pack(huge_trace_path, &hostile);
+    assert(r.code == CORE_ERR_FORMAT);
+    datalab_frame_free(&hostile);
+
+    r = datalab_load_pack(huge_manifest_path, &hostile);
+    assert(r.code == CORE_ERR_FORMAT);
+    datalab_frame_free(&hostile);
+
+    r = datalab_load_pack(huge_sketch_raster_path, &hostile);
+    assert(r.code == CORE_ERR_FORMAT);
+    datalab_frame_free(&hostile);
+
+    r = datalab_load_pack(huge_sketch_objects_path, &hostile);
+    assert(r.code == CORE_ERR_FORMAT);
+    datalab_frame_free(&hostile);
+
+    cleanup_test_fixture(huge_sketch_objects_path);
+    cleanup_test_fixture(huge_sketch_raster_path);
+    cleanup_test_fixture(huge_manifest_path);
+    cleanup_test_fixture(huge_trace_path);
+    cleanup_test_fixture(huge_daw_path);
+    cleanup_test_fixture(huge_physics_path);
+    cleanup_test_fixture(sketch_true_color_path);
+    cleanup_test_fixture(sketch_path);
+    cleanup_test_fixture(trace_path);
+    cleanup_test_fixture(daw_path);
+    cleanup_test_fixture(physics_path);
+    (void)rmdir(fixture_dir);
 
     puts("datalab pack loader test passed");
     return 0;

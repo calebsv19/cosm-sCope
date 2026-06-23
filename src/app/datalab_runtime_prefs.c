@@ -18,6 +18,84 @@ static const char *k_datalab_custom_theme_path = "data/runtime/custom_theme_v1.t
 static const char *k_datalab_custom_theme_slots_path = "data/runtime/custom_theme_slots_v1.txt";
 static const char *k_datalab_custom_theme_slot_names_path = "data/runtime/custom_theme_slot_names_v1.txt";
 static const char *k_datalab_custom_theme_active_slot_path = "data/runtime/custom_theme_active_slot.txt";
+static char g_datalab_runtime_prefs_diagnostic[192];
+
+static int datalab_ensure_runtime_dirs(void);
+
+static const char *datalab_runtime_prefs_path_basename(const char *path) {
+    const char *last = NULL;
+    if (!path) {
+        return "(null)";
+    }
+    last = strrchr(path, '/');
+    return last ? last + 1 : path;
+}
+
+static void datalab_runtime_prefs_set_diagnostic(const char *operation,
+                                                 const char *path,
+                                                 const char *detail) {
+    (void)snprintf(g_datalab_runtime_prefs_diagnostic,
+                   sizeof(g_datalab_runtime_prefs_diagnostic),
+                   "prefs %s failed: %s (path=%s)",
+                   operation ? operation : "operation",
+                   detail ? detail : "unknown",
+                   datalab_runtime_prefs_path_basename(path));
+    fprintf(stderr, "datalab: %s\n", g_datalab_runtime_prefs_diagnostic);
+}
+
+static int datalab_runtime_prefs_open_for_load(const char *path, FILE **out_fp) {
+    FILE *fp = NULL;
+    int open_errno = 0;
+    if (!path || !out_fp) {
+        return 0;
+    }
+    *out_fp = NULL;
+    fp = fopen(path, "rb");
+    if (!fp) {
+        open_errno = errno;
+        if (open_errno != ENOENT) {
+            datalab_runtime_prefs_set_diagnostic("load", path, strerror(open_errno));
+        }
+        return 0;
+    }
+    *out_fp = fp;
+    return 1;
+}
+
+static FILE *datalab_runtime_prefs_open_for_save(const char *path) {
+    FILE *fp = NULL;
+    int open_errno = 0;
+    if (!datalab_ensure_runtime_dirs()) {
+        datalab_runtime_prefs_set_diagnostic("save", path, strerror(errno));
+        return NULL;
+    }
+    fp = fopen(path, "wb");
+    if (!fp) {
+        open_errno = errno;
+        datalab_runtime_prefs_set_diagnostic("save", path, strerror(open_errno));
+        return NULL;
+    }
+    return fp;
+}
+
+static int datalab_runtime_prefs_close_saved(FILE *fp, const char *path) {
+    if (!fp) {
+        return 0;
+    }
+    if (fclose(fp) != 0) {
+        datalab_runtime_prefs_set_diagnostic("save", path, strerror(errno));
+        return 0;
+    }
+    return 1;
+}
+
+static int datalab_runtime_prefs_write_ok(int write_rc, FILE *fp, const char *path) {
+    if (write_rc < 0 || ferror(fp)) {
+        datalab_runtime_prefs_set_diagnostic("save", path, "write failed");
+        return 0;
+    }
+    return 1;
+}
 
 static uint8_t datalab_theme_preset_clamp(int value) {
     if (value < (int)DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT) {
@@ -198,6 +276,14 @@ static int datalab_ensure_runtime_dirs(void) {
     return 1;
 }
 
+const char *datalab_runtime_prefs_last_diagnostic(void) {
+    return g_datalab_runtime_prefs_diagnostic;
+}
+
+void datalab_runtime_prefs_clear_diagnostic(void) {
+    g_datalab_runtime_prefs_diagnostic[0] = '\0';
+}
+
 void datalab_normalize_input_root_path(char *path, size_t path_cap) {
     size_t len = 0u;
     if (!path || path_cap == 0u) {
@@ -249,6 +335,34 @@ void datalab_recent_input_roots_add(char paths[][DATALAB_APP_PATH_CAP],
     *io_count = (write_idx <= path_capacity) ? write_idx : path_capacity;
 }
 
+int datalab_input_root_select_recent(char *io_input_root,
+                                     size_t input_root_cap,
+                                     char recent_paths[][DATALAB_APP_PATH_CAP],
+                                     size_t *io_recent_count,
+                                     size_t recent_capacity,
+                                     const char *path) {
+    char normalized[DATALAB_APP_PATH_CAP];
+    if (!io_input_root || input_root_cap == 0u || !recent_paths ||
+        !io_recent_count || recent_capacity == 0u || !path || path[0] == '\0') {
+        return 0;
+    }
+    snprintf(normalized, sizeof(normalized), "%s", path);
+    datalab_normalize_input_root_path(normalized, sizeof(normalized));
+    if (normalized[0] == '\0') {
+        return 0;
+    }
+    snprintf(io_input_root, input_root_cap, "%s", normalized);
+    datalab_normalize_input_root_path(io_input_root, input_root_cap);
+    if (io_input_root[0] == '\0') {
+        return 0;
+    }
+    datalab_recent_input_roots_add(recent_paths,
+                                   io_recent_count,
+                                   recent_capacity,
+                                   io_input_root);
+    return 1;
+}
+
 int datalab_runtime_prefs_load_text_zoom_step(int *out_step) {
     FILE *fp;
     char line[64];
@@ -257,17 +371,18 @@ int datalab_runtime_prefs_load_text_zoom_step(int *out_step) {
     if (!out_step) {
         return 0;
     }
-    fp = fopen(k_datalab_text_zoom_step_path, "rb");
-    if (!fp) {
+    if (!datalab_runtime_prefs_open_for_load(k_datalab_text_zoom_step_path, &fp)) {
         return 0;
     }
     if (!fgets(line, sizeof(line), fp)) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_text_zoom_step_path, "missing text zoom step");
         fclose(fp);
         return 0;
     }
     fclose(fp);
     parsed = strtol(line, &end, 10);
     if (end == line) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_text_zoom_step_path, "invalid text zoom step");
         return 0;
     }
     *out_step = datalab_text_zoom_step_clamp((int)parsed);
@@ -282,11 +397,11 @@ int datalab_runtime_prefs_load_input_root(char *out_path, size_t out_cap) {
         return 0;
     }
     out_path[0] = '\0';
-    fp = fopen(k_datalab_input_root_path, "rb");
-    if (!fp) {
+    if (!datalab_runtime_prefs_open_for_load(k_datalab_input_root_path, &fp)) {
         return 0;
     }
     if (!fgets(line, sizeof(line), fp)) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_input_root_path, "missing input root");
         fclose(fp);
         return 0;
     }
@@ -295,6 +410,7 @@ int datalab_runtime_prefs_load_input_root(char *out_path, size_t out_cap) {
     line[len] = '\0';
     datalab_normalize_input_root_path(line, sizeof(line));
     if (line[0] == '\0') {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_input_root_path, "empty input root");
         return 0;
     }
     snprintf(out_path, out_cap, "%s", line);
@@ -311,8 +427,7 @@ int datalab_runtime_prefs_load_recent_input_roots(char out_paths[][DATALAB_APP_P
         return 0;
     }
     *out_count = 0u;
-    fp = fopen(k_datalab_recent_input_roots_path, "rb");
-    if (!fp) {
+    if (!datalab_runtime_prefs_open_for_load(k_datalab_recent_input_roots_path, &fp)) {
         return 0;
     }
     while (count < path_capacity && fgets(line, sizeof(line), fp)) {
@@ -328,6 +443,9 @@ int datalab_runtime_prefs_load_recent_input_roots(char out_paths[][DATALAB_APP_P
     fclose(fp);
     *out_count = count;
     datalab_recent_input_roots_compact(out_paths, out_count, path_capacity);
+    if (*out_count == 0u) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_recent_input_roots_path, "no valid recent input roots");
+    }
     return *out_count > 0u;
 }
 
@@ -339,17 +457,18 @@ int datalab_runtime_prefs_load_theme_preset_id(uint8_t *out_theme_preset_id) {
     if (!out_theme_preset_id) {
         return 0;
     }
-    fp = fopen(k_datalab_theme_preset_path, "rb");
-    if (!fp) {
+    if (!datalab_runtime_prefs_open_for_load(k_datalab_theme_preset_path, &fp)) {
         return 0;
     }
     if (!fgets(line, sizeof(line), fp)) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_theme_preset_path, "missing theme preset id");
         fclose(fp);
         return 0;
     }
     fclose(fp);
     parsed = strtol(line, &end, 10);
     if (end == line) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_theme_preset_path, "invalid theme preset id");
         return 0;
     }
     *out_theme_preset_id = datalab_theme_preset_clamp((int)parsed);
@@ -361,11 +480,11 @@ int datalab_runtime_prefs_load_custom_theme(DatalabWorkspaceCustomTheme *out_the
     if (!out_theme) {
         return 0;
     }
-    fp = fopen(k_datalab_custom_theme_path, "rb");
-    if (!fp) {
+    if (!datalab_runtime_prefs_open_for_load(k_datalab_custom_theme_path, &fp)) {
         return 0;
     }
     if (!datalab_scan_custom_theme(fp, out_theme)) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_custom_theme_path, "invalid custom theme");
         fclose(fp);
         return 0;
     }
@@ -379,12 +498,12 @@ int datalab_runtime_prefs_load_custom_theme_slots(DatalabWorkspaceCustomTheme *o
     if (!out_slots || slot_count < DATALAB_CUSTOM_THEME_SLOT_COUNT) {
         return 0;
     }
-    fp = fopen(k_datalab_custom_theme_slots_path, "rb");
-    if (!fp) {
+    if (!datalab_runtime_prefs_open_for_load(k_datalab_custom_theme_slots_path, &fp)) {
         return 0;
     }
     for (i = 0u; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
         if (!datalab_scan_custom_theme(fp, &out_slots[i])) {
+            datalab_runtime_prefs_set_diagnostic("load", k_datalab_custom_theme_slots_path, "invalid custom theme slots");
             fclose(fp);
             return 0;
         }
@@ -400,12 +519,12 @@ int datalab_runtime_prefs_load_custom_theme_slot_names(char out_names[][DATALAB_
     if (!out_names || slot_count < DATALAB_CUSTOM_THEME_SLOT_COUNT) {
         return 0;
     }
-    fp = fopen(k_datalab_custom_theme_slot_names_path, "rb");
-    if (!fp) {
+    if (!datalab_runtime_prefs_open_for_load(k_datalab_custom_theme_slot_names_path, &fp)) {
         return 0;
     }
     for (i = 0u; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
         if (!fgets(out_names[i], DATALAB_CUSTOM_THEME_NAME_CAP, fp)) {
+            datalab_runtime_prefs_set_diagnostic("load", k_datalab_custom_theme_slot_names_path, "missing custom theme slot name");
             fclose(fp);
             return 0;
         }
@@ -424,72 +543,71 @@ int datalab_runtime_prefs_load_custom_theme_active_slot(uint8_t *out_slot) {
     if (!out_slot) {
         return 0;
     }
-    fp = fopen(k_datalab_custom_theme_active_slot_path, "rb");
-    if (!fp) {
+    if (!datalab_runtime_prefs_open_for_load(k_datalab_custom_theme_active_slot_path, &fp)) {
         return 0;
     }
     if (!fgets(line, sizeof(line), fp)) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_custom_theme_active_slot_path, "missing custom theme active slot");
         fclose(fp);
         return 0;
     }
     fclose(fp);
     parsed = strtol(line, &end, 10);
     if (end == line) {
+        datalab_runtime_prefs_set_diagnostic("load", k_datalab_custom_theme_active_slot_path, "invalid custom theme active slot");
         return 0;
     }
     *out_slot = datalab_custom_theme_slot_clamp((int)parsed);
     return 1;
 }
 
-void datalab_runtime_prefs_save_text_zoom_step(int step) {
-    FILE *fp;
-    if (!datalab_ensure_runtime_dirs()) {
-        return;
-    }
-    fp = fopen(k_datalab_text_zoom_step_path, "wb");
+int datalab_runtime_prefs_save_text_zoom_step(int step) {
+    FILE *fp = datalab_runtime_prefs_open_for_save(k_datalab_text_zoom_step_path);
     if (!fp) {
-        return;
+        return 0;
     }
-    (void)fprintf(fp, "%d\n", datalab_text_zoom_step_clamp(step));
-    fclose(fp);
+    if (!datalab_runtime_prefs_write_ok(fprintf(fp, "%d\n", datalab_text_zoom_step_clamp(step)),
+                                        fp,
+                                        k_datalab_text_zoom_step_path)) {
+        fclose(fp);
+        return 0;
+    }
+    return datalab_runtime_prefs_close_saved(fp, k_datalab_text_zoom_step_path);
 }
 
-void datalab_runtime_prefs_save_input_root(const char *path) {
-    FILE *fp;
+int datalab_runtime_prefs_save_input_root(const char *path) {
+    FILE *fp = NULL;
     char normalized[DATALAB_APP_PATH_CAP];
     if (!path || path[0] == '\0') {
-        return;
+        return 0;
     }
     snprintf(normalized, sizeof(normalized), "%s", path);
     datalab_normalize_input_root_path(normalized, sizeof(normalized));
     if (normalized[0] == '\0') {
-        return;
+        return 0;
     }
-    if (!datalab_ensure_runtime_dirs()) {
-        return;
-    }
-    fp = fopen(k_datalab_input_root_path, "wb");
+    fp = datalab_runtime_prefs_open_for_save(k_datalab_input_root_path);
     if (!fp) {
-        return;
+        return 0;
     }
-    (void)fprintf(fp, "%s\n", normalized);
-    fclose(fp);
+    if (!datalab_runtime_prefs_write_ok(fprintf(fp, "%s\n", normalized), fp, k_datalab_input_root_path)) {
+        fclose(fp);
+        return 0;
+    }
+    return datalab_runtime_prefs_close_saved(fp, k_datalab_input_root_path);
 }
 
-void datalab_runtime_prefs_save_recent_input_roots(const char paths[][DATALAB_APP_PATH_CAP], size_t count) {
+int datalab_runtime_prefs_save_recent_input_roots(const char paths[][DATALAB_APP_PATH_CAP], size_t count) {
     FILE *fp = NULL;
     char normalized_paths[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP] = {{0}};
     size_t i = 0u;
     size_t normalized_count = 0u;
     if (!paths || count == 0u) {
-        return;
+        return 0;
     }
-    if (!datalab_ensure_runtime_dirs()) {
-        return;
-    }
-    fp = fopen(k_datalab_recent_input_roots_path, "wb");
+    fp = datalab_runtime_prefs_open_for_save(k_datalab_recent_input_roots_path);
     if (!fp) {
-        return;
+        return 0;
     }
     if (count > DATALAB_RECENT_INPUT_ROOT_LIMIT) {
         count = DATALAB_RECENT_INPUT_ROOT_LIMIT;
@@ -501,64 +619,76 @@ void datalab_runtime_prefs_save_recent_input_roots(const char paths[][DATALAB_AP
                                        paths[i]);
     }
     for (i = 0u; i < normalized_count; ++i) {
-        (void)fprintf(fp, "%s\n", normalized_paths[i]);
+        if (!datalab_runtime_prefs_write_ok(fprintf(fp, "%s\n", normalized_paths[i]),
+                                            fp,
+                                            k_datalab_recent_input_roots_path)) {
+            fclose(fp);
+            return 0;
+        }
     }
-    fclose(fp);
+    return datalab_runtime_prefs_close_saved(fp, k_datalab_recent_input_roots_path);
 }
 
-void datalab_runtime_prefs_save_theme_preset_id(uint8_t theme_preset_id) {
-    FILE *fp;
-    if (!datalab_ensure_runtime_dirs()) {
-        return;
-    }
-    fp = fopen(k_datalab_theme_preset_path, "wb");
+int datalab_runtime_prefs_save_theme_preset_id(uint8_t theme_preset_id) {
+    FILE *fp = datalab_runtime_prefs_open_for_save(k_datalab_theme_preset_path);
     if (!fp) {
-        return;
+        return 0;
     }
-    (void)fprintf(fp, "%u\n", (unsigned int)datalab_theme_preset_clamp((int)theme_preset_id));
-    fclose(fp);
+    if (!datalab_runtime_prefs_write_ok(fprintf(fp, "%u\n", (unsigned int)datalab_theme_preset_clamp((int)theme_preset_id)),
+                                        fp,
+                                        k_datalab_theme_preset_path)) {
+        fclose(fp);
+        return 0;
+    }
+    return datalab_runtime_prefs_close_saved(fp, k_datalab_theme_preset_path);
 }
 
-void datalab_runtime_prefs_save_custom_theme(const DatalabWorkspaceCustomTheme *theme) {
-    FILE *fp;
-    if (!datalab_ensure_runtime_dirs()) {
-        return;
-    }
-    fp = fopen(k_datalab_custom_theme_path, "wb");
+int datalab_runtime_prefs_save_custom_theme(const DatalabWorkspaceCustomTheme *theme) {
+    FILE *fp = datalab_runtime_prefs_open_for_save(k_datalab_custom_theme_path);
     if (!fp) {
-        return;
+        return 0;
     }
     datalab_write_custom_theme(fp, theme, 1);
-    fclose(fp);
+    if (ferror(fp)) {
+        datalab_runtime_prefs_set_diagnostic("save", k_datalab_custom_theme_path, "write failed");
+        fclose(fp);
+        return 0;
+    }
+    return datalab_runtime_prefs_close_saved(fp, k_datalab_custom_theme_path);
 }
 
-void datalab_runtime_prefs_save_custom_theme_slots(const DatalabWorkspaceCustomTheme *slots, size_t slot_count) {
+int datalab_runtime_prefs_save_custom_theme_slots(const DatalabWorkspaceCustomTheme *slots, size_t slot_count) {
     FILE *fp = NULL;
     size_t i = 0u;
-    if (!datalab_ensure_runtime_dirs() || !slots || slot_count < DATALAB_CUSTOM_THEME_SLOT_COUNT) {
-        return;
+    if (!slots || slot_count < DATALAB_CUSTOM_THEME_SLOT_COUNT) {
+        return 0;
     }
-    fp = fopen(k_datalab_custom_theme_slots_path, "wb");
+    fp = datalab_runtime_prefs_open_for_save(k_datalab_custom_theme_slots_path);
     if (!fp) {
-        return;
+        return 0;
     }
     for (i = 0u; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
         datalab_write_custom_theme(fp, &slots[i], 1);
+        if (ferror(fp)) {
+            datalab_runtime_prefs_set_diagnostic("save", k_datalab_custom_theme_slots_path, "write failed");
+            fclose(fp);
+            return 0;
+        }
     }
-    fclose(fp);
+    return datalab_runtime_prefs_close_saved(fp, k_datalab_custom_theme_slots_path);
 }
 
-void datalab_runtime_prefs_save_custom_theme_slot_names(const char names[][DATALAB_CUSTOM_THEME_NAME_CAP],
-                                                        size_t slot_count) {
+int datalab_runtime_prefs_save_custom_theme_slot_names(const char names[][DATALAB_CUSTOM_THEME_NAME_CAP],
+                                                       size_t slot_count) {
     FILE *fp = NULL;
     size_t i = 0u;
     char sanitized[DATALAB_CUSTOM_THEME_NAME_CAP];
-    if (!datalab_ensure_runtime_dirs() || !names || slot_count < DATALAB_CUSTOM_THEME_SLOT_COUNT) {
-        return;
+    if (!names || slot_count < DATALAB_CUSTOM_THEME_SLOT_COUNT) {
+        return 0;
     }
-    fp = fopen(k_datalab_custom_theme_slot_names_path, "wb");
+    fp = datalab_runtime_prefs_open_for_save(k_datalab_custom_theme_slot_names_path);
     if (!fp) {
-        return;
+        return 0;
     }
     for (i = 0u; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
         if (names[i][0] == '\0') {
@@ -567,20 +697,27 @@ void datalab_runtime_prefs_save_custom_theme_slot_names(const char names[][DATAL
             (void)snprintf(sanitized, sizeof(sanitized), "%s", names[i]);
             datalab_sanitize_custom_theme_name(sanitized, sizeof(sanitized), (int)i);
         }
-        (void)fprintf(fp, "%s\n", sanitized);
+        if (!datalab_runtime_prefs_write_ok(fprintf(fp, "%s\n", sanitized),
+                                            fp,
+                                            k_datalab_custom_theme_slot_names_path)) {
+            fclose(fp);
+            return 0;
+        }
     }
-    fclose(fp);
+    return datalab_runtime_prefs_close_saved(fp, k_datalab_custom_theme_slot_names_path);
 }
 
-void datalab_runtime_prefs_save_custom_theme_active_slot(uint8_t slot) {
+int datalab_runtime_prefs_save_custom_theme_active_slot(uint8_t slot) {
     FILE *fp = NULL;
-    if (!datalab_ensure_runtime_dirs()) {
-        return;
-    }
-    fp = fopen(k_datalab_custom_theme_active_slot_path, "wb");
+    fp = datalab_runtime_prefs_open_for_save(k_datalab_custom_theme_active_slot_path);
     if (!fp) {
-        return;
+        return 0;
     }
-    (void)fprintf(fp, "%u\n", (unsigned int)datalab_custom_theme_slot_clamp((int)slot));
-    fclose(fp);
+    if (!datalab_runtime_prefs_write_ok(fprintf(fp, "%u\n", (unsigned int)datalab_custom_theme_slot_clamp((int)slot)),
+                                        fp,
+                                        k_datalab_custom_theme_active_slot_path)) {
+        fclose(fp);
+        return 0;
+    }
+    return datalab_runtime_prefs_close_saved(fp, k_datalab_custom_theme_active_slot_path);
 }

@@ -78,15 +78,35 @@ $(DEFAULT_PACK): $(DEFAULT_PACK_SRC)
 	@mkdir -p $(dir $@)
 	cp $(DEFAULT_PACK_SRC) $@
 
-test: $(TEST_BIN) $(PACK_LOADER_TEST_BIN) $(APP_CONTRACT_TEST_BIN) $(AUTHORING_INPUT_TEST_BIN) $(RASTER_VIEWPORT_TEST_BIN) $(LOOP_POLICY_TEST_BIN) $(PANEL_POLICY_TEST_BIN) $(PROFILE_INTERACTION_TEST_BIN)
+test-smoke: $(TEST_BIN)
 	./$(TEST_BIN)
+
+test-pack-loader: $(PACK_LOADER_TEST_BIN)
 	./$(PACK_LOADER_TEST_BIN)
+
+test-app-contract: $(APP_CONTRACT_TEST_BIN)
 	./$(APP_CONTRACT_TEST_BIN)
+
+test-authoring-input-contract: $(AUTHORING_INPUT_TEST_BIN)
 	./$(AUTHORING_INPUT_TEST_BIN)
+
+test-raster-viewport-contract: $(RASTER_VIEWPORT_TEST_BIN)
 	./$(RASTER_VIEWPORT_TEST_BIN)
+
+test-loop-policy-contract: $(LOOP_POLICY_TEST_BIN)
 	./$(LOOP_POLICY_TEST_BIN)
+
+test-panel-policy-contract: $(PANEL_POLICY_TEST_BIN)
 	./$(PANEL_POLICY_TEST_BIN)
+
+test-profile-interaction-contract: $(PROFILE_INTERACTION_TEST_BIN)
 	./$(PROFILE_INTERACTION_TEST_BIN)
+
+test-contract: test-app-contract test-authoring-input-contract test-raster-viewport-contract test-loop-policy-contract test-panel-policy-contract test-profile-interaction-contract
+
+test-package-boundary: test-package-desktop-path-guard test-package-runtime-boundary
+
+test: test-smoke test-pack-loader test-contract
 
 test-stable: test
 
@@ -109,3 +129,9 @@ run-headless-smoke: all test-stable $(DEFAULT_PACK)
 visual-harness: $(TARGET)
 	@echo "visual harness build gate ready: $(TARGET)"
 	@echo "launch manual UI validation with: make -C datalab run"
+
+visual-artifact: $(TARGET) $(DEFAULT_PACK)
+	@mkdir -p "$(VISUAL_ARTIFACT_ROOT)"
+	SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software "$(TARGET)" --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --visual-artifact "$(VISUAL_ARTIFACT_OUTPUT)"
+	@test -s "$(VISUAL_ARTIFACT_OUTPUT)" || { echo "visual artifact missing or empty: $(VISUAL_ARTIFACT_OUTPUT)" >&2; exit 1; }
+	@echo "visual artifact ready: $(VISUAL_ARTIFACT_OUTPUT)"

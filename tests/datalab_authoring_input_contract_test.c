@@ -155,6 +155,98 @@ static int test_authoring_popup_escape_closes_popup_only(void) {
     return 1;
 }
 
+static int test_authoring_takeover_snapshot_helpers(void) {
+    DatalabAppState state;
+    DatalabWorkspaceCustomTheme original_theme;
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_IMAGE);
+    original_theme = state.workspace_authoring_custom_theme;
+    state.text_zoom_step = 2;
+    state.workspace_authoring_theme_preset_id =
+        (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT;
+    state.workspace_authoring_custom_theme_active_slot = 0u;
+    state.workspace_authoring_custom_theme_slots[0].clear_r = 31u;
+    datalab_workspace_authoring_begin_takeover(&state);
+
+    if (!datalab_test_assert(state.workspace_authoring_stub_active == 1,
+                             "begin helper should activate authoring")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.workspace_authoring_entry_count == 1u,
+                             "begin helper should count authoring entry")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.workspace_authoring_entry_text_zoom_step == 2,
+                             "begin helper should capture text zoom snapshot")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.workspace_authoring_entry_theme_preset_id ==
+                                 (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT,
+                             "begin helper should capture theme preset snapshot")) {
+        return 0;
+    }
+
+    state.text_zoom_step = 5;
+    state.workspace_authoring_theme_preset_id =
+        (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_GREYSCALE;
+    state.workspace_authoring_custom_theme_slots[0].clear_r = 210u;
+    state.workspace_authoring_custom_theme = state.workspace_authoring_custom_theme_slots[0];
+    state.workspace_authoring_pending_stub = 1u;
+    state.workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME;
+    if (!datalab_test_assert(datalab_workspace_authoring_cancel_and_exit(&state) == 1,
+                             "cancel helper should report restored text zoom")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.workspace_authoring_stub_active == 0,
+                             "cancel helper should exit authoring")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.text_zoom_step == 2,
+                             "cancel helper should restore text zoom snapshot")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.workspace_authoring_theme_preset_id ==
+                                 (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT,
+                             "cancel helper should restore theme preset snapshot")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.workspace_authoring_custom_theme.clear_r == 31u,
+                             "cancel helper should restore custom theme snapshot")) {
+        return 0;
+    }
+
+    datalab_workspace_authoring_begin_takeover(&state);
+    state.text_zoom_step = -1;
+    state.workspace_authoring_theme_preset_id =
+        (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    state.workspace_authoring_custom_theme_popup_open = 1u;
+    state.workspace_authoring_pending_stub = 1u;
+    datalab_workspace_authoring_apply_takeover(&state);
+    if (!datalab_test_assert(state.workspace_authoring_pending_stub == 0u,
+                             "apply helper should clear pending state")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.workspace_authoring_custom_theme_popup_open == 0u,
+                             "apply helper should close custom theme popup")) {
+        return 0;
+    }
+    if (!datalab_test_assert(state.workspace_authoring_entry_text_zoom_step == -1,
+                             "apply helper should refresh text zoom baseline")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_workspace_authoring_close_custom_theme_popup(&state) == 0,
+                             "close popup helper should be a no-op when closed")) {
+        return 0;
+    }
+    state.workspace_authoring_custom_theme_popup_open = 1u;
+    if (!datalab_test_assert(datalab_workspace_authoring_close_custom_theme_popup(&state) == 1,
+                             "close popup helper should report closing an open popup")) {
+        return 0;
+    }
+
+    state.workspace_authoring_custom_theme = original_theme;
+    return 1;
+}
+
 static int test_authoring_disables_session_mouse_controls(void) {
     DatalabAppState state;
     datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_IMAGE);
@@ -212,6 +304,82 @@ static int test_runtime_theme_cycle_keys(void) {
     return 1;
 }
 
+static int test_authoring_route_diagnostics_are_normalized(void) {
+    DatalabAppState state;
+    int quit = 0;
+    const DatalabWorkspaceAuthoringRouteDiagnostic *diag = NULL;
+    CoreResult result;
+
+    datalab_app_state_init(&state, "fixture.pack", DATALAB_PROFILE_PHYSICS);
+    state.workspace_authoring_stub_active = 1;
+    state.workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
+    state.workspace_authoring_pending_stub = 0u;
+
+    datalab_workspace_authoring_clear_route_diagnostic();
+    datalab_test_simulate_keydown(&state, SDLK_TAB, 0, &quit);
+    diag = datalab_workspace_authoring_last_route_diagnostic();
+    if (!datalab_test_assert(strcmp(diag->route, "key.trigger") == 0,
+                             "tab diagnostic should identify key trigger route")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strcmp(diag->action, "workspace.cycle_overlay") == 0,
+                             "tab diagnostic should identify normalized action")) {
+        return 0;
+    }
+    if (!datalab_test_assert(diag->result_code == CORE_OK && diag->consumed == 1u,
+                             "tab diagnostic should report consumed success")) {
+        return 0;
+    }
+    if (!datalab_test_assert(diag->overlay_before == DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE &&
+                             diag->overlay_after == DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME,
+                             "tab diagnostic should capture overlay before and after")) {
+        return 0;
+    }
+    if (!datalab_test_assert(diag->pending_before == 0u && diag->pending_after == 1u,
+                             "tab diagnostic should capture pending state transition")) {
+        return 0;
+    }
+
+    state.workspace_authoring_custom_theme_popup_open = 1u;
+    datalab_test_simulate_keydown(&state, SDLK_ESCAPE, 0, &quit);
+    diag = datalab_workspace_authoring_last_route_diagnostic();
+    if (!datalab_test_assert(strcmp(diag->route, "key.popup") == 0,
+                             "popup escape diagnostic should identify popup route")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strcmp(diag->action, "popup.close") == 0,
+                             "popup escape diagnostic should identify close action")) {
+        return 0;
+    }
+    if (!datalab_test_assert(diag->active_before == 1u && diag->active_after == 1u,
+                             "popup close should not exit authoring in diagnostics")) {
+        return 0;
+    }
+
+    result = datalab_workspace_authoring_dispatch_action_for_route(&state,
+                                                                   "workspace.unknown",
+                                                                   "contract.unsupported");
+    diag = datalab_workspace_authoring_last_route_diagnostic();
+    if (!datalab_test_assert(result.code != CORE_OK,
+                             "unsupported authoring action should fail")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strcmp(diag->route, "contract.unsupported") == 0,
+                             "unsupported action diagnostic should preserve route")) {
+        return 0;
+    }
+    if (!datalab_test_assert(strcmp(diag->action, "workspace.unknown") == 0,
+                             "unsupported action diagnostic should preserve action")) {
+        return 0;
+    }
+    if (!datalab_test_assert(diag->result_code == result.code,
+                             "unsupported action diagnostic should preserve result code")) {
+        return 0;
+    }
+
+    return 1;
+}
+
 int main(void) {
     if (!test_authoring_consumes_session_keys()) {
         return 1;
@@ -222,10 +390,16 @@ int main(void) {
     if (!test_authoring_popup_escape_closes_popup_only()) {
         return 1;
     }
+    if (!test_authoring_takeover_snapshot_helpers()) {
+        return 1;
+    }
     if (!test_authoring_disables_session_mouse_controls()) {
         return 1;
     }
     if (!test_runtime_theme_cycle_keys()) {
+        return 1;
+    }
+    if (!test_authoring_route_diagnostics_are_normalized()) {
         return 1;
     }
     puts("datalab authoring input contract test passed");

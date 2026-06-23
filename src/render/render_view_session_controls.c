@@ -1,13 +1,8 @@
 #include "render/render_view_internal.h"
 
-#include <dirent.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
-#include "app/datalab_runtime_prefs.h"
-#include "data/input_file_loader.h"
 #include "kit_ui_sdl.h"
 #include "render/render_view_authoring_overlay_shared.h"
 
@@ -23,28 +18,10 @@ typedef struct DatalabRecentInputRootUiState {
 static DatalabPackPanelCache g_pack_panel_cache;
 static DatalabRecentInputRootUiState g_recent_input_root_ui;
 
-static int datalab_pack_ext(const char *name) {
-    return datalab_input_file_is_supported(name);
-}
-
-static int datalab_name_ci_cmp(const void *a, const void *b) {
-    const char *aa = (const char *)a;
-    const char *bb = (const char *)b;
-    return strcasecmp(aa, bb);
-}
-
 static int datalab_clamp_int(int value, int min_value, int max_value) {
     if (value < min_value) return min_value;
     if (value > max_value) return max_value;
     return value;
-}
-
-static int datalab_point_in_rect(const SDL_Rect *rect, int x, int y) {
-    if (!rect) {
-        return 0;
-    }
-    return x >= rect->x && y >= rect->y &&
-           x < (rect->x + rect->w) && y < (rect->y + rect->h);
 }
 
 static KitRenderColor datalab_session_hud_text_color(const KitUiHudStyle *style, int muted) {
@@ -54,72 +31,25 @@ static KitRenderColor datalab_session_hud_text_color(const KitUiHudStyle *style,
     return muted ? style->text_disabled : style->text;
 }
 
-static int datalab_map_window_to_renderer_point(SDL_Window *window,
-                                                SDL_Renderer *renderer,
-                                                int window_x,
-                                                int window_y,
-                                                int *out_render_x,
-                                                int *out_render_y) {
-    int window_w = 0;
-    int window_h = 0;
-    int render_w = 0;
-    int render_h = 0;
-    if (!window || !renderer || !out_render_x || !out_render_y) {
-        return 0;
-    }
-    SDL_GetWindowSize(window, &window_w, &window_h);
-    SDL_GetRendererOutputSize(renderer, &render_w, &render_h);
-    if (window_w <= 0 || window_h <= 0 || render_w <= 0 || render_h <= 0) {
-        return 0;
-    }
-    *out_render_x = (window_x * render_w) / window_w;
-    *out_render_y = (window_y * render_h) / window_h;
-    return 1;
-}
-
 static int datalab_header_bar_height_px(void) {
     return (datalab_text_line_height(1) * 2) + datalab_scaled_px(12.0f);
 }
 
 static void datalab_panel_rescan(const char *root, DatalabPackPanelCache *cache) {
-    DIR *dir = NULL;
-    struct dirent *entry = NULL;
+    DatalabSupportedFileScanResult scan = {0u, 0, 0};
     if (!root || !cache) {
         return;
     }
     cache->file_count = 0u;
     cache->status[0] = '\0';
     snprintf(cache->scanned_root, sizeof(cache->scanned_root), "%s", root);
-    dir = opendir(root);
-    if (!dir) {
-        snprintf(cache->status, sizeof(cache->status), "input root unavailable (press O to reselect)");
-        return;
-    }
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_name[0] == '.') {
-            continue;
-        }
-        if (!datalab_pack_ext(entry->d_name)) {
-            continue;
-        }
-        if (cache->file_count >= DATALAB_PANEL_MAX_FILES) {
-            break;
-        }
-        snprintf(cache->files[cache->file_count],
-                 sizeof(cache->files[cache->file_count]),
-                 "%s",
-                 entry->d_name);
-        cache->file_count++;
-    }
-    closedir(dir);
-    if (cache->file_count > 1u) {
-        qsort(cache->files, cache->file_count, sizeof(cache->files[0]), datalab_name_ci_cmp);
-    }
-    if (cache->file_count == 0u) {
-        snprintf(cache->status, sizeof(cache->status), "found 0 supported files (.pack/.bmp)");
-    } else {
-        snprintf(cache->status, sizeof(cache->status), "found %zu supported files (.pack/.bmp)", cache->file_count);
-    }
+    scan = datalab_scan_supported_files(root, cache->files, DATALAB_PANEL_MAX_FILES);
+    cache->file_count = scan.file_count;
+    datalab_format_supported_file_scan_status(&scan,
+                                              root,
+                                              "press O to reselect",
+                                              cache->status,
+                                              sizeof(cache->status));
 }
 
 void datalab_session_controls_tick(DatalabAppState *app_state) {
@@ -151,28 +81,16 @@ static void datalab_recent_input_root_activate(DatalabAppState *app_state, const
     if (!app_state || !path || path[0] == '\0') {
         return;
     }
-    snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", path);
-    datalab_normalize_input_root_path(app_state->input_root, sizeof(app_state->input_root));
-    datalab_recent_input_roots_add(app_state->recent_input_roots,
-                                   &app_state->recent_input_root_count,
-                                   DATALAB_RECENT_INPUT_ROOT_LIMIT,
-                                   app_state->input_root);
-    app_state->recent_input_root_dropdown_open = 0;
-    app_state->panel_rescan_requested = 0;
-    app_state->panel_selection_delta = 0;
-    app_state->panel_selected_index = 0u;
-    app_state->panel_open_selected_requested = 0;
-    app_state->panel_requested_pack_path[0] = '\0';
-    app_state->playback_active = 0;
+    if (!datalab_app_state_select_input_root(app_state, path)) {
+        return;
+    }
     datalab_panel_rescan(app_state->input_root, &g_pack_panel_cache);
     now_ticks = SDL_GetTicks();
     g_pack_panel_cache.last_scan_ticks = now_ticks;
     if (g_pack_panel_cache.file_count > 0u) {
-        snprintf(app_state->panel_requested_pack_path,
-                 sizeof(app_state->panel_requested_pack_path),
-                 "%s/%s",
-                 app_state->input_root,
-                 g_pack_panel_cache.files[0]);
+        datalab_panel_request_pack_under_root(app_state,
+                                              app_state->input_root,
+                                              g_pack_panel_cache.files[0]);
     }
 }
 
@@ -214,15 +132,15 @@ int datalab_session_controls_route_mouse_event(SDL_Window *window,
     if (event->type != SDL_MOUSEBUTTONDOWN || event->button.button != SDL_BUTTON_LEFT) {
         return 0;
     }
-    if (!datalab_map_window_to_renderer_point(window,
-                                              renderer,
-                                              event->button.x,
-                                              event->button.y,
-                                              &pointer_x,
-                                              &pointer_y)) {
+    if (!datalab_render_map_window_to_renderer_point(window,
+                                                     renderer,
+                                                     event->button.x,
+                                                     event->button.y,
+                                                     &pointer_x,
+                                                     &pointer_y)) {
         return 0;
     }
-    if (datalab_point_in_rect(&g_recent_input_root_ui.button_rect, pointer_x, pointer_y)) {
+    if (datalab_render_point_in_rect(&g_recent_input_root_ui.button_rect, pointer_x, pointer_y)) {
         app_state->recent_input_root_dropdown_open = !app_state->recent_input_root_dropdown_open;
         return 1;
     }
@@ -230,7 +148,7 @@ int datalab_session_controls_route_mouse_event(SDL_Window *window,
         return 0;
     }
     for (i = 0u; i < g_recent_input_root_ui.visible_count; ++i) {
-        if (!datalab_point_in_rect(&g_recent_input_root_ui.item_rects[i], pointer_x, pointer_y)) {
+        if (!datalab_render_point_in_rect(&g_recent_input_root_ui.item_rects[i], pointer_x, pointer_y)) {
             continue;
         }
         if (i < app_state->recent_input_root_count && app_state->recent_input_roots[i][0] != '\0') {
@@ -238,7 +156,7 @@ int datalab_session_controls_route_mouse_event(SDL_Window *window,
             return 1;
         }
     }
-    if (!datalab_point_in_rect(&g_recent_input_root_ui.list_rect, pointer_x, pointer_y)) {
+    if (!datalab_render_point_in_rect(&g_recent_input_root_ui.list_rect, pointer_x, pointer_y)) {
         app_state->recent_input_root_dropdown_open = 0;
         return 1;
     }

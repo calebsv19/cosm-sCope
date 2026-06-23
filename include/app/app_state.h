@@ -133,8 +133,63 @@ int datalab_text_zoom_step_clamp(int step);
 float datalab_text_zoom_step_multiplier(int step);
 int datalab_playback_speed_index_clamp(int speed_index);
 uint32_t datalab_playback_interval_for_speed_index(int speed_index);
+void datalab_panel_request_step(DatalabAppState *state, int delta, int open_selected);
+void datalab_panel_request_open_selected(DatalabAppState *state);
+void datalab_panel_clear_request(DatalabAppState *state);
+void datalab_panel_request_pack_path(DatalabAppState *state, const char *path);
+int datalab_input_root_join_child_file(const char *root,
+                                       const char *file_name,
+                                       char *out_path,
+                                       size_t out_cap);
+int datalab_panel_request_pack_under_root(DatalabAppState *state, const char *root, const char *file_name);
+int datalab_panel_consume_requested_pack_path(DatalabAppState *state, char *out_path, size_t out_cap);
+void datalab_panel_reset_interaction_state(DatalabAppState *state);
+void datalab_playback_toggle_active(DatalabAppState *state, uint32_t now_ticks, uint32_t fallback_interval_ms);
+void datalab_playback_set_speed_index(DatalabAppState *state, int speed_index, uint32_t now_ticks);
+void datalab_playback_set_mode(DatalabAppState *state, DatalabPlaybackMode mode);
+void datalab_playback_stop(DatalabAppState *state);
+int datalab_app_state_select_input_root(DatalabAppState *state, const char *path);
+void datalab_app_state_request_picker(DatalabAppState *state);
+void datalab_app_state_request_panel_rescan(DatalabAppState *state);
+void datalab_app_state_reset_interactions(DatalabAppState *state);
+void datalab_profile_select_view_slot(DatalabAppState *state, int slot);
+void datalab_physics_adjust_vector_stride(DatalabAppState *state, int delta);
+void datalab_trace_step_cursor(DatalabAppState *state, int delta);
+void datalab_trace_set_cursor_home(DatalabAppState *state);
+void datalab_trace_set_cursor_end(DatalabAppState *state);
+void datalab_trace_cycle_zoom(DatalabAppState *state);
+void datalab_trace_toggle_selection(DatalabAppState *state);
+void datalab_trace_request_lane_cycle(DatalabAppState *state);
+void datalab_trace_clamp_cursor_to_count(DatalabAppState *state, size_t time_count);
+void datalab_trace_apply_lane_cycle(DatalabAppState *state, size_t lane_count);
+uint8_t datalab_workspace_authoring_theme_preset_clamp(int value);
+int datalab_workspace_authoring_custom_theme_slot_clamp(int value);
+int datalab_workspace_authoring_custom_theme_token_clamp(int value);
+int datalab_workspace_authoring_custom_theme_channel_clamp(int value);
+uint8_t datalab_workspace_authoring_cycle_runtime_theme_preset(uint8_t current, int direction);
+void datalab_workspace_authoring_sync_custom_theme_from_active_slot(DatalabAppState *state);
+void datalab_workspace_authoring_capture_entry_snapshot(DatalabAppState *state);
+void datalab_workspace_authoring_begin_takeover(DatalabAppState *state);
+void datalab_workspace_authoring_cycle_overlay(DatalabAppState *state);
+void datalab_workspace_authoring_apply_takeover(DatalabAppState *state);
+int datalab_workspace_authoring_cancel_and_exit(DatalabAppState *state);
+int datalab_workspace_authoring_close_custom_theme_popup(DatalabAppState *state);
 void datalab_raster_viewport_state_init(DatalabRasterViewportState *state);
 void datalab_raster_viewport_request_reset(DatalabRasterViewportState *state);
+void datalab_raster_viewport_sync_state(DatalabRasterViewportState *state,
+                                        int view_width,
+                                        int view_height,
+                                        uint32_t content_width,
+                                        uint32_t content_height);
+int datalab_raster_viewport_zoom_at_screen_anchor(DatalabRasterViewportState *state,
+                                                  int screen_x,
+                                                  int screen_y,
+                                                  float zoom_factor);
+int datalab_raster_viewport_begin_drag(DatalabRasterViewportState *state, int screen_x, int screen_y);
+void datalab_raster_viewport_end_drag(DatalabRasterViewportState *state);
+int datalab_raster_viewport_drag_to(DatalabRasterViewportState *state, int screen_x, int screen_y);
+void datalab_raster_viewport_copy_for_runtime(DatalabRasterViewportState *dst,
+                                              const DatalabRasterViewportState *src);
 int datalab_profile_supports_raster_viewport(DatalabProfile profile);
 
 #endif

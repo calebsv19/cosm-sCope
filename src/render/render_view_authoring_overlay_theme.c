@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static DatalabWorkspaceAuthoringThemePreset datalab_overlay_theme_preset_clamp(int value) {
+DatalabWorkspaceAuthoringThemePreset datalab_overlay_theme_preset_clamp(int value) {
     if (value < (int)DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT) {
         return DATALAB_WORKSPACE_AUTHORING_THEME_DAW_DEFAULT;
     }

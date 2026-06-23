@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-06-18
+Last updated: 2026-06-23
 
 ## Direction
 
@@ -34,6 +34,13 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 - preserve current `package-desktop*` and release audit/sign/notary gates
 - maintain launcher diagnostics and runtime-root policy
 
+5. Keep the completed R0-R6 refinement baseline stable:
+- preserve targeted contract-test entrypoints and package self-test boundaries
+- keep `make -C datalab visual-artifact` as the source-render first-frame demo
+  proof
+- keep `visual-harness`, `run-headless-smoke`, `package-desktop-self-test`,
+  and `visual-artifact` distinct in docs and verification reports
+
 ## Structural Intent
 
 - Keep render seams explicit and maintainable:
@@ -55,6 +62,8 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 - No widening of legacy test lane scope unless promoted intentionally into stable contract.
 - No reopening of the completed graph-kit adoption lane for broader plotting
   work unless a fresh host requirement is scoped first.
+- No reopening of the completed R0-R6 refinement lane without a new named pass
+  or follow-on plan.
 
 ## Private Planning Reference
 

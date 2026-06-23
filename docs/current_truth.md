@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-06-18
+Last updated: 2026-06-23
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -97,10 +97,24 @@ Last updated: 2026-06-18
   - `make -C datalab run-headless-smoke`
 - Stable tests:
   - `make -C datalab test-stable`
+  - targeted lanes:
+    - `make -C datalab test-smoke`
+    - `make -C datalab test-pack-loader`
+    - `make -C datalab test-app-contract`
+    - `make -C datalab test-authoring-input-contract`
+    - `make -C datalab test-raster-viewport-contract`
+    - `make -C datalab test-loop-policy-contract`
+    - `make -C datalab test-panel-policy-contract`
+    - `make -C datalab test-profile-interaction-contract`
+    - `make -C datalab test-contract`
   - includes an unattended app-contract lane for:
     - headless `--no-gui` without `--pack` failure
     - valid direct-load state seed
     - `selected_pack_path` fallback
+    - generated tiny BMP load through `datalab_load_input_file` and image-profile
+      state seed
+    - wrapper run-loop handoff/finalize/shutdown through a stub dispatch,
+      including dispatch summary and ownership cleanup
     - unsupported-extension bounded load failure
     - CLI `--input-root` precedence over persisted prefs
   - includes an unattended authoring-input contract lane for:
@@ -133,10 +147,33 @@ Last updated: 2026-06-18
     - DAW view hotkeys selecting the intended view modes
 - Build-only readiness:
   - `make -C datalab visual-harness`
+- Source-run visual proof seam:
+  - `--visual-artifact <path>` renders one source first frame through the normal
+    render session and writes a BMP artifact.
+  - `make -C datalab visual-artifact` runs that seam against the staged default
+    sample pack with `SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software`, writes
+    `datalab/visual_artifacts/datalab_first_frame.bmp`, and checks the artifact
+    is nonempty before printing the success path.
+  - expected final success line:
+    `visual artifact ready: visual_artifacts/datalab_first_frame.bmp`
+  - `visual_artifacts/` is an ignored local proof root; generated BMPs are not
+    package payloads and should not be committed.
+  - the target is designed to run headlessly through SDL dummy/software drivers;
+    failure means the source render stack did not produce a valid first-frame
+    artifact and should be treated separately from package/self-test failures.
+  - proof boundaries:
+    - `visual-harness`: build/readiness and manual validation setup
+    - `run-headless-smoke`: load/summary/wrapper behavior without renderer
+      image proof
+    - `package-desktop-self-test`: packaged launcher/runtime boundary proof
+    - `visual-artifact`: source-render first-frame image proof
 - Legacy tests:
   - `make -C datalab test-legacy`
 - Packaging/release lanes:
   - `make -C datalab package-desktop*`
+  - `make -C datalab package-desktop-self-test` runs the packaged launcher with
+    build-local `HOME` and `TMPDIR`
+  - `make -C datalab test-package-boundary`
   - `make -C datalab release-artifact TARGET_ARCH=x86_64 BUILD_TOOLCHAIN=clang PACKAGE_TOOLCHAIN=clang`
   - `make -C datalab release-contract`
   - `make -C datalab release-bundle-audit`

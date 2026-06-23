@@ -31,37 +31,6 @@ typedef struct DatalabPlaybackHudUiState {
 
 static DatalabPlaybackHudUiState g_playback_hud_ui;
 
-static int datalab_hud_point_in_rect(const SDL_Rect *rect, int x, int y) {
-    if (!rect) {
-        return 0;
-    }
-    return x >= rect->x && y >= rect->y &&
-           x < rect->x + rect->w && y < rect->y + rect->h;
-}
-
-static int datalab_hud_map_window_to_renderer_point(SDL_Window *window,
-                                                    SDL_Renderer *renderer,
-                                                    int window_x,
-                                                    int window_y,
-                                                    int *out_render_x,
-                                                    int *out_render_y) {
-    int window_w = 0;
-    int window_h = 0;
-    int render_w = 0;
-    int render_h = 0;
-    if (!window || !renderer || !out_render_x || !out_render_y) {
-        return 0;
-    }
-    SDL_GetWindowSize(window, &window_w, &window_h);
-    SDL_GetRendererOutputSize(renderer, &render_w, &render_h);
-    if (window_w <= 0 || window_h <= 0 || render_w <= 0 || render_h <= 0) {
-        return 0;
-    }
-    *out_render_x = (window_x * render_w) / window_w;
-    *out_render_y = (window_y * render_h) / window_h;
-    return 1;
-}
-
 static const char *datalab_hud_speed_label(int speed_index) {
     static const char *k_labels[] = {"0.25x", "0.5x", "1x", "2x", "4x"};
     speed_index = datalab_playback_speed_index_clamp(speed_index);
@@ -89,42 +58,28 @@ static void datalab_hud_apply_action(DatalabAppState *app_state,
     }
     switch (action) {
         case DATALAB_PLAYBACK_HUD_ACTION_PREV:
-            app_state->panel_selection_delta -= 1;
-            app_state->panel_open_selected_requested = 1;
+            datalab_panel_request_step(app_state, -1, 1);
             break;
         case DATALAB_PLAYBACK_HUD_ACTION_PLAY_PAUSE:
-            app_state->playback_active = !app_state->playback_active;
-            if (app_state->playback_interval_ms == 0u) {
-                app_state->playback_interval_ms =
-                    datalab_playback_interval_for_speed_index(app_state->playback_speed_index);
-            }
-            app_state->playback_last_advance_ticks = now;
+            datalab_playback_toggle_active(app_state,
+                                           now,
+                                           datalab_playback_interval_for_speed_index(
+                                               app_state->playback_speed_index));
             break;
         case DATALAB_PLAYBACK_HUD_ACTION_NEXT:
-            app_state->panel_selection_delta += 1;
-            app_state->panel_open_selected_requested = 1;
+            datalab_panel_request_step(app_state, 1, 1);
             break;
         case DATALAB_PLAYBACK_HUD_ACTION_SPEED_DOWN:
-            app_state->playback_speed_index =
-                datalab_playback_speed_index_clamp(app_state->playback_speed_index - 1);
-            app_state->playback_interval_ms =
-                datalab_playback_interval_for_speed_index(app_state->playback_speed_index);
-            app_state->playback_last_advance_ticks = now;
+            datalab_playback_set_speed_index(app_state, app_state->playback_speed_index - 1, now);
             break;
         case DATALAB_PLAYBACK_HUD_ACTION_SPEED_UP:
-            app_state->playback_speed_index =
-                datalab_playback_speed_index_clamp(app_state->playback_speed_index + 1);
-            app_state->playback_interval_ms =
-                datalab_playback_interval_for_speed_index(app_state->playback_speed_index);
-            app_state->playback_last_advance_ticks = now;
+            datalab_playback_set_speed_index(app_state, app_state->playback_speed_index + 1, now);
             break;
         case DATALAB_PLAYBACK_HUD_ACTION_MODE_LOOP:
-            app_state->playback_mode = DATALAB_PLAYBACK_MODE_LOOP;
-            app_state->playback_direction = 1;
+            datalab_playback_set_mode(app_state, DATALAB_PLAYBACK_MODE_LOOP);
             break;
         case DATALAB_PLAYBACK_HUD_ACTION_MODE_BOUNCE:
-            app_state->playback_mode = DATALAB_PLAYBACK_MODE_BOUNCE;
-            app_state->playback_direction = 1;
+            datalab_playback_set_mode(app_state, DATALAB_PLAYBACK_MODE_BOUNCE);
             break;
         case DATALAB_PLAYBACK_HUD_ACTION_NONE:
         default:
@@ -183,19 +138,19 @@ int datalab_playback_hud_route_mouse_event(SDL_Window *window,
     if (event->type != SDL_MOUSEBUTTONDOWN || event->button.button != SDL_BUTTON_LEFT) {
         return 0;
     }
-    if (!datalab_hud_map_window_to_renderer_point(window,
-                                                  renderer,
-                                                  event->button.x,
-                                                  event->button.y,
-                                                  &pointer_x,
-                                                  &pointer_y)) {
+    if (!datalab_render_map_window_to_renderer_point(window,
+                                                     renderer,
+                                                     event->button.x,
+                                                     event->button.y,
+                                                     &pointer_x,
+                                                     &pointer_y)) {
         return 0;
     }
-    if (!datalab_hud_point_in_rect(&g_playback_hud_ui.panel_rect, pointer_x, pointer_y)) {
+    if (!datalab_render_point_in_rect(&g_playback_hud_ui.panel_rect, pointer_x, pointer_y)) {
         return 0;
     }
     for (i = 0u; i < g_playback_hud_ui.button_count; ++i) {
-        if (datalab_hud_point_in_rect(&g_playback_hud_ui.buttons[i].rect, pointer_x, pointer_y)) {
+        if (datalab_render_point_in_rect(&g_playback_hud_ui.buttons[i].rect, pointer_x, pointer_y)) {
             if (g_playback_hud_ui.buttons[i].enabled) {
                 datalab_hud_apply_action(app_state, g_playback_hud_ui.buttons[i].action);
             }

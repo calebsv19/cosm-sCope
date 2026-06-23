@@ -6,6 +6,11 @@ APP_CONTENTS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 RES_DIR="$APP_CONTENTS_DIR/Resources"
 RUNTIME_DIR_DEFAULT="${HOME}/Library/Application Support/DataLab/runtime"
 RUNTIME_DIR="${DATALAB_RUNTIME_DIR:-$RUNTIME_DIR_DEFAULT}"
+case "$RUNTIME_DIR" in
+    "$APP_CONTENTS_DIR"|"$APP_CONTENTS_DIR"/*|"$RES_DIR"|"$RES_DIR"/*)
+        RUNTIME_DIR="$RUNTIME_DIR_DEFAULT"
+        ;;
+esac
 if ! mkdir -p "$RUNTIME_DIR" 2>/dev/null; then
     RUNTIME_DIR="${TMPDIR:-/tmp}/DataLab/runtime"
     mkdir -p "$RUNTIME_DIR" 2>/dev/null || true
@@ -41,12 +46,51 @@ cat >"$ICD_FILE" <<EOF
 EOF
 export DATALAB_RUNTIME_DIR="$RUNTIME_DIR"
 export DATALAB_INPUT_ROOT="${DATALAB_INPUT_ROOT:-$RUNTIME_DIR/data/import}"
+case "$DATALAB_INPUT_ROOT" in
+    "$APP_CONTENTS_DIR"|"$APP_CONTENTS_DIR"/*|"$RES_DIR"|"$RES_DIR"/*)
+        DATALAB_INPUT_ROOT="$RUNTIME_DIR/data/import"
+        ;;
+esac
 export DATALAB_FONT_PRESET="${DATALAB_FONT_PRESET:-ide}"
 export VK_RENDERER_SHADER_ROOT="${VK_RENDERER_SHADER_ROOT:-$RUNTIME_DIR/vk_renderer}"
 export VK_ICD_FILENAMES="${VK_ICD_FILENAMES:-$ICD_FILE}"
 export VK_DRIVER_FILES="${VK_DRIVER_FILES:-$ICD_FILE}"
 export MOLTENVK_DYLIB
 mkdir -p "$DATALAB_INPUT_ROOT" 2>/dev/null || true
+
+path_scope() {
+    case "${1:-}" in
+        "$APP_CONTENTS_DIR"|"$APP_CONTENTS_DIR"/*)
+            echo "app-bundle"
+            ;;
+        "$RES_DIR"|"$RES_DIR"/*)
+            echo "app-resources"
+            ;;
+        "$RUNTIME_DIR"|"$RUNTIME_DIR"/*)
+            echo "runtime"
+            ;;
+        "$HOME"|"$HOME"/*)
+            echo "user-home"
+            ;;
+        "")
+            echo "empty"
+            ;;
+        *)
+            echo "external"
+            ;;
+    esac
+}
+
+assert_not_app_resource_root() {
+    label="$1"
+    value="$2"
+    case "$value" in
+        "$APP_CONTENTS_DIR"|"$APP_CONTENTS_DIR"/*|"$RES_DIR"|"$RES_DIR"/*)
+            echo "$label points into packaged app resources" >&2
+            exit 1
+            ;;
+    esac
+}
 
 if [ "${1:-}" = "--print-config" ]; then
     echo "APP_CONTENTS_DIR=$APP_CONTENTS_DIR"
@@ -67,6 +111,8 @@ if [ "${1:-}" = "--self-test" ]; then
     [ -x "$SCRIPT_DIR/datalab-bin" ] || { echo "missing: datalab-bin" >&2; exit 1; }
     [ -f "$APP_CONTENTS_DIR/Info.plist" ] || { echo "missing: Info.plist" >&2; exit 1; }
     [ -d "$RES_DIR/data/runtime" ] || { echo "missing: runtime dir" >&2; exit 1; }
+    assert_not_app_resource_root "DATALAB_RUNTIME_DIR" "$DATALAB_RUNTIME_DIR"
+    assert_not_app_resource_root "DATALAB_INPUT_ROOT" "$DATALAB_INPUT_ROOT"
     [ -d "$DATALAB_INPUT_ROOT" ] || { echo "missing: runtime input root" >&2; exit 1; }
     [ -f "$RES_DIR/shared/assets/fonts/Lato-Regular.ttf" ] || { echo "missing: ide baseline font" >&2; exit 1; }
     [ -f "$RES_DIR/vk_renderer/shaders/textured.vert.spv" ] || { echo "missing: bundled vk shader" >&2; exit 1; }
@@ -74,19 +120,19 @@ if [ "${1:-}" = "--self-test" ]; then
     [ -f "$MOLTENVK_DYLIB" ] || { echo "missing: bundled MoltenVK dylib" >&2; exit 1; }
     [ -f "$ICD_FILE" ] || { echo "missing: runtime MoltenVK ICD file" >&2; exit 1; }
     echo "self-test: ok"
-    echo "LOG_FILE=$LOG_FILE"
-    echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
-    echo "APP_DATA_HOME=$APP_DATA_HOME"
-    echo "DATALAB_INPUT_ROOT=$DATALAB_INPUT_ROOT"
+    echo "LOG_FILE_SCOPE=$(path_scope "$LOG_FILE")"
+    echo "DATALAB_RUNTIME_DIR_SCOPE=$(path_scope "$DATALAB_RUNTIME_DIR")"
+    echo "APP_DATA_HOME_SCOPE=$(path_scope "$APP_DATA_HOME")"
+    echo "DATALAB_INPUT_ROOT_SCOPE=$(path_scope "$DATALAB_INPUT_ROOT")"
     echo "DATALAB_FONT_PRESET=$DATALAB_FONT_PRESET"
-    echo "VK_RENDERER_SHADER_ROOT=$VK_RENDERER_SHADER_ROOT"
-    echo "VK_ICD_FILENAMES=$VK_ICD_FILENAMES"
-    echo "VK_DRIVER_FILES=$VK_DRIVER_FILES"
-    echo "MOLTENVK_DYLIB=$MOLTENVK_DYLIB"
+    echo "VK_RENDERER_SHADER_ROOT_SCOPE=$(path_scope "$VK_RENDERER_SHADER_ROOT")"
+    echo "VK_ICD_FILENAMES_SCOPE=$(path_scope "$VK_ICD_FILENAMES")"
+    echo "VK_DRIVER_FILES_SCOPE=$(path_scope "$VK_DRIVER_FILES")"
+    echo "MOLTENVK_DYLIB_SCOPE=$(path_scope "$MOLTENVK_DYLIB")"
     exit 0
 fi
 
 cd "$APP_DATA_HOME"
-printf '%s launch begin pid=%s cwd=%s runtime=%s input_root=%s shader_root=%s args=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$$" "$APP_DATA_HOME" "$DATALAB_RUNTIME_DIR" "$DATALAB_INPUT_ROOT" "$VK_RENDERER_SHADER_ROOT" "$*" >>"$LOG_FILE" 2>/dev/null || true
+printf '%s launch begin pid=%s cwd_scope=%s runtime_scope=%s input_root_scope=%s shader_root_scope=%s arg_count=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$$" "$(path_scope "$APP_DATA_HOME")" "$(path_scope "$DATALAB_RUNTIME_DIR")" "$(path_scope "$DATALAB_INPUT_ROOT")" "$(path_scope "$VK_RENDERER_SHADER_ROOT")" "$#" >>"$LOG_FILE" 2>/dev/null || true
 
 exec "$SCRIPT_DIR/datalab-bin" "$@" >>"$LOG_FILE" 2>&1

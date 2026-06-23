@@ -26,6 +26,21 @@ static const char *datalab_runtime_path_basename(const char *path) {
     return base ? (base + 1) : path;
 }
 
+static void datalab_runtime_format_load_failure(char *out_error,
+                                                size_t out_error_cap,
+                                                const char *input_path,
+                                                const char *detail) {
+    const char *base_name = datalab_runtime_path_basename(input_path);
+    if (!out_error || out_error_cap == 0u) {
+        return;
+    }
+    (void)snprintf(out_error,
+                   out_error_cap,
+                   "input load failed: %s (input=%s)",
+                   (detail && detail[0] != '\0') ? detail : "unsupported or invalid file",
+                   (base_name && base_name[0] != '\0') ? base_name : "unknown");
+}
+
 static int datalab_runtime_split_parent_dir(const char *path, char *out_dir, size_t out_dir_cap) {
     const char *slash = NULL;
     size_t len = 0u;
@@ -74,7 +89,14 @@ static size_t datalab_runtime_scan_supported_files(const char *root,
         return 0u;
     }
     while ((entry = readdir(dir)) != NULL) {
+        char child_path[DATALAB_APP_PATH_CAP];
         if (entry->d_name[0] == '.') {
+            continue;
+        }
+        if (!datalab_input_root_join_child_file(root,
+                                               entry->d_name,
+                                               child_path,
+                                               sizeof(child_path))) {
             continue;
         }
         if (!datalab_input_file_is_supported(entry->d_name)) {
@@ -193,7 +215,12 @@ static void datalab_runtime_prefetch_neighbor_bmps(DatalabAppRuntime *runtime) {
         if (!datalab_input_file_is_bmp(files[neighbor_index])) {
             continue;
         }
-        snprintf(slot->path, sizeof(slot->path), "%s/%s", root, files[neighbor_index]);
+        if (!datalab_input_root_join_child_file(root,
+                                               files[neighbor_index],
+                                               slot->path,
+                                               sizeof(slot->path))) {
+            continue;
+        }
         load_r = datalab_load_input_file(slot->path, &slot->frame);
         if (load_r.code != CORE_OK || slot->frame.profile != DATALAB_PROFILE_IMAGE) {
             slot->path[0] = '\0';
@@ -217,11 +244,15 @@ int datalab_runtime_load_frame(DatalabAppRuntime *runtime) {
     }
     load_r = datalab_load_input_file(runtime->pack_path, &runtime->frame);
     if (load_r.code != CORE_OK) {
-        fprintf(stderr, "datalab: failed to load input file: %s\n", load_r.message);
-        snprintf(runtime->last_load_error,
-                 sizeof(runtime->last_load_error),
-                 "%s",
-                 load_r.message ? load_r.message : "load failed");
+        datalab_runtime_format_load_failure(runtime->last_load_error,
+                                            sizeof(runtime->last_load_error),
+                                            runtime->pack_path,
+                                            load_r.message);
+        fprintf(stderr,
+                "datalab: load failed stage=input_load code=%d input=%s detail=%s\n",
+                (int)load_r.code,
+                datalab_runtime_path_basename(runtime->pack_path),
+                load_r.message ? load_r.message : "unsupported or invalid file");
         datalab_runtime_prefetch_clear_all(runtime);
         return 2;
     }

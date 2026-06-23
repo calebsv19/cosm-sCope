@@ -31,7 +31,7 @@ int datalab_app_transition_stage(DatalabAppContext *ctx,
 }
 
 void datalab_print_usage(const char *argv0) {
-    printf("usage: %s [--pack /path/to/frame.pack|frame.bmp] [--input-root /path/to/folder] [--no-gui]\n", argv0);
+    printf("usage: %s [--pack /path/to/frame.pack|frame.bmp] [--input-root /path/to/folder] [--no-gui] [--visual-artifact /path/to/frame.bmp]\n", argv0);
 }
 
 void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
@@ -73,6 +73,7 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
     runtime->session_hud_collapsed = 0;
     datalab_raster_viewport_state_init(&runtime->raster_viewport);
     runtime->selected_pack_path[0] = '\0';
+    runtime->visual_artifact_path[0] = '\0';
     runtime->last_load_error[0] = '\0';
     for (i = 0; i < DATALAB_FRAME_PREFETCH_SLOT_COUNT; ++i) {
         runtime->prefetch_slots[i].valid = 0;
@@ -97,6 +98,7 @@ int datalab_app_bootstrap_ctx(DatalabAppContext *ctx, int argc, char **argv) {
     runtime->show_help = 0;
     runtime->input_root_from_cli = 0;
     runtime->selected_pack_path[0] = '\0';
+    runtime->visual_artifact_path[0] = '\0';
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--pack") == 0 && (i + 1) < argc) {
@@ -106,11 +108,18 @@ int datalab_app_bootstrap_ctx(DatalabAppContext *ctx, int argc, char **argv) {
             runtime->input_root_from_cli = 1;
         } else if (strcmp(argv[i], "--no-gui") == 0) {
             runtime->no_gui = 1;
+        } else if (strcmp(argv[i], "--visual-artifact") == 0 && (i + 1) < argc) {
+            snprintf(runtime->visual_artifact_path, sizeof(runtime->visual_artifact_path), "%s", argv[++i]);
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             datalab_print_usage(runtime->argv0);
             runtime->show_help = 1;
             return 0;
         }
+    }
+
+    if (runtime->visual_artifact_path[0] != '\0' && runtime->no_gui) {
+        datalab_print_usage(runtime->argv0);
+        return 1;
     }
 
     if (!datalab_app_transition_stage(ctx,
@@ -203,7 +212,6 @@ int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
         loaded_input_root[0] != '\0') {
         snprintf(runtime->input_root, sizeof(runtime->input_root), "%s", loaded_input_root);
     }
-    datalab_normalize_input_root_path(runtime->input_root, sizeof(runtime->input_root));
     if (datalab_runtime_prefs_load_recent_input_roots(loaded_recent_input_roots,
                                                       DATALAB_RECENT_INPUT_ROOT_LIMIT,
                                                       &loaded_recent_input_root_count)) {
@@ -216,10 +224,12 @@ int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
                      loaded_recent_input_roots[recent_idx]);
         }
     }
-    datalab_recent_input_roots_add(runtime->recent_input_roots,
-                                   &runtime->recent_input_root_count,
-                                   DATALAB_RECENT_INPUT_ROOT_LIMIT,
-                                   runtime->input_root);
+    (void)datalab_input_root_select_recent(runtime->input_root,
+                                           sizeof(runtime->input_root),
+                                           runtime->recent_input_roots,
+                                           &runtime->recent_input_root_count,
+                                           DATALAB_RECENT_INPUT_ROOT_LIMIT,
+                                           runtime->input_root);
     if (!datalab_app_transition_stage(ctx,
                                       DATALAB_APP_STAGE_BOOTSTRAPPED,
                                       DATALAB_APP_STAGE_CONFIG_LOADED,
@@ -257,6 +267,10 @@ int datalab_app_state_seed_ctx(DatalabAppContext *ctx) {
     }
 
     if (!runtime->pack_path && runtime->no_gui) {
+        datalab_print_usage(runtime->argv0 ? runtime->argv0 : "datalab");
+        return 1;
+    }
+    if (!runtime->pack_path && runtime->visual_artifact_path[0] != '\0') {
         datalab_print_usage(runtime->argv0 ? runtime->argv0 : "datalab");
         return 1;
     }

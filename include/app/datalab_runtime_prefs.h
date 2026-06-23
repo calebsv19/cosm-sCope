@@ -16,18 +16,26 @@ int datalab_runtime_prefs_load_custom_theme(DatalabWorkspaceCustomTheme *out_the
 int datalab_runtime_prefs_load_custom_theme_slots(DatalabWorkspaceCustomTheme *out_slots, size_t slot_count);
 int datalab_runtime_prefs_load_custom_theme_slot_names(char out_names[][DATALAB_CUSTOM_THEME_NAME_CAP], size_t slot_count);
 int datalab_runtime_prefs_load_custom_theme_active_slot(uint8_t *out_slot);
-void datalab_runtime_prefs_save_text_zoom_step(int step);
-void datalab_runtime_prefs_save_input_root(const char *path);
-void datalab_runtime_prefs_save_recent_input_roots(const char paths[][DATALAB_APP_PATH_CAP], size_t count);
-void datalab_runtime_prefs_save_theme_preset_id(uint8_t theme_preset_id);
-void datalab_runtime_prefs_save_custom_theme(const DatalabWorkspaceCustomTheme *theme);
-void datalab_runtime_prefs_save_custom_theme_slots(const DatalabWorkspaceCustomTheme *slots, size_t slot_count);
-void datalab_runtime_prefs_save_custom_theme_slot_names(const char names[][DATALAB_CUSTOM_THEME_NAME_CAP], size_t slot_count);
-void datalab_runtime_prefs_save_custom_theme_active_slot(uint8_t slot);
+int datalab_runtime_prefs_save_text_zoom_step(int step);
+int datalab_runtime_prefs_save_input_root(const char *path);
+int datalab_runtime_prefs_save_recent_input_roots(const char paths[][DATALAB_APP_PATH_CAP], size_t count);
+int datalab_runtime_prefs_save_theme_preset_id(uint8_t theme_preset_id);
+int datalab_runtime_prefs_save_custom_theme(const DatalabWorkspaceCustomTheme *theme);
+int datalab_runtime_prefs_save_custom_theme_slots(const DatalabWorkspaceCustomTheme *slots, size_t slot_count);
+int datalab_runtime_prefs_save_custom_theme_slot_names(const char names[][DATALAB_CUSTOM_THEME_NAME_CAP], size_t slot_count);
+int datalab_runtime_prefs_save_custom_theme_active_slot(uint8_t slot);
+const char *datalab_runtime_prefs_last_diagnostic(void);
+void datalab_runtime_prefs_clear_diagnostic(void);
 void datalab_normalize_input_root_path(char *path, size_t path_cap);
 void datalab_recent_input_roots_add(char paths[][DATALAB_APP_PATH_CAP],
                                     size_t *io_count,
                                     size_t path_capacity,
                                     const char *path);
+int datalab_input_root_select_recent(char *io_input_root,
+                                     size_t input_root_cap,
+                                     char recent_paths[][DATALAB_APP_PATH_CAP],
+                                     size_t *io_recent_count,
+                                     size_t recent_capacity,
+                                     const char *path);
 
 #endif

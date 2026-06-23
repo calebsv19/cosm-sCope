@@ -421,11 +421,7 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
         core_free(time_points);
         return;
     }
-    if (app_state->trace_cursor_index == (size_t)-1) {
-        app_state->trace_cursor_index = time_count - 1u;
-    } else if (app_state->trace_cursor_index >= time_count) {
-        app_state->trace_cursor_index = time_count - 1u;
-    }
+    datalab_trace_clamp_cursor_to_count(app_state, time_count);
     play_t = time_points[app_state->trace_cursor_index];
 
     for (size_t l = 0; l < lane_count; ++l) {
@@ -475,13 +471,7 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
     draw_trace_time_grid(renderer, &plot, min_t, max_t, trace_time_label_y, &grid);
 
     if (lane_count == 0) lane_count = 1;
-    if (app_state->trace_lane_cycle_requested) {
-        size_t cycle_span = lane_count + 1u; /* all + per-lane */
-        app_state->trace_lane_visibility_index = (app_state->trace_lane_visibility_index + 1u) % cycle_span;
-        app_state->trace_lane_cycle_requested = 0;
-    } else if (app_state->trace_lane_visibility_index > lane_count) {
-        app_state->trace_lane_visibility_index = 0u;
-    }
+    datalab_trace_apply_lane_cycle(app_state, lane_count);
 
     {
         size_t visible_lane_count = (app_state->trace_lane_visibility_index == 0u) ? lane_count : 1u;
