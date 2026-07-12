@@ -161,9 +161,9 @@ Gaps:
 Current shared profile:
 - Strong on `core_base/core_io/core_data/core_pack`, `core_font`, and `kit_viz`.
 - `WASR-S3` now adopts the shared `kit_workspace_authoring >= 0.5.0` font/theme surface with the required `kit_render`/`core_theme` dependency chain.
-- `kit_ui >= 0.11.1` now owns the bottom playback HUD and top-left session
+- `kit_ui >= 0.11.2` now owns the bottom playback HUD, top-left session
   HUD alpha-aware floating style, button/readout row layout, nested
-  corner/inset sizing, and optional SDL rounded panel/button/readout adapter
+  corner/inset sizing, and optional SDL rounded panel/button/readout/scrollbar adapter
   while DataLab keeps playback/action policy, session content, file stepping,
   manual edge-wrap navigation, active theme persistence, and theme/custom-token
   mapping local.
@@ -178,6 +178,9 @@ Gaps:
   DataLab `kit_ui` HUD-row/SDL-adapter adopters; reuse this adapter in one more
   SDL program before promoting broader app-agnostic action semantics, and only
   then broaden rounded-surface polish to picker/session panels.
+- `Stabilize`: picker pane geometry now routes through `core_pane`, while the
+  persistent file/directory rails use the `kit_ui >= 0.11.2` direct-SDL
+  scrollbar adapter; DataLab keeps pointer routing and scroll offsets local.
 - `Stabilize`: `core_viewport2d` proving-host adoption is now in place for sketch/image lanes; keep viewport persistence, fit-reset behavior, and future large-image/tiled follow-ons aligned to the shared math contract instead of regressing into app-local viewport drift.
 - `Stabilize`: bounded `kit_graph_timeseries` trace graph adoption is complete;
   only open a fresh graph plan for concrete needs such as panning, multi-series
