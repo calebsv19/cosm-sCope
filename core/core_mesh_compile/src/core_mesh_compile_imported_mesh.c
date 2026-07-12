@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CORE_MESH_COMPILE_IMPORTED_STL_MAX_TRIANGLES 250000u
+#define CORE_MESH_COMPILE_IMPORTED_STL_MAX_TRIANGLES 3000000u
 
 typedef struct CoreMeshCompileParsedTriangle {
     size_t a;
@@ -550,7 +550,9 @@ static bool imported_mesh_binary_stl_layout_valid(const CoreBuffer *file_data,
     if (out_triangle_count) *out_triangle_count = 0u;
     if (!file_data || !file_data->data || file_data->size < 84u) return false;
     triangle_count = imported_mesh_read_u32_le((const unsigned char *)file_data->data + 80u);
+#if SIZE_MAX < UINT32_MAX
     if ((size_t)triangle_count > (SIZE_MAX - 84u) / 50u) return false;
+#endif
     expected_size = 84u + ((size_t)triangle_count * 50u);
     if (expected_size != file_data->size || triangle_count == 0u) return false;
     if (out_triangle_count) *out_triangle_count = triangle_count;
