@@ -60,7 +60,7 @@ void datalab_format_supported_file_count_status(size_t file_count, char *status,
     if (!status || status_cap == 0u) {
         return;
     }
-    snprintf(status, status_cap, "found %zu supported files (.pack/.bmp)", file_count);
+    snprintf(status, status_cap, "found %zu supported files (.pack/.bmp/.png)", file_count);
 }
 
 void datalab_format_supported_file_scan_status(const DatalabSupportedFileScanResult *scan,

@@ -10,6 +10,7 @@
 
 int datalab_input_file_is_pack(const char *path);
 int datalab_input_file_is_bmp(const char *path);
+int datalab_input_file_is_png(const char *path);
 int datalab_input_file_is_supported(const char *path);
 
 CoreResult datalab_input_image_bounds(uint32_t width,

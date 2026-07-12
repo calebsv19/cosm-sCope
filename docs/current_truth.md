@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-06-23
+Last updated: 2026-07-11
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -12,13 +12,40 @@ Last updated: 2026-06-23
 ## Current Shipped State
 - Startup picker + in-session source panel are active.
 - Input-root switching now includes a shared recent-directories MRU lane:
-  - startup picker exposes a top-level recent-directories dropdown
+  - startup picker exposes a persistent right-hand recent-directories rail
+    with independently clipped wheel/drag-thumb scrolling
+  - its frame rail can scroll independently of the selected frame and exposes
+    a colored scrollbar marker for that selection's full-list position
   - active runtime exposes a themed header recent-directories dropdown above the session HUD
   - MRU list is capped at `16` entries and persisted across sessions
   - re-opening an existing root moves it to the top instead of keeping duplicate rows
 - Supported ingest lanes include:
   - `.pack` families (physics/DAW/trace/sketch profile roots)
-  - `.bmp` image profile lane
+  - `.bmp` and `.png` image profile lanes
+  - generic core `.pack` inspection for valid but not-yet-renderable payloads
+    (chunk index, chunk sizes, and known-family classification)
+  - PhysicsSim `VF3H` volume packs through a bounded central XY-slice profile:
+    DataLab reads only the selected plane from density/X/Y velocity chunks and
+    presents it with the field heatmap/vector controls while identifying the
+    source depth and slice in runtime metadata
+  - GrowthSim `GFHD` field frames through the existing 2D field renderer:
+    DataLab selects `OCCP` occupancy when present and otherwise `FAMT` fuel
+    amount, records that choice in runtime/CLI metadata, and does not infer a
+    multi-field editing policy
+  - LineDrawing `LDHD`/`LDAN`/`LDWL` packs through a bounded XY anchor/wall
+    diagnostic preview; it is not full 3D navigation or an editable scene
+- Startup library behavior now includes:
+  - case-insensitive artifact filtering (`/`) and durable explicit pins (`P`)
+    kept separately from automatic artifact recency;
+  - a technical browser/inspector split with selected-file type and byte count;
+  - compact PNG/BMP preview, preferring the selected image and otherwise the
+    first image in the current directory;
+  - a persisted 64-entry recent-artifact MRU in addition to the 16-entry
+    recent-directory MRU;
+  - stale artifact detection before attempting an MRU open;
+  - `.pack` inspector recognition for PhysicsSim VF3H volumes, GrowthSim GFHD
+    field frames, LineDrawing LDHD diagnostics, existing profile roots, and
+    valid unknown core packs.
 - Data visualizer behavior is interactive (not static-image only):
   - session HUD collapse/restore (`H`)
   - top-left session data HUD uses the same shared `kit_ui` floating
@@ -47,8 +74,9 @@ Last updated: 2026-06-23
   - top-level authoring actions currently route through shared `kit_workspace_authoring` controls (`cycle`, `apply`, `cancel`)
 - Font/theme authoring state persists across sessions:
   - theme preset id persists
-  - `Cmd/Ctrl+T` and `Cmd/Ctrl+Shift+T` cycle runtime UI theme presets through
-    the shared authoring/theme state
+  - `Cmd/Ctrl+T` and `Cmd/Ctrl+Shift+T` cycle picker and runtime UI theme
+    presets through the shared authoring/theme state
+  - closing from the picker persists the current preset before the next launch
   - one active custom theme plus three custom theme slots persist
   - custom slot names and active slot persist alongside text zoom + input-root prefs
 
@@ -63,6 +91,8 @@ Last updated: 2026-06-23
 - Headless mode still requires explicit `--pack`.
 - Runtime prefs persist text zoom and input-root state.
 - Runtime prefs also persist recent input-root history in `data/runtime/recent_input_roots_v1.txt`.
+- Runtime prefs persist recent full artifact paths in
+  `data/runtime/recent_input_files_v1.txt`.
 - Runtime prefs also persist workspace-authoring theme/custom-theme state.
 - CLI `--input-root` takes precedence over persisted root.
 - Recent-directory activation behavior is mode-specific:
@@ -113,6 +143,8 @@ Last updated: 2026-06-23
     - `selected_pack_path` fallback
     - generated tiny BMP load through `datalab_load_input_file` and image-profile
       state seed
+    - generated tiny PNG load through `datalab_load_input_file`
+    - generic valid `.pack` inspection including indexed chunk metadata
     - wrapper run-loop handoff/finalize/shutdown through a stub dispatch,
       including dispatch summary and ownership cleanup
     - unsupported-extension bounded load failure
@@ -185,7 +217,9 @@ Last updated: 2026-06-23
     notarization requirement for local staging
 
 ## Current Boundary
-- Continue visualizer UX and profile rendering stability while validating the workspace-authoring host path.
+- Current library boundary: VF3H is renderable only as its declared central
+  XY slice. GrowthSim and LineDrawing are still inspection-only families;
+  their future adapters must not be described as current visualization support.
 - The bounded `kit_graph_timeseries` trace graph adoption is complete; broader
   graph features such as panning, multi-series inspection, or style-aware hover
   mapping should start as fresh scoped lanes when a concrete host need appears.

@@ -105,6 +105,10 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                     exit_code = 4;
                     goto cleanup;
                 }
+                /* Picker-only exits still own theme/text preference changes. */
+                (void)datalab_runtime_prefs_save_text_zoom_step(runtime->text_zoom_step);
+                (void)datalab_runtime_prefs_save_theme_preset_id(runtime->workspace_authoring_theme_preset_id);
+                (void)datalab_runtime_prefs_save_custom_theme(&runtime->workspace_authoring_custom_theme);
                 runtime->last_load_error[0] = '\0';
                 (void)datalab_input_root_select_recent(runtime->input_root,
                                                        sizeof(runtime->input_root),

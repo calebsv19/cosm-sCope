@@ -118,6 +118,33 @@ void make_title(const DatalabFrame *frame, const DatalabAppState *state, char *t
                  (unsigned int)state->workspace_authoring_entry_count);
         return;
     }
+    if (frame->profile == DATALAB_PROFILE_VOLUME) {
+        snprintf(title,
+                 title_cap,
+                 "DataLab | VF3H VOLUME xy-slice z=%u/%u grid=%ux%u t=%.3f voxel=%.3f mode=%s stride=%u text=%+d auth=%s/%s pending=%u entry=%u",
+                 frame->volume_slice_index,
+                 frame->volume_depth,
+                 frame->width,
+                 frame->height,
+                 frame->time_seconds,
+                 frame->voxel_size,
+                 datalab_view_mode_name(state->view_mode),
+                 state->vector_stride,
+                 state->text_zoom_step,
+                 state->workspace_authoring_stub_active ? "on" : "off",
+                 authoring_overlay,
+                 (unsigned int)state->workspace_authoring_pending_stub,
+                 (unsigned int)state->workspace_authoring_entry_count);
+        return;
+    }
+    if (frame->profile == DATALAB_PROFILE_GROWTH) {
+        snprintf(title, title_cap, "DataLab | GROWTH %s steps=%u grid=%ux%u dt=%.3f primary=%s mode=%s", frame->growth_schema_id, frame->growth_steps_executed, frame->width, frame->height, frame->dt_seconds, frame->growth_primary_field, datalab_view_mode_name(state->view_mode));
+        return;
+    }
+    if (frame->profile == DATALAB_PROFILE_LINE_DIAGNOSTIC) {
+        snprintf(title, title_cap, "DataLab | LINE DIAGNOSTIC XY anchors=%u walls=%u locked=gold schema=%u", frame->line_anchor_count, frame->line_wall_count, frame->line_schema_version);
+        return;
+    }
 
     snprintf(title,
              title_cap,

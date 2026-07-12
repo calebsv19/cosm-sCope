@@ -12,7 +12,10 @@ typedef enum DatalabProfile {
     DATALAB_PROFILE_DAW = 2,
     DATALAB_PROFILE_TRACE = 3,
     DATALAB_PROFILE_SKETCH = 4,
-    DATALAB_PROFILE_IMAGE = 5
+    DATALAB_PROFILE_IMAGE = 5,
+    DATALAB_PROFILE_VOLUME = 6,
+    DATALAB_PROFILE_GROWTH = 7,
+    DATALAB_PROFILE_LINE_DIAGNOSTIC = 8
 } DatalabProfile;
 
 typedef struct DatalabDawMarker {
@@ -36,6 +39,19 @@ typedef struct DatalabTraceMarker {
     char label[64];
 } DatalabTraceMarker;
 
+typedef struct DatalabLineAnchor {
+    float x;
+    float y;
+    uint32_t persistent;
+    uint32_t anchor_type;
+} DatalabLineAnchor;
+
+typedef struct DatalabLineWall {
+    uint32_t anchor_a;
+    uint32_t anchor_b;
+    uint32_t lock_length;
+} DatalabLineWall;
+
 typedef struct DatalabFrame {
     DatalabProfile profile;
 
@@ -49,6 +65,20 @@ typedef struct DatalabFrame {
     float origin_y;
     float cell_size;
     uint32_t obstacle_mask_crc32;
+    uint32_t volume_depth;
+    uint32_t volume_slice_index;
+    float origin_z;
+    float voxel_size;
+    char growth_schema_id[64];
+    char growth_primary_field[16];
+    uint32_t growth_steps_executed;
+    uint32_t line_schema_version;
+    uint32_t line_anchor_count;
+    uint32_t line_wall_count;
+    uint32_t line_curved_anchor_count;
+    uint32_t line_persistent_anchor_count;
+    DatalabLineAnchor *line_anchors;
+    DatalabLineWall *line_walls;
 
     float *density;
     float *velx;

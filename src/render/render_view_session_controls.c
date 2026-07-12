@@ -377,7 +377,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     if (measured_w > content_w) content_w = measured_w;
     (void)datalab_measure_text(1, g_pack_panel_cache.status[0] ? g_pack_panel_cache.status : "scanning...", &measured_w, &measured_h);
     if (measured_w > content_w) content_w = measured_w;
-    (void)datalab_measure_text(1, "NO SUPPORTED FILES (.PACK/.BMP) IN INPUT ROOT", &measured_w, &measured_h);
+    (void)datalab_measure_text(1, "NO SUPPORTED FILES (.PACK/.BMP/.PNG) IN INPUT ROOT", &measured_w, &measured_h);
     if (measured_w > content_w) content_w = measured_w;
 
     panel.x = datalab_scaled_px(10.0f);
@@ -516,7 +516,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                                   &list_clip,
                                   list_box.x + datalab_scaled_px(6.0f),
                                   start_y,
-                                  "NO SUPPORTED FILES (.PACK/.BMP) IN INPUT ROOT",
+                                  "NO SUPPORTED FILES (.PACK/.BMP/.PNG) IN INPUT ROOT",
                                   1,
                                   error_text.r,
                                   error_text.g,

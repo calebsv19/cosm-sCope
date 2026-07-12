@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := all
+
 include make/config.mk
 include make/target.mk
 include make/paths.mk

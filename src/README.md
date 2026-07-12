@@ -9,7 +9,7 @@ host files when an adjacent module would be clearer.
 - `main.c`: process entry; delegates into the app wrapper.
 - `app/`: lifecycle, app state, runtime loop, runtime prefs, and pack/session
   loading coordination.
-- `data/`: `.pack` and `.bmp` loading, sketch payload decoding, and dataset
+- `data/`: `.pack`, `.bmp`, and `.png` loading, generic pack inspection, sketch payload decoding, and dataset
   builders.
 - `render/`: visualizer presentation, picker/session UI, profile renderers,
   playback HUD, Workspace Authoring host overlay, raster tiles, trace graph

@@ -9,7 +9,8 @@ Start here for public repository documentation.
 - `docs/KEYBINDS.md`: runtime and authoring-entry input contract.
 - `docs/memory_check_audit.md`: default-off fisiCs memory-check audit lane.
 - current public docs include the startup-picker, active-runtime
-  recent-directories behavior, bottom playback HUD controls, theme-cycle keys,
+  recent-directories and recent-artifact behavior, compact PNG/BMP picker
+  preview, generic `.pack` inspection, bottom playback HUD controls, theme-cycle keys,
   edge-wrapping file navigation, shared trace graph rendering, and the
   multi-arch macOS package artifact contract.
 - DataLab's R0-R6 scaffold refinement pass is complete. The R6 demo proof is
@@ -61,6 +62,10 @@ Start here for public repository documentation.
   for Intel Mac validation
 - R0-R6 refinement is closed at the current source-render visual proof
   boundary; choose a fresh DataLab lane before reopening implementation work
+- the active fresh lane is the library visualizer buildout: VF3H central slices
+  and GrowthSim's explicit occupancy/fuel primary-field policy are renderable;
+  LineDrawing currently remains a diagnostic-summary family pending a geometry
+  preview contract.
 
 ## Private Planning Docs
 

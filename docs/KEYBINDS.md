@@ -10,7 +10,7 @@
 - `R`: reset local view controls for the active profile.
 - `O`: reopen startup picker and switch dataset.
 - `H`: collapse/restore the in-viewer session HUD.
-- `F5`: rescan supported files (`.pack`, `.bmp`) in the active input root.
+- `F5`: rescan supported files (`.pack`, `.bmp`, `.png`) in the active input root.
 - `U` / `J`: move Data Panel selection up/down; movement wraps at the first/last file.
 - `Enter`: load selected file from the Data Panel list.
 - `Space`: toggle directory autoplay (play/pause through current file list).
@@ -18,13 +18,22 @@
 - `Click bottom playback HUD`: previous/next, play/pause, speed down/up, and loop/bounce mode controls; previous/next wraps at the first/last file.
 
 ## Startup Picker
+- `/`: edit a case-insensitive artifact filter.
+- `P`: pin/unpin selected artifact; pins persist independently from history.
 - `E`: toggle path edit mode.
 - `B`: open native folder chooser (macOS).
 - `Backspace`: remove one character while editing path.
 - `Enter`: apply edited path in edit mode, or open selected file.
 - `Up` / `Down`: move file selection.
+- `Mouse Wheel` over the file or directory rail: scroll that rail.
+- Drag a rail scrollbar thumb: scroll that rail directly.
+- The frame scrollbar includes a position marker for the selected frame; manual
+  scrolling does not force that frame back into view.
+- Drag either thin pane divider: resize the file, preview, and directory panes.
 - `Esc`: cancel edit mode or exit picker.
-- `Click RECENT DIRECTORIES`: open the recent-root MRU list; selecting a root rescans that directory and highlights the first supported file.
+- Click a `RECENT DIRECTORIES` rail row: rescan that directory and highlight its first supported file.
+- `Click RECENT ARTIFACTS`: open a persisted artifact if its file and parent
+  directory are still available; stale rows report a bounded status instead.
 - `Alt+C+V`: open selected file and enter authoring mode immediately.
 
 ## Physics Profile
@@ -45,7 +54,7 @@
 - `X`: trace stats-stub toggle.
 - `C`: cycle lane visibility.
 
-## Image Profile (`.bmp`)
+## Image Profile (`.bmp`, `.png`)
 - `Left` / `Right`: load previous/next file from the active directory list; movement wraps at the first/last file.
 - `Mouse Wheel`: zoom at cursor anchor.
 - `Left Drag`: pan the raster viewport.

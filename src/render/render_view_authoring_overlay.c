@@ -38,6 +38,8 @@ static const char *datalab_overlay_profile_name(const DatalabFrame *frame) {
     switch (frame->profile) {
         case DATALAB_PROFILE_PHYSICS:
             return "physics";
+        case DATALAB_PROFILE_VOLUME:
+            return "volume";
         case DATALAB_PROFILE_DAW:
             return "daw";
         case DATALAB_PROFILE_TRACE:

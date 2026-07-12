@@ -394,6 +394,10 @@ CoreResult render_physics_loop(SDL_Window *window,
                                SDL_Renderer *renderer,
                                const DatalabFrame *frame,
                                DatalabAppState *app_state);
+CoreResult render_volume_loop(SDL_Window *window,
+                              SDL_Renderer *renderer,
+                              const DatalabFrame *frame,
+                              DatalabAppState *app_state);
 CoreResult render_sketch_loop(SDL_Window *window,
                               SDL_Renderer *renderer,
                               const DatalabFrame *frame,
@@ -407,5 +411,13 @@ CoreResult render_trace_loop(SDL_Window *window,
                              SDL_Renderer *renderer,
                              const DatalabFrame *frame,
                              DatalabAppState *app_state);
+CoreResult render_line_diagnostic_loop(SDL_Window *window,
+                                      SDL_Renderer *renderer,
+                                      const DatalabFrame *frame,
+                                      DatalabAppState *app_state);
+CoreResult datalab_line_diagnostic_submit_frame(SDL_Window *window,
+                                                SDL_Renderer *renderer,
+                                                const DatalabFrame *frame,
+                                                DatalabRenderSubmitOutcome *outcome);
 
 #endif

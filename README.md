@@ -1,11 +1,15 @@
 # DataLab (Alpha)
 
-DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced by other CodeWork programs.
+DataLab is a C-based data visualizer and technical artifact library for `.pack`, `.bmp`, and `.png` outputs produced by other CodeWork programs.
 
 ## Current Scope
 
-- Profile-aware `.pack` loading for Physics, DAW, Trace, and sketCh snapshot payloads.
-- `.bmp` image-sequence inspection in the same runtime session model.
+- Profile-aware `.pack` loading for Physics, DAW, Trace, sketCh snapshots,
+  PhysicsSim VF3H central slices, and GrowthSim GFHD primary fields.
+- `.bmp` and `.png` image-sequence inspection in the same runtime session model.
+- Generic valid `.pack` inspection (family/version/chunk index) for payloads that do not yet have a renderer.
+- LineDrawing LDHD/LDAN/LDWL packs receive a bounded XY anchor/wall diagnostic
+  preview; full 3D/editor behavior remains intentionally deferred.
 - Interactive visualizer controls for raster/image lanes (zoom/pan/reset) backed by shared `core_viewport2d`.
 - Trace graph view math, zoom, hover inspection, and plot drawing routed through
   shared `kit_graph_timeseries`.
@@ -17,11 +21,24 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
 
 ## Implemented Today
 
-- Startup picker on no-arg GUI launch (`.pack` / `.bmp` list, input-root selection).
-- Startup picker recent-directories dropdown:
-  - keeps the last 16 input roots
-  - selecting a recent root reorders it to the top instead of duplicating it
-  - selecting a recent root rescans and highlights the first supported file in that directory
+- Startup technical library on no-arg GUI launch (artifact/root history, `.pack`/`.bmp`/`.png` discovery, compact image preview, and pack inspector).
+- `/` filters visible artifacts by name/type; `P` persists a selected artifact
+  pin independently from automatic history.
+- PhysicsSim VF3H volume packs render their declared bounded central XY plane;
+  this is not arbitrary 3D slice navigation.
+- GrowthSim GFHD packs render a declared primary scalar field: `OCCP`
+  occupancy when present, otherwise `FAMT` fuel amount. The selected field is
+  shown in the title and CLI summary.
+- LineDrawing LDHD/LDAN/LDWL packs load their diagnostic schema and geometry
+  for headless summary, library inspection, and a bounded XY anchor/wall preview.
+- Startup picker workspace:
+  - keeps the last 16 input roots in a persistent right-hand directory rail
+  - file and directory rails have independent wheel scrolling, draggable
+    thumbs, and clipped rows
+  - the three panes use shared `core_pane` constraints with one-pixel dividers
+    and wide drag hit targets
+  - selecting a recent root reorders it to the top, rescans it, and highlights
+    the first supported file in that directory
 - In-session picker reopen (`O`) and panel quick-load controls (`U`/`J` + `Enter`, `F5` rescan).
 - Manual previous/next file movement wraps at list edges, so stepping
   backward from the first supported file loads the last supported file and
@@ -34,7 +51,8 @@ DataLab is a C-based data visualizer for `.pack` and `.bmp` artifacts produced b
 - Runtime UI theme cycling through the shared authoring/theme state:
   - `Cmd/Ctrl+T` selects the next UI theme preset
   - `Cmd/Ctrl+Shift+T` selects the previous UI theme preset
-  - active HUD chrome resolves colors from the selected theme/custom palette
+  - picker and active HUD chrome resolve colors from the selected theme/custom palette
+  - picker-only exits persist the selected preset, so the next launch restores it
 - Bottom playback HUD:
   - previous/next file
   - play/pause
@@ -90,6 +108,7 @@ Explicit input examples:
 ./datalab/datalab --pack /absolute/path/to/frame.pack
 ./datalab/datalab --pack /absolute/path/to/frame.bmp
 ./datalab/datalab --pack /absolute/path/to/frame.bmp --no-gui
+./datalab/datalab --pack /absolute/path/to/frame.png --no-gui
 ./datalab/datalab --input-root /absolute/path/to/folder
 ```
 

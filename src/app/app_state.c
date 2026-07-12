@@ -287,7 +287,7 @@ void datalab_profile_select_view_slot(DatalabAppState *state, int slot) {
 
 void datalab_physics_adjust_vector_stride(DatalabAppState *state, int delta) {
     int next_stride = 0;
-    if (!state || state->profile != DATALAB_PROFILE_PHYSICS || delta == 0) {
+    if (!state || (state->profile != DATALAB_PROFILE_PHYSICS && state->profile != DATALAB_PROFILE_VOLUME) || delta == 0) {
         return;
     }
     next_stride = (int)state->vector_stride + delta;

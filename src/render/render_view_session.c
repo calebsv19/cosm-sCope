@@ -30,6 +30,12 @@ static const char *datalab_render_profile_name(DatalabProfile profile) {
             return "sketch";
         case DATALAB_PROFILE_IMAGE:
             return "image";
+        case DATALAB_PROFILE_VOLUME:
+            return "volume";
+        case DATALAB_PROFILE_GROWTH:
+            return "growth";
+        case DATALAB_PROFILE_LINE_DIAGNOSTIC:
+            return "line_diagnostic";
         default:
             return "unknown";
     }
@@ -85,9 +91,13 @@ static CoreResult datalab_render_validate_frame(const DatalabFrame *frame, const
     if (!frame || !app_state) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid argument" };
     }
-    if (frame->profile == DATALAB_PROFILE_PHYSICS) {
+    if (frame->profile == DATALAB_PROFILE_PHYSICS || frame->profile == DATALAB_PROFILE_VOLUME || frame->profile == DATALAB_PROFILE_GROWTH) {
         if (!frame->density || !frame->velx || !frame->vely || frame->width == 0 || frame->height == 0) {
-            return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid physics frame" };
+            return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid field frame" };
+        }
+        if (frame->profile == DATALAB_PROFILE_VOLUME &&
+            (frame->volume_depth == 0u || frame->volume_slice_index >= frame->volume_depth)) {
+            return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid volume slice frame" };
         }
         return core_result_ok();
     }
@@ -106,6 +116,12 @@ static CoreResult datalab_render_validate_frame(const DatalabFrame *frame, const
     if (frame->profile == DATALAB_PROFILE_SKETCH || frame->profile == DATALAB_PROFILE_IMAGE) {
         if (!frame->drawing_rgba || frame->width == 0 || frame->height == 0) {
             return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid raster frame" };
+        }
+        return core_result_ok();
+    }
+    if (frame->profile == DATALAB_PROFILE_LINE_DIAGNOSTIC) {
+        if (!frame->line_anchors || !frame->line_walls || frame->line_anchor_count == 0u) {
+            return (CoreResult){ CORE_ERR_INVALID_ARG, "line diagnostic profile has no preview geometry" };
         }
         return core_result_ok();
     }
@@ -197,6 +213,9 @@ static CoreResult datalab_render_submit_first_frame(DatalabRenderSession *sessio
                                            &derive,
                                            &outcome);
         return outcome.result;
+    }
+    if (frame->profile == DATALAB_PROFILE_LINE_DIAGNOSTIC) {
+        return datalab_line_diagnostic_submit_frame(session->window, session->renderer, frame, &outcome);
     }
     {
         const size_t sample_count = (size_t)frame->width * (size_t)frame->height;
@@ -409,9 +428,19 @@ CoreResult datalab_render_run_with_session(DatalabRenderSession *session,
         }
         return run_r;
     }
-    run_r = render_physics_loop(session->window, session->renderer, frame, app_state);
+    if (frame->profile == DATALAB_PROFILE_LINE_DIAGNOSTIC) {
+        run_r = render_line_diagnostic_loop(session->window, session->renderer, frame, app_state);
+        if (run_r.code != CORE_OK) datalab_render_set_failure_diagnostic("render_submit", "profile_loop:line_diagnostic", profile, run_r);
+        return run_r;
+    }
+    run_r = frame->profile == DATALAB_PROFILE_VOLUME
+                ? render_volume_loop(session->window, session->renderer, frame, app_state)
+                : render_physics_loop(session->window, session->renderer, frame, app_state);
     if (run_r.code != CORE_OK) {
-        datalab_render_set_failure_diagnostic("render_submit", "profile_loop:physics", profile, run_r);
+        datalab_render_set_failure_diagnostic("render_submit",
+                                              frame->profile == DATALAB_PROFILE_VOLUME ? "profile_loop:volume" : "profile_loop:physics",
+                                              profile,
+                                              run_r);
     }
     return run_r;
 }

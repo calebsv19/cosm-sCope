@@ -49,6 +49,51 @@ typedef struct TraceHeaderCanonical {
     uint64_t marker_count;
 } TraceHeaderCanonical;
 
+typedef struct Vf3dHeaderCanonical {
+    uint32_t version;
+    uint32_t grid_w;
+    uint32_t grid_h;
+    uint32_t grid_d;
+    double time_seconds;
+    uint64_t frame_index;
+    double dt_seconds;
+    float origin_x;
+    float origin_y;
+    float origin_z;
+    float voxel_size;
+    float scene_up_x;
+    float scene_up_y;
+    float scene_up_z;
+    uint32_t solid_mask_crc32;
+} Vf3dHeaderCanonical;
+
+typedef struct GrowthHeaderCanonical {
+    char schema_id[64];
+    uint32_t schema_version;
+    uint32_t width;
+    uint32_t height;
+    uint32_t cell_count;
+    uint32_t field_count;
+    uint32_t steps_executed;
+    float fixed_dt_seconds;
+    uint32_t reserved[8];
+} GrowthHeaderCanonical;
+
+typedef struct LineDrawingHeaderCanonical {
+    uint32_t schema_version;
+    uint32_t anchor_count;
+    uint32_t wall_count;
+    uint32_t curved_anchor_count;
+    uint32_t persistent_anchor_count;
+} LineDrawingHeaderCanonical;
+
+typedef struct LineDrawingAnchorPackBaseV1 {
+    float x, y, handle_in_length, handle_in_angle_deg, handle_out_length, handle_out_angle_deg;
+    uint32_t persistent, anchor_type;
+} LineDrawingAnchorPackBaseV1;
+
+typedef struct LineDrawingWallRowV1 { uint32_t a, b, lock_length; } LineDrawingWallRowV1;
+
 typedef struct TraceSampleDisk {
     double time_seconds;
     float value;
@@ -235,6 +280,71 @@ static void write_physics_pack_with_unknown_chunk(const char *path) {
     assert(core_pack_writer_add_chunk(&w, "VELY", vely, sizeof(vely)).code == CORE_OK);
     assert(core_pack_writer_add_chunk(&w, "XTRA", unknown_blob, sizeof(unknown_blob)).code == CORE_OK);
     assert(core_pack_writer_close(&w).code == CORE_OK);
+}
+
+static void write_volume_pack(const char *path) {
+    CorePackWriter writer = {0};
+    Vf3dHeaderCanonical header = {0};
+    float density[12];
+    float velx[12];
+    float vely[12];
+    CoreResult result = core_pack_writer_open(path, &writer);
+    assert(result.code == CORE_OK);
+    header.version = 1u;
+    header.grid_w = 2u;
+    header.grid_h = 2u;
+    header.grid_d = 3u;
+    header.time_seconds = 3.5;
+    header.frame_index = 22u;
+    header.dt_seconds = 0.125;
+    header.origin_z = -2.0f;
+    header.voxel_size = 0.5f;
+    for (size_t i = 0u; i < 12u; ++i) {
+        density[i] = (float)i;
+        velx[i] = (float)(i + 10u);
+        vely[i] = (float)(i + 20u);
+    }
+    assert(core_pack_writer_add_chunk(&writer, "VF3H", &header, sizeof(header)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, "DENS", density, sizeof(density)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, "VELX", velx, sizeof(velx)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, "VELY", vely, sizeof(vely)).code == CORE_OK);
+    assert(core_pack_writer_close(&writer).code == CORE_OK);
+}
+
+static void write_growth_pack(const char *path, const char *field_tag) {
+    CorePackWriter writer = {0};
+    GrowthHeaderCanonical header = {0};
+    const float values[4] = {0.25f, 0.5f, 0.75f, 1.0f};
+    const char manifest[] = "{\"producer\":\"growth_sim\"}";
+    assert(core_pack_writer_open(path, &writer).code == CORE_OK);
+    snprintf(header.schema_id, sizeof(header.schema_id), "%s", "growth_field_fixture_v1");
+    header.schema_version = 1u;
+    header.width = 2u;
+    header.height = 2u;
+    header.cell_count = 4u;
+    header.field_count = 1u;
+    header.steps_executed = 17u;
+    header.fixed_dt_seconds = 0.05f;
+    assert(core_pack_writer_add_chunk(&writer, "GFHD", &header, sizeof(header)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, field_tag, values, sizeof(values)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, "JSON", manifest, sizeof(manifest) - 1u).code == CORE_OK);
+    assert(core_pack_writer_close(&writer).code == CORE_OK);
+}
+
+static void write_line_diagnostic_pack(const char *path) {
+    CorePackWriter writer = {0};
+    const LineDrawingHeaderCanonical header = {2u, 3u, 2u, 1u, 1u};
+    const LineDrawingAnchorPackBaseV1 anchors[3] = {
+        {0.0f, 0.0f, 0, 0, 0, 0, 1u, 2u}, {2.0f, 0.0f, 0, 0, 0, 0, 0u, 3u}, {1.0f, 2.0f, 0, 0, 0, 0, 0u, 4u}
+    };
+    const LineDrawingWallRowV1 walls[2] = {{0u, 1u, 1u}, {1u, 2u, 0u}};
+    const char manifest[] = "{\"producer\":\"line_drawing\"}";
+    assert(core_pack_writer_open(path, &writer).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, "LDHD", &header, sizeof(header)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, "LDAN", anchors, sizeof(anchors)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, "LDWL", walls, sizeof(walls)).code == CORE_OK);
+    assert(core_pack_writer_add_chunk(&writer, "JSON", manifest, sizeof(manifest) - 1u).code == CORE_OK);
+    assert(core_pack_writer_close(&writer).code == CORE_OK);
 }
 
 static void write_daw_pack_with_unknown_chunk(const char *path) {
@@ -637,6 +747,10 @@ static void write_sketch_pack_with_huge_object_count(const char *path) {
 int main(void) {
     char fixture_dir[PATH_MAX];
     char physics_path[PATH_MAX];
+    char volume_path[PATH_MAX];
+    char growth_occupancy_path[PATH_MAX];
+    char growth_fuel_path[PATH_MAX];
+    char line_diagnostic_path[PATH_MAX];
     char daw_path[PATH_MAX];
     char trace_path[PATH_MAX];
     char sketch_path[PATH_MAX];
@@ -650,6 +764,10 @@ int main(void) {
 
     make_test_temp_dir(fixture_dir, sizeof(fixture_dir));
     make_test_fixture_path(physics_path, sizeof(physics_path), fixture_dir, "unknown_physics.pack");
+    make_test_fixture_path(volume_path, sizeof(volume_path), fixture_dir, "volume_vf3h.pack");
+    make_test_fixture_path(growth_occupancy_path, sizeof(growth_occupancy_path), fixture_dir, "growth_occupancy.pack");
+    make_test_fixture_path(growth_fuel_path, sizeof(growth_fuel_path), fixture_dir, "growth_fuel.pack");
+    make_test_fixture_path(line_diagnostic_path, sizeof(line_diagnostic_path), fixture_dir, "line_diagnostic.pack");
     make_test_fixture_path(daw_path, sizeof(daw_path), fixture_dir, "unknown_daw.pack");
     make_test_fixture_path(trace_path, sizeof(trace_path), fixture_dir, "unknown_trace.pack");
     make_test_fixture_path(sketch_path, sizeof(sketch_path), fixture_dir, "sketch_rects.pack");
@@ -662,6 +780,10 @@ int main(void) {
     make_test_fixture_path(huge_sketch_objects_path, sizeof(huge_sketch_objects_path), fixture_dir, "huge_sketch_objects.pack");
 
     write_physics_pack_with_unknown_chunk(physics_path);
+    write_volume_pack(volume_path);
+    write_growth_pack(growth_occupancy_path, "OCCP");
+    write_growth_pack(growth_fuel_path, "FAMT");
+    write_line_diagnostic_pack(line_diagnostic_path);
     write_daw_pack_with_unknown_chunk(daw_path);
     write_trace_pack_with_unknown_chunk(trace_path);
     write_sketch_pack(sketch_path);
@@ -681,6 +803,45 @@ int main(void) {
     assert(physics.chunk_count == 5);
     assert(physics.density != NULL && physics.velx != NULL && physics.vely != NULL);
     datalab_frame_free(&physics);
+
+    DatalabFrame volume = {0};
+    r = datalab_load_pack(volume_path, &volume);
+    assert(r.code == CORE_OK);
+    assert(volume.profile == DATALAB_PROFILE_VOLUME);
+    assert(volume.width == 2u && volume.height == 2u);
+    assert(volume.volume_depth == 3u && volume.volume_slice_index == 1u);
+    assert(volume.density != NULL && volume.velx != NULL && volume.vely != NULL);
+    assert(volume.density[0] == 4.0f && volume.density[3] == 7.0f);
+    assert(volume.velx[0] == 14.0f && volume.vely[3] == 27.0f);
+    datalab_frame_free(&volume);
+
+    DatalabFrame growth = {0};
+    r = datalab_load_pack(growth_occupancy_path, &growth);
+    assert(r.code == CORE_OK);
+    assert(growth.profile == DATALAB_PROFILE_GROWTH);
+    assert(growth.width == 2u && growth.height == 2u && growth.growth_steps_executed == 17u);
+    assert(strcmp(growth.growth_schema_id, "growth_field_fixture_v1") == 0);
+    assert(strcmp(growth.growth_primary_field, "occupancy") == 0);
+    assert(growth.density != NULL && growth.density[0] == 0.25f && growth.density[3] == 1.0f);
+    assert(growth.manifest_json != NULL);
+    datalab_frame_free(&growth);
+
+    r = datalab_load_pack(growth_fuel_path, &growth);
+    assert(r.code == CORE_OK);
+    assert(growth.profile == DATALAB_PROFILE_GROWTH);
+    assert(strcmp(growth.growth_primary_field, "fuel_amount") == 0);
+    datalab_frame_free(&growth);
+
+    DatalabFrame line_diagnostic = {0};
+    r = datalab_load_pack(line_diagnostic_path, &line_diagnostic);
+    assert(r.code == CORE_OK);
+    assert(line_diagnostic.profile == DATALAB_PROFILE_LINE_DIAGNOSTIC);
+    assert(line_diagnostic.line_schema_version == 2u && line_diagnostic.line_anchor_count == 3u);
+    assert(line_diagnostic.line_wall_count == 2u && line_diagnostic.line_curved_anchor_count == 1u && line_diagnostic.line_persistent_anchor_count == 1u);
+    assert(line_diagnostic.line_anchors != NULL && line_diagnostic.line_walls != NULL);
+    assert(line_diagnostic.line_anchors[2].y == 2.0f && line_diagnostic.line_walls[0].lock_length == 1u);
+    assert(line_diagnostic.manifest_json != NULL);
+    datalab_frame_free(&line_diagnostic);
 
     DatalabFrame daw = {0};
     r = datalab_load_pack(daw_path, &daw);
@@ -794,6 +955,10 @@ int main(void) {
     cleanup_test_fixture(trace_path);
     cleanup_test_fixture(daw_path);
     cleanup_test_fixture(physics_path);
+    cleanup_test_fixture(volume_path);
+    cleanup_test_fixture(growth_occupancy_path);
+    cleanup_test_fixture(growth_fuel_path);
+    cleanup_test_fixture(line_diagnostic_path);
     (void)rmdir(fixture_dir);
 
     puts("datalab pack loader test passed");

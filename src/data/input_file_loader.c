@@ -5,6 +5,8 @@
 #include <string.h>
 #include <strings.h>
 
+#include <png.h>
+
 #include <SDL2/SDL.h>
 
 #include "core_base.h"
@@ -126,6 +128,86 @@ static CoreResult datalab_load_bmp_file(const char *path, DatalabFrame *out_fram
     return core_result_ok();
 }
 
+static CoreResult datalab_load_png_file(const char *path, DatalabFrame *out_frame) {
+    FILE *fp = NULL;
+    png_structp png = NULL;
+    png_infop info = NULL;
+    png_bytep *rows = NULL;
+    uint8_t *rgba = NULL;
+    png_uint_32 width = 0u;
+    png_uint_32 height = 0u;
+    int bit_depth = 0;
+    int color_type = 0;
+    size_t row_bytes = 0u;
+    size_t image_bytes = 0u;
+    CoreResult result = core_result_ok();
+
+    if (!path || !out_frame) {
+        return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid png load request" };
+    }
+    fp = fopen(path, "rb");
+    if (!fp) {
+        return (CoreResult){ CORE_ERR_IO, "failed to open png" };
+    }
+    png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png) {
+        result = (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to create png reader" };
+        goto cleanup;
+    }
+    info = png_create_info_struct(png);
+    if (!info) {
+        result = (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "failed to create png info" };
+        goto cleanup;
+    }
+    if (setjmp(png_jmpbuf(png))) {
+        result = (CoreResult){ CORE_ERR_FORMAT, "invalid or unsupported png" };
+        goto cleanup;
+    }
+    png_init_io(png, fp);
+    png_read_info(png, info);
+    width = png_get_image_width(png, info);
+    height = png_get_image_height(png, info);
+    bit_depth = png_get_bit_depth(png, info);
+    color_type = png_get_color_type(png, info);
+    if (bit_depth == 16) png_set_strip_16(png);
+    if (color_type == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(png);
+    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8) png_set_expand_gray_1_2_4_to_8(png);
+    if (png_get_valid(png, info, PNG_INFO_tRNS)) png_set_tRNS_to_alpha(png);
+    if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY ||
+        color_type == PNG_COLOR_TYPE_PALETTE) png_set_filler(png, 0xff, PNG_FILLER_AFTER);
+    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) png_set_gray_to_rgb(png);
+    png_read_update_info(png, info);
+    result = datalab_input_image_bounds((uint32_t)width, (uint32_t)height, &row_bytes, &image_bytes);
+    if (result.code != CORE_OK) {
+        goto cleanup;
+    }
+    rgba = (uint8_t *)core_alloc(image_bytes);
+    rows = (png_bytep *)core_alloc(sizeof(*rows) * (size_t)height);
+    if (!rgba || !rows) {
+        result = (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "out of memory" };
+        goto cleanup;
+    }
+    for (png_uint_32 y = 0u; y < height; ++y) {
+        rows[y] = rgba + ((size_t)y * row_bytes);
+    }
+    png_read_image(png, rows);
+    png_read_end(png, info);
+    datalab_frame_init(out_frame);
+    out_frame->profile = DATALAB_PROFILE_IMAGE;
+    out_frame->width = (uint32_t)width;
+    out_frame->height = (uint32_t)height;
+    out_frame->logical_width = out_frame->width;
+    out_frame->logical_height = out_frame->height;
+    out_frame->drawing_rgba = rgba;
+    rgba = NULL;
+cleanup:
+    core_free(rows);
+    core_free(rgba);
+    if (png || info) png_destroy_read_struct(&png, &info, NULL);
+    if (fp) fclose(fp);
+    return result;
+}
+
 int datalab_input_file_is_pack(const char *path) {
     return datalab_has_extension(path, ".pack");
 }
@@ -134,8 +216,13 @@ int datalab_input_file_is_bmp(const char *path) {
     return datalab_has_extension(path, ".bmp");
 }
 
+int datalab_input_file_is_png(const char *path) {
+    return datalab_has_extension(path, ".png");
+}
+
 int datalab_input_file_is_supported(const char *path) {
-    return datalab_input_file_is_pack(path) || datalab_input_file_is_bmp(path);
+    return datalab_input_file_is_pack(path) || datalab_input_file_is_bmp(path) ||
+           datalab_input_file_is_png(path);
 }
 
 CoreResult datalab_load_input_file(const char *path, DatalabFrame *out_frame) {
@@ -148,5 +235,8 @@ CoreResult datalab_load_input_file(const char *path, DatalabFrame *out_frame) {
     if (datalab_input_file_is_bmp(path)) {
         return datalab_load_bmp_file(path, out_frame);
     }
-    return (CoreResult){ CORE_ERR_NOT_FOUND, "unsupported input file extension (expected .pack or .bmp)" };
+    if (datalab_input_file_is_png(path)) {
+        return datalab_load_png_file(path, out_frame);
+    }
+    return (CoreResult){ CORE_ERR_NOT_FOUND, "unsupported input file extension (expected .pack, .bmp, or .png)" };
 }

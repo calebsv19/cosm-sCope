@@ -31,7 +31,7 @@ int datalab_app_transition_stage(DatalabAppContext *ctx,
 }
 
 void datalab_print_usage(const char *argv0) {
-    printf("usage: %s [--pack /path/to/frame.pack|frame.bmp] [--input-root /path/to/folder] [--no-gui] [--visual-artifact /path/to/frame.bmp]\n", argv0);
+    printf("usage: %s [--pack /path/to/frame.pack|frame.bmp|frame.png] [--input-root /path/to/folder] [--no-gui] [--visual-artifact /path/to/frame.bmp]\n", argv0);
 }
 
 void datalab_app_runtime_init(DatalabAppRuntime *runtime) {

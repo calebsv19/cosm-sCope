@@ -7,14 +7,17 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <png.h>
 #include <SDL2/SDL.h>
 
 #include "app/datalab_app_internal.h"
 #include "app/datalab_runtime_prefs.h"
 #include "datalab/datalab_app_main.h"
 #include "data/input_file_loader.h"
+#include "data/pack_inspector.h"
 #include "render/render_view.h"
 #include "render/render_view_internal.h"
+#include "core_pack.h"
 
 #ifndef DATALAB_TEST_DEFAULT_PACK
 #define DATALAB_TEST_DEFAULT_PACK ""
@@ -86,6 +89,60 @@ static int datalab_test_write_tiny_bmp(const char *path) {
         return 0;
     }
     SDL_FreeSurface(surface);
+    return 1;
+}
+
+static int datalab_test_write_tiny_png(const char *path) {
+    static const uint8_t pixels[] = {
+        255u, 0u, 0u, 255u, 0u, 255u, 0u, 255u,
+        0u, 0u, 255u, 255u, 255u, 255u, 0u, 255u
+    };
+    png_bytep rows[2];
+    FILE *fp = NULL;
+    png_structp png = NULL;
+    png_infop info = NULL;
+    int ok = 0;
+    if (!path) {
+        return 0;
+    }
+    fp = fopen(path, "wb");
+    if (!fp) {
+        return 0;
+    }
+    png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    info = png ? png_create_info_struct(png) : NULL;
+    if (!png || !info || setjmp(png_jmpbuf(png))) {
+        goto cleanup;
+    }
+    rows[0] = (png_bytep)pixels;
+    rows[1] = (png_bytep)(pixels + 8u);
+    png_init_io(png, fp);
+    png_set_IHDR(png, info, 2u, 2u, 8, PNG_COLOR_TYPE_RGBA,
+                 PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png, info);
+    png_write_image(png, rows);
+    png_write_end(png, info);
+    ok = 1;
+cleanup:
+    if (png || info) {
+        png_destroy_write_struct(&png, &info);
+    }
+    fclose(fp);
+    return ok;
+}
+
+static int datalab_test_write_generic_pack(const char *path) {
+    CorePackWriter writer = {0};
+    static const char header[] = "inspection fixture";
+    static const uint8_t payload[] = {1u, 2u, 3u, 4u};
+    if (!path || core_pack_writer_open(path, &writer).code != CORE_OK) {
+        return 0;
+    }
+    if (core_pack_writer_add_chunk(&writer, "TEST", header, sizeof(header)).code != CORE_OK ||
+        core_pack_writer_add_chunk(&writer, "DATA", payload, sizeof(payload)).code != CORE_OK ||
+        core_pack_writer_close(&writer).code != CORE_OK) {
+        return 0;
+    }
     return 1;
 }
 
@@ -262,6 +319,54 @@ static int test_generated_bmp_load_path_and_state_seed(const char *temp_dir) {
     return 1;
 }
 
+static int test_generated_png_load_path(const char *temp_dir) {
+    DatalabFrame frame = {0};
+    CoreResult result;
+    char png_path[PATH_MAX];
+    snprintf(png_path, sizeof(png_path), "%s/tiny_fixture.png", temp_dir);
+    if (!datalab_test_write_tiny_png(png_path)) {
+        fprintf(stderr, "contract: failed to create png fixture\n");
+        return 0;
+    }
+    result = datalab_load_input_file(png_path, &frame);
+    if (!datalab_test_assert(result.code == CORE_OK, "generated png should load through input loader") ||
+        !datalab_test_assert(datalab_input_file_is_png(png_path), "png extension should be supported") ||
+        !datalab_test_assert(frame.profile == DATALAB_PROFILE_IMAGE, "generated png should seed image profile") ||
+        !datalab_test_assert(frame.width == 2u && frame.height == 2u, "generated png dimensions should load") ||
+        !datalab_test_assert(frame.drawing_rgba != NULL, "generated png should produce rgba pixels")) {
+        datalab_frame_free(&frame);
+        return 0;
+    }
+    datalab_frame_free(&frame);
+    return 1;
+}
+
+static int test_generic_pack_inspection(const char *temp_dir) {
+    DatalabPackInspection inspection = {0};
+    CoreResult result;
+    char path[PATH_MAX];
+    char summary[128];
+    char chunk[64];
+    snprintf(path, sizeof(path), "%s/generic_fixture.pack", temp_dir);
+    if (!datalab_test_write_generic_pack(path)) {
+        fprintf(stderr, "contract: failed to create generic pack fixture\n");
+        return 0;
+    }
+    result = datalab_inspect_pack(path, &inspection);
+    datalab_pack_inspection_format_summary(&inspection, summary, sizeof(summary));
+    datalab_pack_inspection_format_chunk(&inspection, 1u, chunk, sizeof(chunk));
+    return datalab_test_assert(result.code == CORE_OK, "generic pack should inspect") &&
+           datalab_test_assert(inspection.chunk_count == 2u, "generic pack should expose both chunks") &&
+           datalab_test_assert(strcmp(inspection.family, "Generic core pack") == 0,
+                               "unknown pack should retain generic classification") &&
+           datalab_test_assert(strcmp(inspection.chunks[0].type, "TEST") == 0,
+                               "generic pack should preserve first chunk type") &&
+           datalab_test_assert(strstr(summary, "2 CHUNKS") != NULL,
+                               "generic pack summary should be informative") &&
+           datalab_test_assert(strstr(chunk, "DATA") != NULL,
+                               "generic pack chunk summary should be informative");
+}
+
 static int test_wrapper_lifecycle_stub_dispatch_and_shutdown(void) {
     DatalabAppRuntime runtime;
     DatalabAppContext ctx;
@@ -382,6 +487,38 @@ static int test_cli_input_root_precedence(const char *temp_dir) {
         ok = 1;
     }
 
+    datalab_test_restore_cwd(previous_cwd);
+    return ok;
+}
+
+static int test_theme_preset_persists_across_config_reload(const char *temp_dir) {
+    DatalabAppRuntime runtime;
+    char previous_cwd[PATH_MAX];
+    char prefs_root[PATH_MAX];
+    char *argv[] = { (char *)"datalab" };
+    int ok = 0;
+
+    snprintf(prefs_root, sizeof(prefs_root), "%s/theme_prefs", temp_dir);
+    if (!datalab_test_enter_temp_runtime_root(prefs_root, previous_cwd, sizeof(previous_cwd))) {
+        fprintf(stderr, "contract: failed to enter theme prefs root\n");
+        return 0;
+    }
+    if (!datalab_runtime_prefs_save_theme_preset_id(
+            (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT)) {
+        datalab_test_restore_cwd(previous_cwd);
+        fprintf(stderr, "contract: failed to save theme preset\n");
+        return 0;
+    }
+    datalab_app_runtime_init(&runtime);
+    if (datalab_test_assert(datalab_app_bootstrap(1, argv, &runtime) == 0,
+                            "bootstrap failed for persisted theme") &&
+        datalab_test_assert(datalab_app_config_load(&runtime) == 0,
+                            "config load failed for persisted theme") &&
+        datalab_test_assert(runtime.workspace_authoring_theme_preset_id ==
+                            (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_SOFT_LIGHT,
+                            "saved theme should load into the next runtime")) {
+        ok = 1;
+    }
     datalab_test_restore_cwd(previous_cwd);
     return ok;
 }
@@ -614,6 +751,12 @@ int main(void) {
     if (!test_generated_bmp_load_path_and_state_seed(temp_dir)) {
         return 1;
     }
+    if (!test_generated_png_load_path(temp_dir)) {
+        return 1;
+    }
+    if (!test_generic_pack_inspection(temp_dir)) {
+        return 1;
+    }
     if (!test_wrapper_lifecycle_stub_dispatch_and_shutdown()) {
         return 1;
     }
@@ -621,6 +764,9 @@ int main(void) {
         return 1;
     }
     if (!test_cli_input_root_precedence(temp_dir)) {
+        return 1;
+    }
+    if (!test_theme_preset_persists_across_config_reload(temp_dir)) {
         return 1;
     }
     if (!test_missing_prefs_stay_quiet(temp_dir)) {
