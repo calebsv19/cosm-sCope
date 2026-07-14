@@ -54,7 +54,7 @@ static void datalab_loop_handle_event(SDL_Window *window,
     } else if (event->type == SDL_WINDOWEVENT) {
         *resize_pending = 1;
     }
-    if (datalab_workspace_authoring_route_mouse_event(event, app_state)) {
+    if (datalab_workspace_authoring_route_mouse_event(window, renderer, event, app_state)) {
         return;
     }
     if (datalab_playback_hud_route_mouse_event(window, renderer, event, app_state)) {

@@ -263,7 +263,10 @@ void datalab_input_apply_event(DatalabInputFrame *frame, const SDL_Event *event)
 void datalab_workspace_authoring_route_keydown(const SDL_KeyboardEvent *key,
                                                DatalabAppState *app_state,
                                                DatalabWorkspaceAuthoringAdapterResult *outcome);
-int datalab_workspace_authoring_route_mouse_event(const SDL_Event *event, DatalabAppState *app_state);
+int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
+                                                  SDL_Renderer *renderer,
+                                                  const SDL_Event *event,
+                                                  DatalabAppState *app_state);
 int datalab_session_controls_route_mouse_event(SDL_Window *window,
                                                SDL_Renderer *renderer,
                                                const SDL_Event *event,

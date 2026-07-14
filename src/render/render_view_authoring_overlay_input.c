@@ -130,7 +130,10 @@ static int datalab_overlay_apply_top_button(KitWorkspaceAuthoringOverlayButtonId
             action_id = "workspace.cancel_or_quit";
             break;
         case KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_ADD:
-            return 1;
+            /* DataLab has not yet promoted its runtime visualizer to a CorePane
+             * layout. Do not advertise a successful pane insertion until there
+             * is a persisted layout mutation to apply. */
+            return 0;
         case KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_NONE:
         default:
             return 0;
@@ -140,20 +143,29 @@ static int datalab_overlay_apply_top_button(KitWorkspaceAuthoringOverlayButtonId
     return 1;
 }
 
-int datalab_workspace_authoring_route_mouse_event(const SDL_Event *event, DatalabAppState *app_state) {
+int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
+                                                  SDL_Renderer *renderer,
+                                                  const SDL_Event *event,
+                                                  DatalabAppState *app_state) {
     KitWorkspaceAuthoringOverlayButtonId top_button = KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_NONE;
     DatalabAuthoringFontThemeHitId font_hit = DATALAB_AUTHORING_FONT_HIT_NONE;
     int pointer_x = 0;
     int pointer_y = 0;
 
-    if (!event || !app_state || !app_state->workspace_authoring_stub_active) {
+    if (!window || !renderer || !event || !app_state || !app_state->workspace_authoring_stub_active) {
         return 0;
     }
 
     switch (event->type) {
         case SDL_MOUSEMOTION:
-            pointer_x = event->motion.x;
-            pointer_y = event->motion.y;
+            if (!datalab_render_map_window_to_renderer_point(window,
+                                                             renderer,
+                                                             event->motion.x,
+                                                             event->motion.y,
+                                                             &pointer_x,
+                                                             &pointer_y)) {
+                return 1;
+            }
             top_button = kit_workspace_authoring_ui_overlay_hit_test(g_datalab_authoring_overlay_ui.top_buttons,
                                                                       g_datalab_authoring_overlay_ui.top_button_count,
                                                                       (float)pointer_x,
@@ -174,8 +186,14 @@ int datalab_workspace_authoring_route_mouse_event(const SDL_Event *event, Datala
             if (event->button.button != SDL_BUTTON_LEFT) {
                 return 1;
             }
-            pointer_x = event->button.x;
-            pointer_y = event->button.y;
+            if (!datalab_render_map_window_to_renderer_point(window,
+                                                             renderer,
+                                                             event->button.x,
+                                                             event->button.y,
+                                                             &pointer_x,
+                                                             &pointer_y)) {
+                return 1;
+            }
             top_button = kit_workspace_authoring_ui_overlay_hit_test(g_datalab_authoring_overlay_ui.top_buttons,
                                                                       g_datalab_authoring_overlay_ui.top_button_count,
                                                                       (float)pointer_x,

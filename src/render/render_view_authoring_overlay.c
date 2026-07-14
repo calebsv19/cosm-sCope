@@ -75,7 +75,7 @@ static void datalab_overlay_capture_top_buttons(int viewport_width, int pane_ove
                                                          1,
                                                          pane_overlay_active,
                                                          g_datalab_authoring_overlay_ui.top_buttons,
-                                                         8u);
+                                                         3u);
     g_datalab_authoring_overlay_ui.pane_overlay_active = pane_overlay_active;
 }
 
@@ -167,11 +167,19 @@ static void datalab_overlay_draw_pane_takeover(SDL_Renderer *renderer,
                   255);
     datalab_overlay_draw_centered_text(renderer,
                                        &pane,
-                                       pane.y + (pane.h / 2),
-                                       "DataLab Authoring Overlay (Pane)",
+                                       pane.y + (pane.h / 2) - datalab_scaled_px(12.0f),
+                                       "DataLab Workspace Authoring",
                                        palette->text_primary_r,
                                        palette->text_primary_g,
                                        palette->text_primary_b,
+                                       255);
+    datalab_overlay_draw_centered_text(renderer,
+                                       &pane,
+                                       pane.y + (pane.h / 2) + datalab_scaled_px(12.0f),
+                                       "TAB opens the functional theme and text workspace",
+                                       palette->text_secondary_r,
+                                       palette->text_secondary_g,
+                                       palette->text_secondary_b,
                                        255);
     g_datalab_authoring_overlay_ui.font_controls_valid = 0u;
     g_datalab_authoring_overlay_ui.hover_font_hit = DATALAB_AUTHORING_FONT_HIT_NONE;
@@ -233,7 +241,7 @@ static CoreResult datalab_workspace_authoring_draw_scene_callback(
     draw_text_5x7(host->renderer,
                   help_strip.x + datalab_scaled_px(6.0f),
                   help_strip.y + datalab_scaled_px(4.0f),
-                  "ALT+C+V toggle | TAB overlay | ENTER apply | ESC cancel | mouse: theme/text controls",
+                  "ALT+C+V toggle | TAB theme/text | ENTER apply | ESC cancel | mouse controls use renderer coordinates",
                   1,
                   palette.text_secondary_r,
                   palette.text_secondary_g,
