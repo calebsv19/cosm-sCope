@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-07-11
+Last updated: 2026-07-13
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -72,6 +72,20 @@ Last updated: 2026-07-11
   - `Alt+C+V` enters authoring from picker launch or active profile runtime
   - authoring overlay cycles between pane takeover and font/theme takeover
   - top-level authoring actions currently route through shared `kit_workspace_authoring` controls (`cycle`, `apply`, `cancel`)
+- High-DPI authoring pointer input maps SDL window coordinates into renderer
+  coordinates before shared UI hit testing; the unimplemented `+Pane` action
+  is no longer presented as a successful layout mutation.
+- A private `0.3.0` Linux desktop candidate lane is implemented but not
+  published:
+  - Linux build targeting is host-aware and leaves the existing macOS target
+    contract intact;
+  - folder selection uses a process-safe platform module (`zenity`, then
+    `kdialog` on Linux) with deterministic helper/fallback/cancel/unavailable
+    coverage;
+  - the Linux launcher and installer use XDG data/state/config roots and ship
+    a desktop entry/icon plus hermetic self-test contract;
+  - actual Linux archive/package GUI proof and PC desktop installation are
+    pending the bounded PC handoff lane, not asserted as complete here.
 - Font/theme authoring state persists across sessions:
   - theme preset id persists
   - `Cmd/Ctrl+T` and `Cmd/Ctrl+Shift+T` cycle picker and runtime UI theme
@@ -136,6 +150,8 @@ Last updated: 2026-07-11
     - `make -C datalab test-loop-policy-contract`
     - `make -C datalab test-panel-policy-contract`
     - `make -C datalab test-profile-interaction-contract`
+    - `make -C datalab test-datalab-folder-picker`
+    - `make -C datalab test-linux-launcher-contract`
     - `make -C datalab test-contract`
   - includes an unattended app-contract lane for:
     - headless `--no-gui` without `--pack` failure
@@ -205,6 +221,10 @@ Last updated: 2026-07-11
   - `make -C datalab package-desktop*`
   - `make -C datalab package-desktop-self-test` runs the packaged launcher with
     build-local `HOME` and `TMPDIR`
+  - Linux private-candidate gates (Linux x86_64 host only):
+    - `make -C datalab package-linux-desktop-contract`
+    - `make -C datalab package-linux-desktop-self-test`
+    - `make -C datalab package-linux-desktop-determinism-test`
   - `make -C datalab test-package-boundary`
   - `make -C datalab release-artifact TARGET_ARCH=x86_64 BUILD_TOOLCHAIN=clang PACKAGE_TOOLCHAIN=clang`
   - `make -C datalab release-contract`

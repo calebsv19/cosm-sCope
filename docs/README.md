@@ -30,6 +30,10 @@ Start here for public repository documentation.
     `visual_artifacts/datalab_first_frame.bmp` and prints the artifact path
 - `make -C datalab test-legacy`
 - `make -C datalab package-desktop-self-test`
+- `make -C datalab test-datalab-folder-picker`
+- `make -C datalab test-linux-launcher-contract`
+- Linux PC private-candidate gate (Linux host only):
+  `make -C datalab package-linux-desktop-determinism-test`
 
 ## Runtime + Packaging Docs
 
@@ -66,6 +70,8 @@ Start here for public repository documentation.
   and GrowthSim's explicit occupancy/fuel primary-field policy are renderable;
   LineDrawing currently remains a diagnostic-summary family pending a geometry
   preview contract.
+- a separate private `sCope 0.3.0` Linux desktop candidate lane is ready for
+  Linux-host build/proof and PC installation; it is not a public release.
 
 ## Private Planning Docs
 

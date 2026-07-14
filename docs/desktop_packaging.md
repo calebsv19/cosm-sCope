@@ -1,6 +1,6 @@
 # DataLab Desktop Packaging
 
-Last updated: 2026-06-18
+Last updated: 2026-07-13
 
 ## Bundle Contract
 - output app: `dist/sCope.app`
@@ -70,6 +70,29 @@ Last updated: 2026-06-18
   - `VK_ICD_FILENAMES=<runtime>/vk/MoltenVK_icd.json`
   - `VK_DRIVER_FILES=<runtime>/vk/MoltenVK_icd.json`
   - `MOLTENVK_DYLIB=<App>/Contents/Frameworks/libMoltenVK.dylib`
+
+## Private Linux Desktop Candidate
+
+- Candidate identity: `sCope-0.3.0-linux-x86_64-desktop-stable`.
+- This is a private PC-proof lane only. It does not replace or mutate any
+  public artifact, download metadata, registry, or release page.
+- Linux package build must run on a Linux x86_64 host:
+  - `make -C datalab package-linux-desktop-contract`
+  - `make -C datalab package-linux-desktop-self-test`
+  - `make -C datalab package-linux-desktop-determinism-test`
+- The archive contains `bin/datalab-launcher`, `bin/datalab-bin`, a desktop
+  entry, SVG icon, installer, bundled fonts, and Vulkan shader resources.
+- The launcher uses `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_CONFIG_HOME`
+  for mutable runtime, logs, and configuration; `DATALAB_INPUT_ROOT` defaults
+  beneath that mutable runtime root. It never writes user state into the
+  extracted package.
+- The folder chooser uses process-safe argv execution: Linux tries `zenity`
+  then `kdialog`, while macOS uses `osascript`; cancellation and unavailable
+  helpers remain distinct non-success outcomes.
+- Current proof status: Mac-side compile, picker fake-helper, XDG launcher,
+  stable-suite, visual-artifact, and macOS package gates are green. Linux
+  archive build, unpacked GUI launch, and desktop installation remain pending
+  the bounded Linux PC proof lane and its available disk quota.
 
 ## Validation Flow
 1. `make -C datalab clean && make -C datalab`

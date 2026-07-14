@@ -33,6 +33,8 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 4. Keep packaging/release behavior in maintenance mode:
 - preserve current `package-desktop*` and release audit/sign/notary gates
 - maintain launcher diagnostics and runtime-root policy
+- complete Linux-host archive, unpacked GUI, and private desktop-install proof
+  for the `0.3.0` candidate before considering any public Linux release action
 
 5. Keep the completed R0-R6 refinement baseline stable:
 - preserve targeted contract-test entrypoints and package self-test boundaries
