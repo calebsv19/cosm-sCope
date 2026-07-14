@@ -47,6 +47,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     SDL_Renderer *renderer = NULL;
     int done = 0;
     int canceled = 0;
+    const char *exit_reason = "active";
     int edit_mode = 0;
     int filter_edit_mode = 0;
     int picker_zoom_step = 0;
@@ -181,6 +182,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             if (e.type == SDL_QUIT) {
                 canceled = 1;
                 done = 1;
+                exit_reason = "SDL_QUIT";
                 break;
             }
             if (e.type == SDL_TEXTINPUT && (edit_mode || filter_edit_mode)) {
@@ -407,9 +409,10 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                     if (edit_mode) {
                         edit_mode = 0;
                         snprintf(edit_root, sizeof(edit_root), "%s", input_root);
-                    } else {
-                        canceled = 1;
-                        done = 1;
+                        } else {
+                            canceled = 1;
+                            done = 1;
+                            exit_reason = "Escape";
                     }
                     break;
                 case SDLK_e:
@@ -915,5 +918,11 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     if (canceled) {
         out_pack_path[0] = '\0';
     }
+    fprintf(stderr,
+            "datalab picker exit reason=%s canceled=%d selected=%d files=%zu\n",
+            exit_reason,
+            canceled,
+            selected,
+            file_count);
     return core_result_ok();
 }
