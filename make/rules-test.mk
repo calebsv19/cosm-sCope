@@ -110,11 +110,14 @@ test-profile-interaction-contract: $(PROFILE_INTERACTION_TEST_BIN)
 test-datalab-folder-picker: $(DATALAB_FOLDER_PICKER_TEST_BIN)
 	./$(DATALAB_FOLDER_PICKER_TEST_BIN)
 
+test-linux-launcher-contract:
+	sh tests/datalab_linux_launcher_contract_test.sh
+
 test-contract: test-app-contract test-authoring-input-contract test-raster-viewport-contract test-loop-policy-contract test-panel-policy-contract test-profile-interaction-contract
 
 test-package-boundary: test-package-desktop-path-guard test-package-runtime-boundary
 
-test: test-smoke test-pack-loader test-contract test-datalab-folder-picker
+test: test-smoke test-pack-loader test-contract test-datalab-folder-picker test-linux-launcher-contract
 
 test-stable: test
 

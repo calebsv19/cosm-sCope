@@ -100,6 +100,7 @@ package-linux-desktop: package-linux-desktop-host-check $(PACKAGE_SOURCE_BIN)
 
 package-linux-desktop-self-test: package-linux-desktop
 	@$(MAKE) test-datalab-folder-picker
+	@$(MAKE) test-linux-launcher-contract
 	@test -x "$(LINUX_DESKTOP_BIN_DIR)/datalab-launcher" || (echo "Missing Linux launcher"; exit 1)
 	@test -x "$(LINUX_DESKTOP_BIN_DIR)/datalab-bin" || (echo "Missing app binary"; exit 1)
 	@test -f "$(LINUX_DESKTOP_ENTRY)" || (echo "Missing Linux desktop entry"; exit 1)
