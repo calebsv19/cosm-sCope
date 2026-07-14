@@ -29,8 +29,14 @@ static bool read_text(const char *path, char *out, size_t out_size) {
     return true;
 }
 
+static bool make_fixture_root(char *template_path, size_t template_path_size, const char *suffix) {
+    const char *temp_dir = getenv("TMPDIR");
+    if (!temp_dir || !temp_dir[0]) temp_dir = "/tmp";
+    return snprintf(template_path, template_path_size, "%s/%s_XXXXXX", temp_dir, suffix) < (int)template_path_size;
+}
+
 static bool setup_fixture(char *root, char *zenity, char *kdialog, char *args_log, char *marker) {
-    char template[] = "/tmp/datalab_folder_picker_XXXXXX";
+    char template[PATH_MAX];
     const char *zenity_script =
         "#!/bin/sh\n"
         "printf '%s\\n' \"$@\" > \"$DATALAB_FOLDER_PICKER_ARGS_LOG\"\n"
@@ -45,7 +51,7 @@ static bool setup_fixture(char *root, char *zenity, char *kdialog, char *args_lo
         ": > \"$DATALAB_FOLDER_PICKER_KDIALOG_MARKER\"\n"
         "printf '%s\\n' \"$@\" > \"$DATALAB_FOLDER_PICKER_ARGS_LOG\"\n"
         "printf '%s\\n' \"$DATALAB_FOLDER_PICKER_KDIALOG_PATH\"\n";
-    char *created = mkdtemp(template);
+    char *created = make_fixture_root(template, sizeof(template), "datalab_folder_picker") ? mkdtemp(template) : NULL;
     if (!created || snprintf(root, PATH_MAX, "%s", created) >= PATH_MAX ||
         snprintf(zenity, PATH_MAX, "%s/zenity", root) >= PATH_MAX ||
         snprintf(kdialog, PATH_MAX, "%s/kdialog", root) >= PATH_MAX ||
@@ -96,9 +102,9 @@ static bool test_cancel_does_not_fallback(void) {
 }
 
 static bool test_unavailable(void) {
-    char template[] = "/tmp/datalab_folder_picker_empty_XXXXXX";
+    char template[PATH_MAX];
     char output[PATH_MAX];
-    char *root = mkdtemp(template);
+    char *root = make_fixture_root(template, sizeof(template), "datalab_folder_picker_empty") ? mkdtemp(template) : NULL;
     bool passed = root && setenv("PATH", root, 1) == 0 &&
                   Datalab_FolderPicker_Select("Unavailable", NULL, output, sizeof(output)) == DATALAB_FOLDER_PICKER_UNAVAILABLE && output[0] == '\0';
     if (root) (void)rmdir(root);
