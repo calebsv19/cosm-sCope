@@ -84,8 +84,10 @@ Last updated: 2026-07-13
     coverage;
   - the Linux launcher and installer use XDG data/state/config roots and ship
     a desktop entry/icon plus hermetic self-test contract;
-  - actual Linux archive/package GUI proof and PC desktop installation are
-    pending the bounded PC handoff lane, not asserted as complete here.
+  - the checksum-pinned private archive has passed Linux package determinism,
+    launcher self-test, unpacked GUI liveness, and installed desktop-launcher
+    liveness on the PC; it remains a private candidate and does not replace
+    public `0.2.0` artifacts or metadata.
 - Font/theme authoring state persists across sessions:
   - theme preset id persists
   - `Cmd/Ctrl+T` and `Cmd/Ctrl+Shift+T` cycle picker and runtime UI theme

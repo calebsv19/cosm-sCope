@@ -90,9 +90,13 @@ Last updated: 2026-07-13
   then `kdialog`, while macOS uses `osascript`; cancellation and unavailable
   helpers remain distinct non-success outcomes.
 - Current proof status: Mac-side compile, picker fake-helper, XDG launcher,
-  stable-suite, visual-artifact, and macOS package gates are green. Linux
-  archive build, unpacked GUI launch, and desktop installation remain pending
-  the bounded Linux PC proof lane and its available disk quota.
+  stable-suite, visual-artifact, and macOS package gates are green. The
+  checksum-pinned candidate has also passed Linux package determinism,
+  unpacked GUI liveness, installed launcher self-test, and installed desktop
+  launcher liveness through the bounded PC handoff lane. A PC root-screen
+  image write remains quota-limited; that does not alter the installed-launcher
+  liveness result. This private candidate does not replace public `0.2.0`
+  artifacts or metadata.
 
 ## Validation Flow
 1. `make -C datalab clean && make -C datalab`
