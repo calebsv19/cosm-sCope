@@ -47,6 +47,8 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     SDL_Renderer *renderer = NULL;
     int done = 0;
     int canceled = 0;
+    int ignored_startup_quit = 0;
+    Uint32 picker_open_ticks = 0u;
     const char *exit_reason = "active";
     int edit_mode = 0;
     int filter_edit_mode = 0;
@@ -174,12 +176,19 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
         SDL_Quit();
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
     }
+    picker_open_ticks = SDL_GetTicks();
 
     SDL_StartTextInput();
     while (!done) {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) {
+                if (!ignored_startup_quit && SDL_GetTicks() - picker_open_ticks < 750u) {
+                    ignored_startup_quit = 1;
+                    snprintf(status, sizeof(status), "ignored startup window close event");
+                    fprintf(stderr, "datalab picker ignored startup SDL_QUIT\n");
+                    continue;
+                }
                 canceled = 1;
                 done = 1;
                 exit_reason = "SDL_QUIT";
