@@ -106,7 +106,15 @@ static bool test_unavailable(void) {
 }
 
 int main(void) {
-    const bool passed = test_zenity_folder_arguments() && test_kdialog_fallback() && test_cancel_does_not_fallback() && test_unavailable();
+    const bool zenity = test_zenity_folder_arguments();
+    const bool kdialog = test_kdialog_fallback();
+    const bool cancel = test_cancel_does_not_fallback();
+    const bool unavailable = test_unavailable();
+    const bool passed = zenity && kdialog && cancel && unavailable;
+    if (!zenity) fprintf(stderr, "datalab_folder_picker_test: zenity argument fixture failed\n");
+    if (!kdialog) fprintf(stderr, "datalab_folder_picker_test: kdialog fallback fixture failed\n");
+    if (!cancel) fprintf(stderr, "datalab_folder_picker_test: cancel fixture failed\n");
+    if (!unavailable) fprintf(stderr, "datalab_folder_picker_test: unavailable fixture failed\n");
     if (!passed) fprintf(stderr, "datalab_folder_picker_test: failed\n");
     return passed ? 0 : 1;
 }
