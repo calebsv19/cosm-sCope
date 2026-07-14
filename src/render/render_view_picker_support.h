@@ -34,7 +34,6 @@ int datalab_picker_is_directory(const char *path);
 int datalab_picker_is_regular_file(const char *path);
 const char *datalab_picker_display_path(const char *path, char *out, size_t out_cap);
 int datalab_picker_parent_directory(const char *path, char *out_root, size_t out_root_cap);
-int datalab_picker_choose_folder(char *out_path, size_t out_cap);
 void datalab_picker_draw_pack_inspection(SDL_Renderer *renderer,
                                          const SDL_Rect *rect,
                                          const DatalabPickerThemePalette *palette,

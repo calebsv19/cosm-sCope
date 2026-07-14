@@ -87,28 +87,6 @@ int datalab_picker_parent_directory(const char *path, char *out_root, size_t out
     return datalab_picker_is_directory(out_root);
 }
 
-int datalab_picker_choose_folder(char *out_path, size_t out_cap) {
-#if defined(__APPLE__)
-    FILE *pipe = NULL;
-    char line[DATALAB_APP_PATH_CAP];
-    if (!out_path || out_cap == 0u) return 0;
-    pipe = popen("/usr/bin/osascript -e 'POSIX path of (choose folder with prompt \"Choose DataLab Input Folder\")'", "r");
-    if (!pipe || !fgets(line, sizeof(line), pipe)) {
-        if (pipe) (void)pclose(pipe);
-        return 0;
-    }
-    (void)pclose(pipe);
-    line[strcspn(line, "\r\n")] = '\0';
-    if (line[0] == '\0') return 0;
-    snprintf(out_path, out_cap, "%s", line);
-    return 1;
-#else
-    (void)out_path;
-    (void)out_cap;
-    return 0;
-#endif
-}
-
 void datalab_picker_draw_pack_inspection(SDL_Renderer *renderer,
                                          const SDL_Rect *rect,
                                          const DatalabPickerThemePalette *palette,

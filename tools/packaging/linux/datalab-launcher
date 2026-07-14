@@ -1,0 +1,69 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+PACKAGE_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+RES_DIR="$PACKAGE_ROOT/resources"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+RUNTIME_DIR_DEFAULT="$DATA_HOME/sCope/runtime"
+RUNTIME_DIR="${DATALAB_RUNTIME_DIR:-$RUNTIME_DIR_DEFAULT}"
+LOG_DIR="${DATALAB_LOG_DIR:-$STATE_HOME/sCope/logs}"
+CONFIG_DIR="${DATALAB_CONFIG_DIR:-$CONFIG_HOME/sCope}"
+LOG_FILE="$LOG_DIR/launcher.log"
+
+copy_lane_once() {
+    lane="$1"
+    source="$RES_DIR/$lane"
+    target="$RUNTIME_DIR/$lane"
+    if [ -L "$target" ] || [ -e "$target" ]; then return 0; fi
+    if [ -e "$source" ]; then mkdir -p "$(dirname "$target")"; cp -R "$source" "$target"; fi
+}
+
+mkdir -p "$RUNTIME_DIR/data/runtime" "$RUNTIME_DIR/data/import" "$LOG_DIR" "$CONFIG_DIR" 2>/dev/null || true
+if [ ! -d "$RUNTIME_DIR" ]; then
+    RUNTIME_DIR="${TMPDIR:-/tmp}/sCope/runtime"
+    mkdir -p "$RUNTIME_DIR/data/runtime" "$RUNTIME_DIR/data/import" 2>/dev/null || true
+fi
+if [ ! -d "$RUNTIME_DIR" ]; then echo "failed to create writable runtime directory" >&2; exit 1; fi
+copy_lane_once shared
+copy_lane_once shaders
+copy_lane_once vk_renderer
+if ! touch "$LOG_FILE" 2>/dev/null; then
+    LOG_FILE="${TMPDIR:-/tmp}/scope-launcher.log"
+    touch "$LOG_FILE" 2>/dev/null || true
+fi
+
+export DATALAB_RUNTIME_DIR="$RUNTIME_DIR"
+export DATALAB_INPUT_ROOT="${DATALAB_INPUT_ROOT:-$RUNTIME_DIR/data/import}"
+export DATALAB_FONT_PRESET="${DATALAB_FONT_PRESET:-ide}"
+export VK_RENDERER_SHADER_ROOT="${VK_RENDERER_SHADER_ROOT:-$RUNTIME_DIR/vk_renderer}"
+mkdir -p "$DATALAB_INPUT_ROOT" 2>/dev/null || true
+
+if [ "${1:-}" = "--print-config" ]; then
+    echo "PACKAGE_ROOT=$PACKAGE_ROOT"
+    echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
+    echo "DATALAB_INPUT_ROOT=$DATALAB_INPUT_ROOT"
+    echo "DATALAB_CONFIG_DIR=$CONFIG_DIR"
+    echo "LOG_FILE=$LOG_FILE"
+    echo "VK_RENDERER_SHADER_ROOT=$VK_RENDERER_SHADER_ROOT"
+    exit 0
+fi
+if [ "${1:-}" = "--self-test" ]; then
+    [ -x "$SCRIPT_DIR/datalab-bin" ] || { echo "missing: datalab-bin" >&2; exit 1; }
+    [ -d "$DATALAB_RUNTIME_DIR/data/runtime" ] || { echo "missing: runtime data" >&2; exit 1; }
+    [ -d "$DATALAB_INPUT_ROOT" ] || { echo "missing: input root" >&2; exit 1; }
+    [ -f "$RUNTIME_DIR/shared/assets/fonts/Lato-Regular.ttf" ] || { echo "missing: bundled font" >&2; exit 1; }
+    [ -f "$RUNTIME_DIR/vk_renderer/shaders/textured.vert.spv" ] || { echo "missing: bundled vk shader" >&2; exit 1; }
+    echo "self-test: ok"
+    echo "DATALAB_RUNTIME_DIR=$DATALAB_RUNTIME_DIR"
+    echo "DATALAB_INPUT_ROOT=$DATALAB_INPUT_ROOT"
+    echo "DATALAB_CONFIG_DIR=$CONFIG_DIR"
+    echo "LOG_FILE=$LOG_FILE"
+    exit 0
+fi
+
+cd "$RUNTIME_DIR"
+printf '%s launch begin pid=%s runtime_dir=%s input_root=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$$" "$RUNTIME_DIR" "$DATALAB_INPUT_ROOT" >>"$LOG_FILE" 2>/dev/null || true
+exec "$SCRIPT_DIR/datalab-bin" "$@" >>"$LOG_FILE" 2>&1

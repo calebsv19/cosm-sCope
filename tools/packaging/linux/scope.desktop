@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=sCope
+Comment=Visual output workspace
+Exec=bin/datalab-launcher
+Icon=scope
+Terminal=false
+Categories=Education;Science;DataVisualization;
+StartupNotify=true

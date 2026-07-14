@@ -10,6 +10,7 @@
 #include "app/datalab_runtime_prefs.h"
 #include "data/input_file_loader.h"
 #include "data/pack_inspector.h"
+#include "platform/datalab_folder_picker.h"
 #include "render/render_view_authoring_overlay_shared.h"
 #include "render/render_view_library_preview.h"
 #include "render_view_picker_support.h"
@@ -438,7 +439,10 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                 case SDLK_b:
                     if (!edit_mode) {
                         char picked[DATALAB_APP_PATH_CAP];
-                        if (datalab_picker_choose_folder(picked, sizeof(picked))) {
+                        if (Datalab_FolderPicker_Select("Choose DataLab Input Folder",
+                                                        input_root,
+                                                        picked,
+                                                        sizeof(picked)) == DATALAB_FOLDER_PICKER_SELECTED) {
                             (void)datalab_input_root_select_recent(input_root,
                                                                    sizeof(input_root),
                                                                    recent_input_roots,

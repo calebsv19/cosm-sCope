@@ -13,6 +13,7 @@ PANEL_POLICY_TEST_BIN := $(TEST_BUILD_DIR)/datalab_panel_policy_contract_test
 PANEL_POLICY_TEST_OBJ := $(TEST_BUILD_DIR)/datalab_panel_policy_contract_test.o
 PROFILE_INTERACTION_TEST_BIN := $(TEST_BUILD_DIR)/datalab_profile_interaction_contract_test
 PROFILE_INTERACTION_TEST_OBJ := $(TEST_BUILD_DIR)/datalab_profile_interaction_contract_test.o
+DATALAB_FOLDER_PICKER_TEST_BIN := $(TEST_BUILD_DIR)/datalab_folder_picker_test
 DEFAULT_PACK_SRC := $(SHARED_ROOT)/core/core_pack/tests/fixtures/physics_v1_sample.pack
 DEFAULT_PACK := $(HOST_BUILD_DIR)/default_preview.pack
 
@@ -74,6 +75,10 @@ $(PROFILE_INTERACTION_TEST_BIN): $(PROFILE_INTERACTION_TEST_OBJ) $(filter-out $(
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $(PROFILE_INTERACTION_TEST_OBJ) $(filter-out $(PROGRAM_OBJ_DIR)/main.o,$(OBJS)) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB) $(LIBS)
 
+$(DATALAB_FOLDER_PICKER_TEST_BIN): tests/datalab_folder_picker_test.c src/platform/datalab_folder_picker.c
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(HOST_CFLAGS) -DDATALAB_FOLDER_PICKER_FORCE_LINUX -o $@ tests/datalab_folder_picker_test.c src/platform/datalab_folder_picker.c
+
 $(DEFAULT_PACK): $(DEFAULT_PACK_SRC)
 	@mkdir -p $(dir $@)
 	cp $(DEFAULT_PACK_SRC) $@
@@ -102,11 +107,14 @@ test-panel-policy-contract: $(PANEL_POLICY_TEST_BIN)
 test-profile-interaction-contract: $(PROFILE_INTERACTION_TEST_BIN)
 	./$(PROFILE_INTERACTION_TEST_BIN)
 
+test-datalab-folder-picker: $(DATALAB_FOLDER_PICKER_TEST_BIN)
+	./$(DATALAB_FOLDER_PICKER_TEST_BIN)
+
 test-contract: test-app-contract test-authoring-input-contract test-raster-viewport-contract test-loop-policy-contract test-panel-policy-contract test-profile-interaction-contract
 
 test-package-boundary: test-package-desktop-path-guard test-package-runtime-boundary
 
-test: test-smoke test-pack-loader test-contract
+test: test-smoke test-pack-loader test-contract test-datalab-folder-picker
 
 test-stable: test
 
