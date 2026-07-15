@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-07-13
+Last updated: 2026-07-15
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -231,6 +231,9 @@ Last updated: 2026-07-13
   - `make -C datalab release-artifact TARGET_ARCH=x86_64 BUILD_TOOLCHAIN=clang PACKAGE_TOOLCHAIN=clang`
   - `make -C datalab release-contract`
   - `make -C datalab release-bundle-audit`
+  - macOS packaging rewrites both `CFBundleShortVersionString` and
+    `CFBundleVersion` from the committed `VERSION`; package smoke and the
+    release-bundle audit fail if either bundle value drifts
   - `make -C datalab release-verify ...`
   - `make -C datalab release-distribute ...`
   - current public release evidence is refreshed for `0.2.0` under `build/release/`, including accepted notary output for the 2026-06-06 pass

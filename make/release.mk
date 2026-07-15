@@ -25,6 +25,10 @@ release-build:
 release-bundle-audit: release-build
 	@/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_DIR)/bundle_id.txt"
 	@test "$$(cat "$(RELEASE_DIR)/bundle_id.txt")" = "$(RELEASE_BUNDLE_ID)" || (echo "Bundle identifier mismatch"; exit 1)
+	@/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_DIR)/bundle_short_version.txt"
+	@test "$$(cat "$(RELEASE_DIR)/bundle_short_version.txt")" = "$(RELEASE_VERSION)" || (echo "Bundle short version mismatch"; exit 1)
+	@/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_DIR)/bundle_version.txt"
+	@test "$$(cat "$(RELEASE_DIR)/bundle_version.txt")" = "$(RELEASE_VERSION)" || (echo "Bundle version mismatch"; exit 1)
 	@otool -L "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" > "$(RELEASE_DIR)/otool_datalab_bin.txt"
 	@for dylib in "$(PACKAGE_FRAMEWORKS_DIR)"/*.dylib; do \
 		[ -f "$$dylib" ] || continue; \
