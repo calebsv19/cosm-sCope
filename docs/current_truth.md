@@ -138,6 +138,15 @@ Last updated: 2026-07-15
     command replay app-owned
 
 ## Verification Contract
+- fisiCs Stage-G operational differential:
+  - four production-shaped targets cover pack load/inspection/dataset state,
+    preference persistence, authoring/viewport/panel interaction state, and
+    the top-level headless lifecycle;
+  - each target passes twice under Clang and fisiCs with exact exits, ordered
+    semantic traces, declared artifacts, cross-compiler parity, and repeat
+    determinism;
+  - the compiler-owned runner/report lives in `fisiCs/tests/real_projects/` and
+    does not change DataLab production source.
 - Build/harness:
   - `make -C datalab clean && make -C datalab`
   - `make -C datalab run-headless-smoke`

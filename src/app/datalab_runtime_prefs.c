@@ -304,8 +304,8 @@ void datalab_recent_input_roots_add(char paths[][DATALAB_APP_PATH_CAP],
                                     size_t path_capacity,
                                     const char *path) {
     size_t count = 0u;
-    size_t write_idx = 1u;
     size_t i = 0u;
+    size_t existing_idx = 0u;
     char normalized[DATALAB_APP_PATH_CAP];
     if (!paths || !io_count || path_capacity == 0u || !path || path[0] == '\0') {
         return;
@@ -321,20 +321,32 @@ void datalab_recent_input_roots_add(char paths[][DATALAB_APP_PATH_CAP],
         count = path_capacity;
     }
     for (i = 0u; i < count; ++i) {
-        datalab_normalize_input_root_path(paths[i], DATALAB_APP_PATH_CAP);
         if (datalab_input_root_path_equals(paths[i], normalized)) {
-            continue;
-        }
-        if (write_idx >= path_capacity) {
+            existing_idx = i;
             break;
         }
-        if (write_idx != i) {
-            snprintf(paths[write_idx], DATALAB_APP_PATH_CAP, "%s", paths[i]);
+    }
+
+    /*
+     * Move only the prefix ahead of an existing entry.  Moving every entry
+     * would retain the old matching path at its shifted position, creating a
+     * duplicate after the new first entry is written.
+     */
+    if (i < count) {
+        for (i = existing_idx; i > 0u; --i) {
+            snprintf(paths[i], DATALAB_APP_PATH_CAP, "%s", paths[i - 1u]);
         }
-        write_idx++;
+    } else {
+        const size_t last_idx = count < path_capacity ? count : path_capacity - 1u;
+        for (i = last_idx; i > 0u; --i) {
+            snprintf(paths[i], DATALAB_APP_PATH_CAP, "%s", paths[i - 1u]);
+        }
+        if (count < path_capacity) {
+            count++;
+        }
     }
     snprintf(paths[0], DATALAB_APP_PATH_CAP, "%s", normalized);
-    *io_count = (write_idx <= path_capacity) ? write_idx : path_capacity;
+    *io_count = count;
 }
 
 void datalab_recent_input_files_add(char paths[][DATALAB_APP_PATH_CAP],
@@ -664,11 +676,13 @@ int datalab_runtime_prefs_save_recent_input_roots(const char paths[][DATALAB_APP
         count = DATALAB_RECENT_INPUT_ROOT_LIMIT;
     }
     for (i = 0u; i < count; ++i) {
-        datalab_recent_input_roots_add(normalized_paths,
-                                       &normalized_count,
-                                       DATALAB_RECENT_INPUT_ROOT_LIMIT,
-                                       paths[i]);
+        snprintf(normalized_paths[i], DATALAB_APP_PATH_CAP, "%s", paths[i]);
     }
+    normalized_count = count;
+    /* Preserve MRU order while normalizing and removing stale duplicates. */
+    datalab_recent_input_roots_compact(normalized_paths,
+                                       &normalized_count,
+                                       DATALAB_RECENT_INPUT_ROOT_LIMIT);
     for (i = 0u; i < normalized_count; ++i) {
         if (!datalab_runtime_prefs_write_ok(fprintf(fp, "%s\n", normalized_paths[i]),
                                             fp,
@@ -696,11 +710,12 @@ int datalab_runtime_prefs_save_recent_input_files(const char paths[][DATALAB_APP
         count = DATALAB_RECENT_INPUT_FILE_LIMIT;
     }
     for (i = 0u; i < count; ++i) {
-        datalab_recent_input_files_add(normalized_paths,
-                                       &normalized_count,
-                                       DATALAB_RECENT_INPUT_FILE_LIMIT,
-                                       paths[i]);
+        snprintf(normalized_paths[i], DATALAB_APP_PATH_CAP, "%s", paths[i]);
     }
+    normalized_count = count;
+    datalab_recent_input_roots_compact(normalized_paths,
+                                       &normalized_count,
+                                       DATALAB_RECENT_INPUT_FILE_LIMIT);
     for (i = 0u; i < normalized_count; ++i) {
         if (!datalab_runtime_prefs_write_ok(fprintf(fp, "%s\n", normalized_paths[i]),
                                             fp,

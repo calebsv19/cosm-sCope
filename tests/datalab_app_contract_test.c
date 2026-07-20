@@ -491,6 +491,77 @@ static int test_cli_input_root_precedence(const char *temp_dir) {
     return ok;
 }
 
+static int test_recent_input_root_mru_is_unique_and_persists(const char *temp_dir) {
+    char previous_cwd[PATH_MAX];
+    char prefs_root[PATH_MAX];
+    char recent[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP] = {{0}};
+    char loaded[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP] = {{0}};
+    char input_root[DATALAB_APP_PATH_CAP] = "";
+    char path[DATALAB_APP_PATH_CAP];
+    size_t recent_count = 0u;
+    size_t loaded_count = 0u;
+    size_t i = 0u;
+    int ok = 0;
+
+    snprintf(prefs_root, sizeof(prefs_root), "%s/recent_root_mru", temp_dir);
+    if (!datalab_test_enter_temp_runtime_root(prefs_root, previous_cwd, sizeof(previous_cwd))) {
+        fprintf(stderr, "contract: failed to enter recent-root prefs root\n");
+        return 0;
+    }
+
+    datalab_recent_input_roots_add(recent, &recent_count, DATALAB_RECENT_INPUT_ROOT_LIMIT, "/tmp/alpha/");
+    datalab_recent_input_roots_add(recent, &recent_count, DATALAB_RECENT_INPUT_ROOT_LIMIT, "/tmp/beta");
+    datalab_recent_input_roots_add(recent, &recent_count, DATALAB_RECENT_INPUT_ROOT_LIMIT, "/tmp/gamma");
+    datalab_recent_input_roots_add(recent, &recent_count, DATALAB_RECENT_INPUT_ROOT_LIMIT, "/tmp/beta/");
+    if (!datalab_test_assert(recent_count == 3u, "reopening a directory should not grow MRU history") ||
+        !datalab_test_assert(strcmp(recent[0], "/tmp/beta") == 0, "reopened directory should move to first") ||
+        !datalab_test_assert(strcmp(recent[1], "/tmp/gamma") == 0, "newer directory should shift after promotion") ||
+        !datalab_test_assert(strcmp(recent[2], "/tmp/alpha") == 0, "older directory should remain in history")) {
+        goto cleanup;
+    }
+
+    for (i = 0u; i <= DATALAB_RECENT_INPUT_ROOT_LIMIT; ++i) {
+        snprintf(path, sizeof(path), "/tmp/datalab_recent_%zu", i);
+        datalab_recent_input_roots_add(recent, &recent_count, DATALAB_RECENT_INPUT_ROOT_LIMIT, path);
+    }
+    if (!datalab_test_assert(recent_count == DATALAB_RECENT_INPUT_ROOT_LIMIT, "directory MRU should retain its configured capacity") ||
+        !datalab_test_assert(strcmp(recent[0], "/tmp/datalab_recent_48") == 0, "latest directory should be first") ||
+        !datalab_test_assert(strcmp(recent[DATALAB_RECENT_INPUT_ROOT_LIMIT - 1u], "/tmp/datalab_recent_1") == 0,
+                             "oldest directory should be evicted when history is full")) {
+        goto cleanup;
+    }
+
+    if (!datalab_input_root_select_recent(input_root, sizeof(input_root), recent, &recent_count,
+                                          DATALAB_RECENT_INPUT_ROOT_LIMIT, "/tmp/datalab_recent_17") ||
+        !datalab_test_assert(strcmp(input_root, "/tmp/datalab_recent_17") == 0, "selected directory should become active root") ||
+        !datalab_test_assert(recent_count == DATALAB_RECENT_INPUT_ROOT_LIMIT, "selecting an existing directory should not duplicate history") ||
+        !datalab_test_assert(strcmp(recent[0], "/tmp/datalab_recent_17") == 0, "selected directory should move to first") ||
+        !datalab_test_assert(strcmp(recent[1], "/tmp/datalab_recent_48") == 0, "previous first directory should shift down")) {
+        goto cleanup;
+    }
+    for (i = 0u; i < recent_count; ++i) {
+        size_t prior = 0u;
+        for (prior = 0u; prior < i; ++prior) {
+            if (!datalab_test_assert(strcmp(recent[prior], recent[i]) != 0, "directory MRU should contain unique entries")) {
+                goto cleanup;
+            }
+        }
+    }
+    if (!datalab_runtime_prefs_save_recent_input_roots(recent, recent_count) ||
+        !datalab_runtime_prefs_load_recent_input_roots(loaded, DATALAB_RECENT_INPUT_ROOT_LIMIT, &loaded_count) ||
+        !datalab_test_assert(loaded_count == recent_count, "persisted directory history count should reload") ||
+        !datalab_test_assert(strcmp(loaded[0], recent[0]) == 0, "persisted directory history should preserve most recent entry") ||
+        !datalab_test_assert(strcmp(loaded[DATALAB_RECENT_INPUT_ROOT_LIMIT - 1u], recent[DATALAB_RECENT_INPUT_ROOT_LIMIT - 1u]) == 0,
+                             "persisted directory history should preserve oldest retained entry")) {
+        goto cleanup;
+    }
+    ok = 1;
+
+cleanup:
+    datalab_test_restore_cwd(previous_cwd);
+    return ok;
+}
+
 static int test_theme_preset_persists_across_config_reload(const char *temp_dir) {
     DatalabAppRuntime runtime;
     char previous_cwd[PATH_MAX];
@@ -764,6 +835,9 @@ int main(void) {
         return 1;
     }
     if (!test_cli_input_root_precedence(temp_dir)) {
+        return 1;
+    }
+    if (!test_recent_input_root_mru_is_unique_and_persists(temp_dir)) {
         return 1;
     }
     if (!test_theme_preset_persists_across_config_reload(temp_dir)) {
