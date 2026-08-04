@@ -1,6 +1,6 @@
 # DataLab Desktop Packaging
 
-Last updated: 2026-07-13
+Last updated: 2026-08-04
 
 ## Bundle Contract
 - output app: `dist/sCope.app`
@@ -42,6 +42,17 @@ Last updated: 2026-07-13
     `notarized=0`
   - Developer ID release artifacts still require notarization before artifact
     generation and record `signed=developer-id` / `notarized=1`
+
+## Job-Scoped Release Output Root
+
+Production Registry preparation may select an empty relative output root with
+`RELEASE_ROOT=build/release-authenticated/<job-id>`. DataLab derives its
+release directory from that input, so unsigned and authenticated package bytes
+cannot share a mutable output path. The local conformance command is
+`make -C datalab release-output-root-conformance RELEASE_ROOT=<root>`; it
+rejects the developer default and any pre-existing selected root before
+building, then verifies the ZIP, checksum, and manifest all remain under the
+chosen root.
 - local Intel staging lane:
   - `intel_mac_packages/scope/stable/sCope.app`
   - `intel_mac_packages/scope/stable/sCope-0.2.0-macOS-x86_64-stable.zip`
