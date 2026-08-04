@@ -46,7 +46,10 @@ RELEASE_VERSION := 0.1.0
 endif
 RELEASE_PROGRAM_KEY := $(PROGRAM_KEY)
 RELEASE_ARTIFACT_BASENAME := $(RELEASE_PRODUCT_NAME)-$(RELEASE_VERSION)-$(RELEASE_PLATFORM)-$(RELEASE_ARCH)-$(RELEASE_CHANNEL)
-RELEASE_DIR := build/release
+# May be supplied by the Production Registry as a job-scoped relative root.
+# Keep the ordinary developer default for manual local releases.
+RELEASE_ROOT ?= build/release
+RELEASE_DIR := $(RELEASE_ROOT)
 RELEASE_APP_ZIP := $(RELEASE_DIR)/$(RELEASE_ARTIFACT_BASENAME).zip
 RELEASE_APP_ZIP_SHA256 := $(RELEASE_APP_ZIP).sha256
 RELEASE_MANIFEST := $(RELEASE_DIR)/$(RELEASE_ARTIFACT_BASENAME).manifest.txt

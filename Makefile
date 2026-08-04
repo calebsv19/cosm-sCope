@@ -19,7 +19,7 @@ include make/sources.mk
 	package-linux-desktop-contract package-linux-desktop-self-test package-linux-desktop-determinism-test \
 	release-contract release-clean release-build release-bundle-audit release-sign release-verify \
 	release-verify-signed release-notarize release-staple release-verify-notarized release-artifact \
-	release-distribute release-desktop-refresh
+	release-distribute release-desktop-refresh release-output-root-conformance
 
 include make/rules-build.mk
 include make/rules-test.mk
