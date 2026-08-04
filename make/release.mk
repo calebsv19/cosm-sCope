@@ -181,10 +181,14 @@ release-artifact:
 	} > "$(RELEASE_MANIFEST)"
 	@echo "release-artifact complete: $(RELEASE_APP_ZIP)"
 
-# Fixture/local-adapter proof only. It deliberately accepts only a job-scoped
-# relative root and never invokes the distribution target.
-release-output-root-conformance:
+# Fixture/local-adapter proof only. It deliberately accepts only a safe,
+# job-scoped relative root and never invokes the distribution target.
+release-output-root-contract:
 	@case "$(RELEASE_ROOT)" in build/release-authenticated/*) ;; *) echo "RELEASE_ROOT must be a job-scoped build/release-authenticated path"; exit 1;; esac
+	@case "$(RELEASE_ROOT)" in */../*|../*|*/..|build/release-authenticated/|*/./*|./*) echo "RELEASE_ROOT must not contain traversal or dot segments"; exit 1;; esac
+	@case "$(RELEASE_ROOT)" in *'//'*) echo "RELEASE_ROOT must not contain empty path segments"; exit 1;; esac
+
+release-output-root-conformance: release-output-root-contract
 	@test ! -e "$(RELEASE_ROOT)" || (echo "RELEASE_ROOT must be absent before package"; exit 1)
 	@DATALAB_RUNTIME_DIR="$(abspath $(RELEASE_DIR)/runtime)" DATALAB_INPUT_ROOT="$(abspath $(RELEASE_DIR)/runtime)" $(MAKE) RELEASE_ROOT="$(RELEASE_ROOT)" release-artifact
 	@test -f "$(RELEASE_APP_ZIP)" || (echo "Missing release artifact at selected root"; exit 1)
