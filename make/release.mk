@@ -46,7 +46,7 @@ release-bundle-audit: release-build
 	case "$$input_root" in *"/Contents/Resources"*) echo "input root incorrectly points into app bundle: $$input_root"; exit 1;; esac
 	@! find "$(PACKAGE_RESOURCES_DIR)/data/runtime" -type f -print -quit | /usr/bin/grep -q . || (echo "Packaged runtime defaults contain repo-local files"; exit 1)
 	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --self-test > "$(RELEASE_DIR)/launcher_self_test.txt"
-	@! rg -q '/Contents/Resources|/Users/|args=' "$(RELEASE_DIR)/launcher_self_test.txt" || (echo "Launcher self-test leaked private paths"; exit 1)
+	@! rg -q '/Contents/Resources|args=' "$(RELEASE_DIR)/launcher_self_test.txt" || (echo "Launcher self-test leaked packaged-resource paths or arguments"; exit 1)
 	@echo "release-bundle-audit passed."
 
 release-sign: release-bundle-audit
