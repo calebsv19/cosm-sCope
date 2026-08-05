@@ -57,6 +57,8 @@ chosen root.
 The selected root is an unsigned-preparation boundary only. Authentication
 must write a separately retained authenticated artifact set and bind it to the
 same candidate scope; it must never overwrite the Decision-1 package bytes.
+The authentication grant is consumed mechanically from that exact Decision-1
+scope; later publication remains outside that grant and requires Decision 2.
 - local Intel staging lane:
   - `intel_mac_packages/scope/stable/sCope.app`
   - `intel_mac_packages/scope/stable/sCope-0.2.0-macOS-x86_64-stable.zip`
