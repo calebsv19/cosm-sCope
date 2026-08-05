@@ -53,6 +53,10 @@ cannot share a mutable output path. The local conformance command is
 rejects the developer default and any pre-existing selected root before
 building, then verifies the ZIP, checksum, and manifest all remain under the
 chosen root.
+
+The selected root is an unsigned-preparation boundary only. Authentication
+must write a separately retained authenticated artifact set and bind it to the
+same candidate scope; it must never overwrite the Decision-1 package bytes.
 - local Intel staging lane:
   - `intel_mac_packages/scope/stable/sCope.app`
   - `intel_mac_packages/scope/stable/sCope-0.2.0-macOS-x86_64-stable.zip`
