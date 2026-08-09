@@ -1,4 +1,5 @@
 #include "core_mesh_compile.h"
+#include "core_mesh_compile_normals.h"
 
 #include "core_io.h"
 
@@ -883,6 +884,12 @@ CoreResult core_mesh_compile_imported_mesh_to_runtime_document_with_progress(
     if (r.code != CORE_OK) goto fail;
     out_document->surface_groups[0].triangle_start = 0u;
     out_document->surface_groups[0].triangle_count = parsed_triangle_count;
+
+    r = core_mesh_compile_runtime_generate_vertex_normals(
+        out_document,
+        document->imported_mesh_source.normal_mode,
+        document->imported_mesh_source.crease_angle_degrees);
+    if (r.code != CORE_OK) goto fail;
 
     r = core_mesh_asset_runtime_document_validate(out_document);
     if (r.code != CORE_OK) goto fail;
