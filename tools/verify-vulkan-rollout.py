@@ -172,7 +172,18 @@ def run_actual_hosts(app: Path, default_pack: Path, evidence_root: Path,
     print(picker.stdout or "", end="")
     if picker.returncode or "stage=picker-startup status=pass" not in (picker.stdout or ""):
         raise SystemExit(f"real DataLab picker proof failed: exit={picker.returncode}")
-    if "[vk_runtime validation]" in ((session.stdout or "") + (picker.stdout or "")):
+
+    close_env = env.copy()
+    close_env["DATALAB_PICKER_CLOSE_PROOF"] = "1"
+    close = subprocess.run([str(app.resolve())], env=close_env, text=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(close.stdout or "", end="")
+    close_output = close.stdout or ""
+    if (close.returncode or close_output.count("accepted SDL_QUIT") != 1 or
+            "exit reason=SDL_QUIT canceled=1" not in close_output or
+            "ignored pre-input" in close_output):
+        raise SystemExit(f"single-event DataLab picker close proof failed: exit={close.returncode}")
+    if "[vk_runtime validation]" in ((session.stdout or "") + (picker.stdout or "") + close_output):
         raise SystemExit("real host proof emitted validation diagnostics")
     session_native_evidence = bmp(session_native)
     session_canvas_evidence = bmp(session_canvas)
@@ -181,7 +192,7 @@ def run_actual_hosts(app: Path, default_pack: Path, evidence_root: Path,
           f"session_native={session_native_evidence[0]}x{session_native_evidence[1]} "
           f"session_canvas={session_canvas_evidence[0]}x{session_canvas_evidence[1]} "
           f"picker_native={picker_native_evidence[0]}x{picker_native_evidence[1]} "
-          "validation=clean")
+          "single_close=pass validation=clean")
 
 
 def main() -> int:

@@ -47,8 +47,6 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     SDL_Renderer *renderer = NULL;
     int done = 0;
     int canceled = 0;
-    int ignored_startup_quit = 0;
-    int received_user_input = 0;
     Uint32 picker_open_ticks = 0u;
     const char *exit_reason = "active";
     int edit_mode = 0;
@@ -190,26 +188,23 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     picker_open_ticks = SDL_GetTicks();
 
     SDL_StartTextInput();
+    if (getenv("DATALAB_PICKER_CLOSE_PROOF") != NULL) {
+        SDL_Event close_event = {0};
+        close_event.type = SDL_QUIT;
+        if (SDL_PushEvent(&close_event) < 0) {
+            fprintf(stderr, "datalab picker close proof push failed: %s\n", SDL_GetError());
+        }
+    }
     while (!done) {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) {
                 Uint32 elapsed_ms = SDL_GetTicks() - picker_open_ticks;
-                if (!ignored_startup_quit && !received_user_input) {
-                    ignored_startup_quit = 1;
-                    snprintf(status, sizeof(status), "ignored pre-input window close event");
-                    fprintf(stderr, "datalab picker ignored pre-input SDL_QUIT elapsed_ms=%u\n", elapsed_ms);
-                    continue;
-                }
-                fprintf(stderr, "datalab picker accepted SDL_QUIT elapsed_ms=%u user_input=%d\n", elapsed_ms, received_user_input);
+                fprintf(stderr, "datalab picker accepted SDL_QUIT elapsed_ms=%u\n", elapsed_ms);
                 canceled = 1;
                 done = 1;
                 exit_reason = "SDL_QUIT";
                 break;
-            }
-            if (e.type == SDL_KEYDOWN || e.type == SDL_TEXTINPUT ||
-                e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEWHEEL) {
-                received_user_input = 1;
             }
             if (e.type == SDL_TEXTINPUT && (edit_mode || filter_edit_mode)) {
                 char *target = edit_mode ? edit_root : filter;

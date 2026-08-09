@@ -80,6 +80,9 @@ Last updated: 2026-08-08
   - this is presentation adoption, not Vulkan compute acceleration or a claim
     that app-owned profile rendering has moved into shared code.
 - Picker load failures now return safely to picker with status feedback.
+- A single platform window-close request exits the picker immediately. The
+  retired Linux-candidate workaround no longer swallows the first pre-input
+  `SDL_QUIT`; unsolicited host close events must be diagnosed at their source.
 - Workspace-authoring host pilot is live in the worktree/runtime path:
   - `Alt+C+V` enters authoring from picker launch or active profile runtime
   - authoring overlay cycles between pane takeover and font/theme takeover

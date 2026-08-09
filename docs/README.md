@@ -35,7 +35,8 @@ Start here for public repository documentation.
 - `make -C datalab vulkan-rollout-self-test`
 - `make -C datalab package-desktop-vulkan-self-test`
   - checksum-bound runtime/renderer identity, validation, readback, resize,
-    capture, restart, and real picker/session first-frame proof
+    capture, restart, single-event picker close, and real picker/session
+    first-frame proof
 - `make -C datalab test-legacy`
 - `make -C datalab package-desktop-self-test`
 - `make -C datalab test-datalab-folder-picker`
