@@ -1,6 +1,8 @@
 #ifndef DATALAB_RENDER_VIEW_INTERNAL_H
 #define DATALAB_RENDER_VIEW_INTERNAL_H
 
+#include "render/datalab_renderer_backend.h"
+
 #include <stddef.h>
 #include <stdint.h>
 

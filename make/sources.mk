@@ -15,6 +15,25 @@ KIT_UI_SRCS := \
 	$(KIT_UI_DIR)/src/kit_ui_hud.c \
 	$(KIT_UI_DIR)/src/kit_ui_sdl.c
 
+VK_RUNTIME_SRCS := \
+	$(VK_RUNTIME_DIR)/src/vk_runtime.c \
+	$(VK_RUNTIME_DIR)/src/vk_runtime_instance.c \
+	$(VK_RUNTIME_DIR)/src/vk_runtime_json.c \
+	$(VK_RUNTIME_DIR)/src/vk_runtime_compute.c \
+	$(VK_RUNTIME_DIR)/src/vk_runtime_resident.c \
+	$(VK_RUNTIME_DIR)/src/vk_runtime_program.c \
+	$(VK_RUNTIME_DIR)/src/vk_runtime_timing.c
+VK_RENDERER_SRCS := \
+	$(VK_RENDERER_DIR)/src/vk_renderer.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_commands.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_config.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_context.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_device.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_lifecycle.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_memory.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_pipeline.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_textures.c
+
 CORE_PACK_OBJS := $(patsubst $(CORE_PACK_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_pack/%.o,$(CORE_PACK_SRCS))
 CORE_IO_OBJS := $(patsubst $(CORE_IO_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_io/%.o,$(CORE_IO_SRCS))
 CORE_BASE_OBJS := $(patsubst $(CORE_BASE_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_base/%.o,$(CORE_BASE_SRCS))
@@ -25,6 +44,8 @@ CORE_THEME_OBJS := $(patsubst $(CORE_THEME_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared
 CORE_PANE_OBJS := $(patsubst $(CORE_PANE_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_pane/%.o,$(CORE_PANE_SRCS))
 KIT_VIZ_OBJS := $(patsubst $(KIT_VIZ_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/kit/kit_viz/%.o,$(KIT_VIZ_SRCS))
 KIT_UI_OBJS := $(patsubst $(KIT_UI_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/kit/kit_ui/%.o,$(KIT_UI_SRCS))
-CORE_OBJS := $(CORE_PACK_OBJS) $(CORE_IO_OBJS) $(CORE_BASE_OBJS) $(CORE_VIEWPORT2D_OBJS) $(CORE_DATA_OBJS) $(CORE_FONT_OBJS) $(CORE_THEME_OBJS) $(CORE_PANE_OBJS) $(KIT_VIZ_OBJS) $(KIT_UI_OBJS)
+VK_RUNTIME_OBJS := $(patsubst $(VK_RUNTIME_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/vk_runtime/%.o,$(VK_RUNTIME_SRCS))
+VK_RENDERER_OBJS := $(patsubst $(VK_RENDERER_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/vk_renderer/%.o,$(VK_RENDERER_SRCS))
+CORE_OBJS := $(CORE_PACK_OBJS) $(CORE_IO_OBJS) $(CORE_BASE_OBJS) $(CORE_VIEWPORT2D_OBJS) $(CORE_DATA_OBJS) $(CORE_FONT_OBJS) $(CORE_THEME_OBJS) $(CORE_PANE_OBJS) $(KIT_VIZ_OBJS) $(KIT_UI_OBJS) $(VK_RUNTIME_OBJS) $(VK_RENDERER_OBJS)
 DEPS := $(OBJS:.o=.d)
 DEPS += $(CORE_OBJS:.o=.d)

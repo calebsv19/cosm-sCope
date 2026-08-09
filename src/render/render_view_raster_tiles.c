@@ -91,7 +91,7 @@ static int datalab_raster_tile_cache_target_capacity(SDL_Renderer *renderer, int
     if (!renderer || tile_edge <= 0) {
         return DATALAB_RASTER_TILE_CACHE_MIN;
     }
-    SDL_GetRendererOutputSize(renderer, &view_width, &view_height);
+    datalab_renderer_backend_output_size(renderer, &view_width, &view_height);
     if (view_width <= 0 || view_height <= 0) {
         return DATALAB_RASTER_TILE_CACHE_MIN;
     }
@@ -353,7 +353,7 @@ static CoreResult datalab_raster_render_tiled(SDL_Renderer *renderer,
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid tiled raster viewport state" };
     }
 
-    SDL_GetRendererOutputSize(renderer, &view_width, &view_height);
+    datalab_renderer_backend_output_size(renderer, &view_width, &view_height);
     visible_x0 = datalab_raster_tile_visible_range_start(derive->dst.x, derive->zoom);
     visible_y0 = datalab_raster_tile_visible_range_start(derive->dst.y, derive->zoom);
     visible_x1 = datalab_raster_tile_visible_range_end(view_width, derive->dst.x, derive->zoom, (int)frame->width);

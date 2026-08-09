@@ -198,7 +198,7 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
         memset(&g_playback_hud_ui, 0, sizeof(g_playback_hud_ui));
         return;
     }
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    datalab_renderer_backend_output_size(renderer, &ww, &wh);
     if (ww <= 0 || wh <= 0) {
         memset(&g_playback_hud_ui, 0, sizeof(g_playback_hud_ui));
         return;

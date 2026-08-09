@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-07-15
+Last updated: 2026-08-08
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -66,7 +66,19 @@ Last updated: 2026-07-15
   - tiled rendering fallback when full texture exceeds limits
   - visible-tile cache with short halo prefetch
 - Render sessions persist across file switches:
-  - SDL window/renderer/raster texture containers are reused during stepping/autoplay.
+  - window/backend/raster texture containers are reused during stepping/autoplay.
+- The default presentation path now uses the managed shared Vulkan stack:
+  - vendored `vk_runtime 0.6.0` owns Vulkan instance/device/queue identity and
+    validation lifecycle beneath `vk_renderer 1.3.1`;
+  - DataLab keeps its existing SDL draw API through an app-local compatibility
+    backend, uploads the stable software canvas without filtering, and presents
+    at the physical high-DPI drawable size;
+  - both the startup picker and active visualizer session attach through the
+    same backend boundary;
+  - `DATALAB_RENDER_BACKEND=sdl` retains the direct SDL fallback and the
+    dummy/software visual-artifact oracle;
+  - this is presentation adoption, not Vulkan compute acceleration or a claim
+    that app-owned profile rendering has moved into shared code.
 - Picker load failures now return safely to picker with status feedback.
 - Workspace-authoring host pilot is live in the worktree/runtime path:
   - `Alt+C+V` enters authoring from picker launch or active profile runtime
@@ -150,6 +162,16 @@ Last updated: 2026-07-15
 - Build/harness:
   - `make -C datalab clean && make -C datalab`
   - `make -C datalab run-headless-smoke`
+- Managed Vulkan presentation:
+  - `make -C datalab vulkan-rollout-contract`
+  - `make -C datalab vulkan-rollout-self-test`
+  - `make -C datalab package-desktop-vulkan-self-test`
+  - the verifier binds the exact vendored shared commit and tracked Vulkan
+    source digests, proves runtime/renderer identity, validation-clean startup,
+    readback, resize recovery, native capture, restart, and real first-frame
+    presentation from both the picker and active session;
+  - the accepted source manifest SHA-256 is
+    `a060065f01676165a273a97450a29e8afff81a5d35058e4898458f5ba51d1620`.
 - Stable tests:
   - `make -C datalab test-stable`
   - targeted lanes:
@@ -251,6 +273,13 @@ Last updated: 2026-07-15
     notarization requirement for local staging
 
 ## Current Boundary
+- Vulkan adoption is a compatibility-preserving presentation boundary. The
+  fixed 4096-by-4096 software backing canvas, profile draw semantics, input,
+  data ingest, and CPU-side visualization remain DataLab-owned. Any runtime
+  compute use requires a separately profiled lane with a CPU oracle/fallback.
+- The source and build-local package proofs are green; no release version bump,
+  installed-app refresh, publication, or Linux-PC rollout was performed by this
+  adoption lane.
 - Current library boundary: VF3H is renderable only as its declared central
   XY slice. GrowthSim and LineDrawing are still inspection-only families;
   their future adapters must not be described as current visualization support.

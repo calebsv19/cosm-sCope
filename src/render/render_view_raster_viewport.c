@@ -23,7 +23,7 @@ void datalab_raster_viewport_derive_frame(SDL_Renderer *renderer,
     if (!renderer || !frame || !app_state || !out_derive) {
         return;
     }
-    SDL_GetRendererOutputSize(renderer, &view_width, &view_height);
+    datalab_renderer_backend_output_size(renderer, &view_width, &view_height);
     if (view_width <= 0 || view_height <= 0) {
         calc_fit_rect(1, 1, frame->width, frame->height, &out_derive->dst);
         out_derive->zoom = 1.0f;

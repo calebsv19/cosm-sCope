@@ -11,6 +11,7 @@ include make/sources.mk
 	test-authoring-input-contract test-raster-viewport-contract test-loop-policy-contract \
 	test-panel-policy-contract test-profile-interaction-contract test-datalab-folder-picker test-linux-launcher-contract test-package-boundary \
 	run run-headless run-headless-smoke visual-harness visual-artifact test-stable test-legacy \
+	vulkan-rollout-contract vulkan-rollout-self-test package-desktop-vulkan-self-test \
 	memory-check-build memory-check-run memory-check-audit \
 	package-desktop package-desktop-smoke package-desktop-self-test package-desktop-copy-desktop \
 	package-desktop-sync package-desktop-open package-desktop-remove package-desktop-refresh \

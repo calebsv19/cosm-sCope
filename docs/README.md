@@ -16,6 +16,9 @@ Start here for public repository documentation.
 - DataLab's R0-R6 scaffold refinement pass is complete. The R6 demo proof is
   the source-render `visual-artifact` target, not the manual `visual-harness`
   readiness gate.
+- DataLab now defaults to the managed vendored `vk_runtime 0.6.0` plus
+  `vk_renderer 1.3.1` presentation stack through a high-DPI SDL compatibility
+  canvas. `DATALAB_RENDER_BACKEND=sdl` remains the explicit fallback/oracle.
 
 ## Verification Entry Points
 
@@ -28,6 +31,11 @@ Start here for public repository documentation.
 - `make -C datalab visual-artifact`
   - source-render first-frame proof that writes
     `visual_artifacts/datalab_first_frame.bmp` and prints the artifact path
+- `make -C datalab vulkan-rollout-contract`
+- `make -C datalab vulkan-rollout-self-test`
+- `make -C datalab package-desktop-vulkan-self-test`
+  - checksum-bound runtime/renderer identity, validation, readback, resize,
+    capture, restart, and real picker/session first-frame proof
 - `make -C datalab test-legacy`
 - `make -C datalab package-desktop-self-test`
 - `make -C datalab test-datalab-folder-picker`

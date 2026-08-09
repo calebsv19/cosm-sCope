@@ -146,3 +146,28 @@ visual-artifact: $(TARGET) $(DEFAULT_PACK)
 	SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software "$(TARGET)" --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --visual-artifact "$(VISUAL_ARTIFACT_OUTPUT)"
 	@test -s "$(VISUAL_ARTIFACT_OUTPUT)" || { echo "visual artifact missing or empty: $(VISUAL_ARTIFACT_OUTPUT)" >&2; exit 1; }
 	@echo "visual artifact ready: $(VISUAL_ARTIFACT_OUTPUT)"
+
+vulkan-rollout-contract:
+	@python3 tools/verify-vulkan-rollout.py --repo-root "$(CURDIR)" \
+		--shared-root "$(SHARED_ROOT)" --canonical-shared-root "$(CANONICAL_SHARED_ROOT)"
+
+vulkan-rollout-self-test: $(TARGET) $(DEFAULT_PACK) vulkan-rollout-contract
+	@mkdir -p "$(VULKAN_ROLLOUT_DIR)"
+	@python3 tools/verify-vulkan-rollout.py --repo-root "$(CURDIR)" \
+		--shared-root "$(SHARED_ROOT)" --canonical-shared-root "$(CANONICAL_SHARED_ROOT)" \
+		--app "$(abspath $(TARGET))" --shader-root "$(abspath $(VK_RENDERER_DIR))" \
+		--default-pack "$(abspath $(DEFAULT_PACK))" \
+		--initial-capture "$(VULKAN_ROLLOUT_INITIAL_CAPTURE)" \
+		--resized-capture "$(VULKAN_ROLLOUT_RESIZED_CAPTURE)" \
+		--log "$(VULKAN_ROLLOUT_LOG)" --minimum-scale 1.5
+
+package-desktop-vulkan-self-test: package-desktop-smoke vulkan-rollout-contract
+	@mkdir -p "$(PACKAGE_VULKAN_ROLLOUT_DIR)"
+	@python3 tools/verify-vulkan-rollout.py --repo-root "$(CURDIR)" \
+		--shared-root "$(SHARED_ROOT)" --canonical-shared-root "$(CANONICAL_SHARED_ROOT)" \
+		--app "$(abspath $(PACKAGE_MACOS_DIR)/$(APP_BIN))" \
+		--shader-root "$(abspath $(PACKAGE_RESOURCES_DIR)/vk_renderer)" \
+		--default-pack "$(abspath $(DEFAULT_PACK_SRC))" \
+		--initial-capture "$(PACKAGE_VULKAN_INITIAL_CAPTURE)" \
+		--resized-capture "$(PACKAGE_VULKAN_RESIZED_CAPTURE)" \
+		--log "$(PACKAGE_VULKAN_LOG)" --minimum-scale 1.5

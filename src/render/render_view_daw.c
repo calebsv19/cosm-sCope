@@ -139,7 +139,7 @@ void render_daw_frame(SDL_Renderer *renderer, const DatalabFrame *frame, const D
 
     int ww = 0;
     int wh = 0;
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    datalab_renderer_backend_output_size(renderer, &ww, &wh);
 
     SDL_Rect plot = {
         datalab_scaled_px(30.0f),

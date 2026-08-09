@@ -48,6 +48,14 @@ $(HOST_BUILD_DIR)/shared/kit/kit_ui/%.o: $(KIT_UI_DIR)/src/%.c
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
 
+$(HOST_BUILD_DIR)/shared/vk_runtime/%.o: $(VK_RUNTIME_DIR)/src/%.c
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
+
+$(HOST_BUILD_DIR)/shared/vk_renderer/%.o: $(VK_RENDERER_DIR)/src/%.c
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
+
 clean:
 	rm -rf $(BUILD_DIR)
 

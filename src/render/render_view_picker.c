@@ -166,16 +166,26 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                               SDL_WINDOWPOS_CENTERED,
                               1160,
                               820,
-                              SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+                              (int)datalab_renderer_backend_window_flags());
     if (!window) {
         SDL_Quit();
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
     }
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    renderer = datalab_renderer_backend_create(window);
     if (!renderer) {
         SDL_DestroyWindow(window);
         SDL_Quit();
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
+    }
+    if (datalab_renderer_backend_kind(renderer) == DATALAB_RENDERER_BACKEND_VULKAN &&
+        !datalab_renderer_backend_verify(
+            renderer,
+            "picker-startup",
+            getenv("DATALAB_REQUIRE_VK_VALIDATION") != NULL)) {
+        datalab_renderer_backend_destroy(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return (CoreResult){ CORE_ERR_IO, "Vulkan picker identity or validation check failed" };
     }
     picker_open_ticks = SDL_GetTicks();
 
@@ -583,7 +593,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
             char preview_path[DATALAB_APP_PATH_CAP] = "";
             char preview_label[160] = "DIRECTORY IMAGE PREVIEW";
             char selected_detail[192] = "SELECT AN ARTIFACT TO INSPECT";
-            SDL_GetRendererOutputSize(renderer, &ww, &wh);
+            datalab_renderer_backend_output_size(renderer, &ww, &wh);
             datalab_picker_theme_palette(picker_theme_preset_id, &picker_custom_theme, &palette);
             line_h1 = datalab_text_line_height(1);
             line_h2 = datalab_text_line_height(2);
@@ -903,13 +913,18 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                                              &preview_colors,
                                              preview_label);
             }
-            SDL_RenderPresent(renderer);
+            (void)datalab_renderer_backend_present(renderer);
+            if (getenv("DATALAB_PICKER_PROOF_EXIT") != NULL) {
+                canceled = 1;
+                done = 1;
+                exit_reason = "proof-exit";
+            }
         }
     }
 
     SDL_StopTextInput();
     datalab_library_preview_destroy(&library_preview);
-    SDL_DestroyRenderer(renderer);
+    datalab_renderer_backend_destroy(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
 

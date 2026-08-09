@@ -260,7 +260,7 @@ static CoreResult datalab_line_diagnostic_draw(SDL_Renderer *renderer,
     if (!renderer || !frame || !outcome || !frame->line_anchors || frame->line_anchor_count == 0u) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "line diagnostic geometry unavailable" };
     }
-    if (SDL_GetRendererOutputSize(renderer, &width, &height) != 0 || width <= 0 || height <= 0) return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
+    if (datalab_renderer_backend_output_size(renderer, &width, &height) != 0 || width <= 0 || height <= 0) return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
     min_x = max_x = frame->line_anchors[0].x;
     min_y = max_y = frame->line_anchors[0].y;
     for (uint32_t i = 1u; i < frame->line_anchor_count; ++i) {
@@ -286,7 +286,7 @@ static CoreResult datalab_line_diagnostic_draw(SDL_Renderer *renderer,
         SDL_Rect marker = { (int)(ox + frame->line_anchors[i].x * scale) - 3, (int)(oy - frame->line_anchors[i].y * scale) - 3, 7, 7 };
         SDL_RenderFillRect(renderer, &marker);
     }
-    SDL_RenderPresent(renderer); outcome->result = core_result_ok(); outcome->presented = 1u;
+    (void)datalab_renderer_backend_present(renderer); outcome->result = core_result_ok(); outcome->presented = 1u;
     return outcome->result;
 }
 

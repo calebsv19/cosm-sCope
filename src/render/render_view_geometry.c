@@ -22,7 +22,7 @@ int datalab_render_map_window_to_renderer_point(SDL_Window *window,
         return 0;
     }
     SDL_GetWindowSize(window, &window_w, &window_h);
-    SDL_GetRendererOutputSize(renderer, &render_w, &render_h);
+    datalab_renderer_backend_output_size(renderer, &render_w, &render_h);
     if (window_w <= 0 || window_h <= 0 || render_w <= 0 || render_h <= 0) {
         return 0;
     }

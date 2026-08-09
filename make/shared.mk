@@ -9,12 +9,14 @@ KIT_VIZ_DIR := $(SHARED_ROOT)/kit/kit_viz
 KIT_GRAPH_TS_DIR := $(SHARED_ROOT)/kit/kit_graph_timeseries
 KIT_RENDER_DIR := $(SHARED_ROOT)/kit/kit_render
 VK_RENDERER_DIR := $(SHARED_ROOT)/vk_renderer
+VK_RUNTIME_DIR := $(SHARED_ROOT)/vk_runtime
 CORE_THEME_DIR := $(SHARED_ROOT)/core/core_theme
 CORE_FONT_DIR := $(SHARED_ROOT)/core/core_font
 KIT_WORKSPACE_AUTHORING_DIR := $(SHARED_ROOT)/kit/kit_workspace_authoring
 KIT_GRAPH_TS_LIB := $(KIT_GRAPH_TS_BUILD_DIR)/libkit_graph_timeseries.a
 KIT_WORKSPACE_AUTHORING_LIB := $(KIT_WORKSPACE_AUTHORING_BUILD_DIR)/libkit_workspace_authoring.a
 KIT_RENDER_LIB := $(KIT_RENDER_BUILD_DIR)/libkit_render.a
+VK_RUNTIME_VERSION := $(shell cat $(VK_RUNTIME_DIR)/VERSION 2>/dev/null)
 
 $(KIT_GRAPH_TS_LIB):
 	@mkdir -p "$(dir $@)"

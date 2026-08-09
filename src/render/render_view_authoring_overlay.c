@@ -271,7 +271,7 @@ void datalab_workspace_authoring_submit_takeover(SDL_Window *window,
         return;
     }
 
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    datalab_renderer_backend_output_size(renderer, &ww, &wh);
     if (ww <= 0 || wh <= 0) {
         outcome->result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid datalab authoring viewport" };
         return;
@@ -313,6 +313,6 @@ void datalab_workspace_authoring_submit_takeover(SDL_Window *window,
     }
 
     SDL_SetWindowTitle(window, (title && title[0]) ? title : "DataLab");
-    SDL_RenderPresent(renderer);
+    (void)datalab_renderer_backend_present(renderer);
     outcome->presented = 1u;
 }

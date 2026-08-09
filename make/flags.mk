@@ -22,6 +22,8 @@ SDL_TTF_CFLAGS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(
 SDL_TTF_LIBS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --libs sdl2_ttf 2>/dev/null)
 PNG_CFLAGS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --cflags libpng 2>/dev/null)
 PNG_LIBS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --libs libpng 2>/dev/null)
+VULKAN_CFLAGS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --cflags vulkan 2>/dev/null)
+VULKAN_LIBS := $(shell env PKG_CONFIG_LIBDIR="$(TARGET_PKG_CONFIG_LIBDIR)" $(PKG_CONFIG) --libs vulkan 2>/dev/null)
 
 ifeq ($(strip $(SDL_CFLAGS)),)
 ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/include/SDL2/SDL.h),)
@@ -30,6 +32,24 @@ else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/include/SDL2/SDL.h),)
 SDL_CFLAGS := -I$(TARGET_ALT_HOMEBREW_PREFIX)/include -D_THREAD_SAFE
 else
 SDL_CFLAGS := -I/usr/include/SDL2 -D_THREAD_SAFE
+endif
+endif
+
+ifeq ($(strip $(VULKAN_CFLAGS)),)
+ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/include/vulkan/vulkan.h),)
+VULKAN_CFLAGS := -I$(TARGET_HOMEBREW_PREFIX)/include
+else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/include/vulkan/vulkan.h),)
+VULKAN_CFLAGS := -I$(TARGET_ALT_HOMEBREW_PREFIX)/include
+endif
+endif
+
+ifeq ($(strip $(VULKAN_LIBS)),)
+ifneq ($(wildcard $(TARGET_HOMEBREW_PREFIX)/lib/libvulkan.1.dylib),)
+VULKAN_LIBS := -L$(TARGET_HOMEBREW_PREFIX)/lib -lvulkan
+else ifneq ($(wildcard $(TARGET_ALT_HOMEBREW_PREFIX)/lib/libvulkan.1.dylib),)
+VULKAN_LIBS := -L$(TARGET_ALT_HOMEBREW_PREFIX)/lib -lvulkan
+else
+VULKAN_LIBS := -lvulkan
 endif
 endif
 
@@ -93,12 +113,20 @@ COMMON_CFLAGS := $(CSTD) $(WARN) $(DEBUG) -I$(INC_DIR) -I$(SRC_DIR) \
 	-I$(CORE_PACK_DIR)/include -I$(KIT_VIZ_DIR)/include -I$(KIT_GRAPH_TS_DIR)/include \
 	-I$(KIT_RENDER_DIR)/include -I$(CORE_THEME_DIR)/include -I$(CORE_FONT_DIR)/include \
 	-I$(KIT_WORKSPACE_AUTHORING_DIR)/include -I$(KIT_UI_DIR)/include \
-	$(SDL_CFLAGS) $(SDL_TTF_CFLAGS) $(PNG_CFLAGS)
+	-I$(VK_RUNTIME_DIR)/include -I$(VK_RENDERER_DIR)/include \
+	-DVK_RUNTIME_BUILD_VERSION=\"$(VK_RUNTIME_VERSION)\" \
+	-DVK_RENDERER_SHADER_ROOT=\"$(abspath $(VK_RENDERER_DIR))\" \
+	$(SDL_CFLAGS) $(SDL_TTF_CFLAGS) $(PNG_CFLAGS) $(VULKAN_CFLAGS)
 PROGRAM_CFLAGS := $(COMMON_CFLAGS)
 ifeq ($(BUILD_TOOLCHAIN),clang)
 PROGRAM_CFLAGS += $(ARCH_FLAGS)
 endif
 HOST_CFLAGS := $(COMMON_CFLAGS) $(ARCH_FLAGS)
 
-LIBS := -lm $(SDL_LIBS) $(SDL_TTF_LIBS) $(PNG_LIBS)
+LIBS := -lm $(SDL_LIBS) $(SDL_TTF_LIBS) $(PNG_LIBS) $(VULKAN_LIBS)
+ifeq ($(UNAME_S),Darwin)
+PROGRAM_CFLAGS += -DVK_USE_PLATFORM_METAL_EXT
+HOST_CFLAGS += -DVK_USE_PLATFORM_METAL_EXT
+LIBS += -framework Metal -framework QuartzCore -framework Cocoa -framework IOKit -framework CoreVideo
+endif
 LDFLAGS :=

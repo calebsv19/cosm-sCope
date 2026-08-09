@@ -185,7 +185,7 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
         return;
     }
     memset(&g_recent_input_root_ui, 0, sizeof(g_recent_input_root_ui));
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    datalab_renderer_backend_output_size(renderer, &ww, &wh);
     if (ww <= 0 || wh <= 0) {
         return;
     }
@@ -348,7 +348,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     shortcut_line = datalab_profile_supports_raster_viewport(app_state->profile)
                         ? "H hide HUD | Wheel zoom | Left drag pan | R reset | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan"
                         : "H hide HUD | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan";
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    datalab_renderer_backend_output_size(renderer, &ww, &wh);
     pad = datalab_scaled_px(8.0f);
     if (app_state->session_hud_collapsed) {
         return;

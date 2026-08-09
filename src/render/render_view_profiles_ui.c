@@ -445,7 +445,7 @@ static void render_trace_frame(SDL_Renderer *renderer, const DatalabFrame *frame
         }
     }
 
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    datalab_renderer_backend_output_size(renderer, &ww, &wh);
     header.x = datalab_scaled_px(32.0f);
     header.y = datalab_scaled_px(8.0f);
     header.w = ww - datalab_scaled_px(64.0f);
@@ -689,7 +689,7 @@ void datalab_physics_render_derive_frame(SDL_Renderer *renderer,
         out_derive->pixels = speed_rgba;
     }
     out_derive->draw_vectors = (uint8_t)(app_state->view_mode == DATALAB_VIEW_DENSITY_VECTOR);
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    datalab_renderer_backend_output_size(renderer, &ww, &wh);
     calc_fit_rect(ww, wh, frame->width, frame->height, &out_derive->dst);
 }
 
@@ -723,7 +723,7 @@ static void datalab_draw_workspace_authoring_overlay(SDL_Renderer *renderer,
         return;
     }
 
-    SDL_GetRendererOutputSize(renderer, &ww, &wh);
+    datalab_renderer_backend_output_size(renderer, &ww, &wh);
     if (ww <= 0 || wh <= 0) {
         return;
     }
@@ -844,7 +844,7 @@ void datalab_physics_render_submit_frame(SDL_Window *window,
     datalab_draw_playback_hud(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->common.title);
-    SDL_RenderPresent(renderer);
+    (void)datalab_renderer_backend_present(renderer);
     outcome->presented = 1u;
     outcome->result = core_result_ok();
 }
@@ -878,7 +878,7 @@ void datalab_daw_render_submit_frame(SDL_Window *window,
     datalab_draw_playback_hud(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->title);
-    SDL_RenderPresent(renderer);
+    (void)datalab_renderer_backend_present(renderer);
     outcome->presented = 1u;
     outcome->result = core_result_ok();
 }
@@ -919,7 +919,7 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
     datalab_draw_playback_hud(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->common.title);
-    SDL_RenderPresent(renderer);
+    (void)datalab_renderer_backend_present(renderer);
     outcome->presented = 1u;
     outcome->result = core_result_ok();
 }
@@ -953,7 +953,7 @@ void datalab_trace_render_submit_frame(SDL_Window *window,
     datalab_draw_playback_hud(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->title);
-    SDL_RenderPresent(renderer);
+    (void)datalab_renderer_backend_present(renderer);
     outcome->presented = 1u;
     outcome->result = core_result_ok();
 }

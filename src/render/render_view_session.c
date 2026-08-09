@@ -5,6 +5,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct DatalabRenderSession {
@@ -130,6 +131,7 @@ static CoreResult datalab_render_validate_frame(const DatalabFrame *frame, const
 
 static CoreResult datalab_render_capture_surface(SDL_Renderer *renderer, const char *output_path) {
     SDL_Surface *surface = NULL;
+    SDL_Rect read_rect = {0};
     void *pixels = NULL;
     int width = 0;
     int height = 0;
@@ -139,14 +141,20 @@ static CoreResult datalab_render_capture_surface(SDL_Renderer *renderer, const c
     if (!renderer || !output_path || output_path[0] == '\0') {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid visual artifact request" };
     }
-    if (SDL_GetRendererOutputSize(renderer, &width, &height) != 0 || width <= 0 || height <= 0) {
+    if (datalab_renderer_backend_output_size(renderer, &width, &height) != 0 || width <= 0 || height <= 0) {
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
     }
     surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_RGBA32);
     if (!surface) {
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
     }
-    if (SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_RGBA32, surface->pixels, surface->pitch) != 0) {
+    read_rect.w = width;
+    read_rect.h = height;
+    if (SDL_RenderReadPixels(renderer,
+                             &read_rect,
+                             SDL_PIXELFORMAT_RGBA32,
+                             surface->pixels,
+                             surface->pitch) != 0) {
         CoreResult result = { CORE_ERR_IO, SDL_GetError() };
         SDL_FreeSurface(surface);
         return result;
@@ -311,7 +319,7 @@ physics_done:
 CoreResult datalab_render_session_open(DatalabRenderSession **out_session) {
     DatalabRenderSession *session = NULL;
     const uint32_t video_mask = SDL_INIT_VIDEO;
-    const uint32_t window_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+    const uint32_t window_flags = datalab_renderer_backend_window_flags();
     CoreResult result = core_result_ok();
     if (!out_session) {
         result = (CoreResult){ CORE_ERR_INVALID_ARG, "invalid render session request" };
@@ -347,13 +355,21 @@ CoreResult datalab_render_session_open(DatalabRenderSession **out_session) {
         datalab_render_set_failure_diagnostic("session_open", "create_window", DATALAB_PROFILE_UNKNOWN, result);
         return result;
     }
-    session->renderer = SDL_CreateRenderer(session->window,
-                                           -1,
-                                           SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    session->renderer = datalab_renderer_backend_create(session->window);
     if (!session->renderer) {
         result = (CoreResult){ CORE_ERR_IO, SDL_GetError() };
         datalab_render_session_close(session);
         datalab_render_set_failure_diagnostic("session_open", "create_renderer", DATALAB_PROFILE_UNKNOWN, result);
+        return result;
+    }
+    if (datalab_renderer_backend_kind(session->renderer) == DATALAB_RENDERER_BACKEND_VULKAN &&
+        !datalab_renderer_backend_verify(
+            session->renderer,
+            "session-startup",
+            getenv("DATALAB_REQUIRE_VK_VALIDATION") != NULL)) {
+        result = (CoreResult){ CORE_ERR_IO, "Vulkan runtime identity or validation check failed" };
+        datalab_render_session_close(session);
+        datalab_render_set_failure_diagnostic("session_open", "verify_vulkan", DATALAB_PROFILE_UNKNOWN, result);
         return result;
     }
     (void)datalab_text_renderer_init();
@@ -367,7 +383,7 @@ void datalab_render_session_close(DatalabRenderSession *session) {
     }
     datalab_raster_texture_state_destroy(&session->raster_texture_state);
     if (session->renderer) {
-        SDL_DestroyRenderer(session->renderer);
+        datalab_renderer_backend_destroy(session->renderer);
     }
     if (session->window) {
         SDL_DestroyWindow(session->window);

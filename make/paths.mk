@@ -10,6 +10,15 @@ TARGET := $(PROGRAM_BIN_DIR)/$(TARGET_NAME)
 DIST_DIR := $(TARGET_BUILD_DIR)/dist
 VISUAL_ARTIFACT_ROOT ?= visual_artifacts
 VISUAL_ARTIFACT_OUTPUT ?= $(VISUAL_ARTIFACT_ROOT)/datalab_first_frame.bmp
+VULKAN_ROLLOUT_DIR := $(abspath $(BUILD_DIR)/vulkan-rollout)
+VULKAN_ROLLOUT_INITIAL_CAPTURE := $(VULKAN_ROLLOUT_DIR)/datalab-initial.bmp
+VULKAN_ROLLOUT_RESIZED_CAPTURE := $(VULKAN_ROLLOUT_DIR)/datalab-resized.bmp
+VULKAN_ROLLOUT_LOG := $(VULKAN_ROLLOUT_DIR)/datalab-vulkan.log
+PACKAGE_VULKAN_ROLLOUT_DIR := $(abspath $(BUILD_DIR)/package-vulkan-rollout)
+PACKAGE_VULKAN_INITIAL_CAPTURE := $(PACKAGE_VULKAN_ROLLOUT_DIR)/datalab-package-initial.bmp
+PACKAGE_VULKAN_RESIZED_CAPTURE := $(PACKAGE_VULKAN_ROLLOUT_DIR)/datalab-package-resized.bmp
+PACKAGE_VULKAN_LOG := $(PACKAGE_VULKAN_ROLLOUT_DIR)/datalab-package-vulkan.log
+CANONICAL_SHARED_ROOT ?= ../shared
 
 SHARED_ROOT ?= third_party/codework_shared
 SHARED_BUILD_DIR := $(TARGET_BUILD_DIR)/shared

@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-06-23
+Last updated: 2026-08-08
 
 ## Direction
 
@@ -18,6 +18,12 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 
 2. Continue renderer/profile-loop hardening without breaking current path contracts:
 - maintain persistent render-session reuse across file switches
+- preserve the managed `vk_runtime 0.6.0` / `vk_renderer 1.3.1` default
+  presentation path, its high-DPI nearest-upload compatibility canvas, and the
+  explicit SDL fallback/oracle
+- keep validation, native readback/capture, resize recovery, restart, picker,
+  session, and packaged-host proofs checksum-bound as shared Vulkan revisions
+  advance
 - keep input-root/runtime-preference precedence deterministic
 - keep load-failure recovery routed back to picker state
 - keep authoring theme/custom-slot persistence deterministic across sessions
@@ -64,6 +70,9 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 - No widening of legacy test lane scope unless promoted intentionally into stable contract.
 - No reopening of the completed graph-kit adoption lane for broader plotting
   work unless a fresh host requirement is scoped first.
+- No claim of Vulkan compute acceleration from presentation adoption; any
+  compute candidate must be selected by profiling and retain CPU parity and
+  fallback.
 - No reopening of the completed R0-R6 refinement lane without a new named pass
   or follow-on plan.
 

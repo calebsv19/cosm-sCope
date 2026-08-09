@@ -8,11 +8,16 @@
 #include "data/dataset_builders.h"
 #include "data/input_file_loader.h"
 #include "render/render_view.h"
+#include "render/datalab_vulkan_rollout.h"
 
 int datalab_app_main(int argc, char **argv) {
     DatalabAppRuntime runtime;
     DatalabAppContext ctx;
     int rc = 0;
+
+    if (argc == 2 && strcmp(argv[1], "--vulkan-rollout-self-test") == 0) {
+        return datalab_vulkan_rollout_self_test();
+    }
 
     datalab_app_runtime_init(&runtime);
     memset(&ctx, 0, sizeof(ctx));
