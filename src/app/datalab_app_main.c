@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "app/datalab_app_internal.h"
+#include "app/datalab_w5_acceptance.h"
 #include "core_data.h"
 #include "data/dataset_builders.h"
 #include "data/input_file_loader.h"
@@ -17,6 +18,9 @@ int datalab_app_main(int argc, char **argv) {
 
     if (argc == 2 && strcmp(argv[1], "--vulkan-rollout-self-test") == 0) {
         return datalab_vulkan_rollout_self_test();
+    }
+    if (argc == 3 && strcmp(argv[1], "--w5-acceptance") == 0) {
+        return datalab_w5_acceptance_run(argv[2]);
     }
 
     datalab_app_runtime_init(&runtime);

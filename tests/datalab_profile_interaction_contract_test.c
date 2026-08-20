@@ -95,6 +95,17 @@ static int test_image_profile_arrow_contract(void) {
                              "image left should request previous panel item")) {
         return 0;
     }
+    datalab_test_simulate_keydown(&state, SDLK_a, 0, &quit);
+    datalab_test_simulate_keydown(&state, SDLK_c, 0, &quit);
+    datalab_test_simulate_keydown(&state, SDLK_s, 0, &quit);
+    if (!datalab_test_assert(state.raster_actual_pixel_mode == 1 && state.raster_alpha_checkerboard == 1 &&
+                             state.sampling_mode == DATALAB_SAMPLING_MODE_NEAREST,
+                             "image controls must select nearest sampling from the persisted default")) {
+        return 0;
+    }
+    datalab_test_simulate_keydown(&state, SDLK_s, 0, &quit);
+    if (!datalab_test_assert(state.sampling_mode == DATALAB_SAMPLING_MODE_LINEAR,
+                             "image controls must then cycle sampling to linear")) return 0;
     if (!datalab_test_assert(state.panel_open_selected_requested == 1,
                              "image left should request immediate open")) {
         return 0;

@@ -6,8 +6,6 @@
 #include "kit_ui_sdl.h"
 #include "render/render_view_authoring_overlay_shared.h"
 
-#define DATALAB_PANEL_REFRESH_MS 1200u
-
 typedef struct DatalabRecentInputRootUiState {
     SDL_Rect button_rect;
     SDL_Rect list_rect;
@@ -16,6 +14,7 @@ typedef struct DatalabRecentInputRootUiState {
 } DatalabRecentInputRootUiState;
 
 static DatalabPackPanelCache g_pack_panel_cache;
+static DatalabInputCatalog g_fallback_input_catalog;
 static DatalabRecentInputRootUiState g_recent_input_root_ui;
 
 static int datalab_clamp_int(int value, int min_value, int max_value) {
@@ -35,45 +34,154 @@ static int datalab_header_bar_height_px(void) {
     return (datalab_text_line_height(1) * 2) + datalab_scaled_px(12.0f);
 }
 
-static void datalab_panel_rescan(const char *root, DatalabPackPanelCache *cache) {
-    DatalabSupportedFileScanResult scan = {0u, 0, 0};
-    if (!root || !cache) {
+static void datalab_panel_cache_copy_catalog(DatalabPackPanelCache *cache,
+                                             const DatalabInputCatalog *catalog) {
+    if (!cache || !catalog) {
         return;
+    }
+    /* The viewer keeps catalog identity and a small render page only.  It
+     * never mirrors every path into panel state. */
+    memset(cache->files, 0, sizeof(cache->files));
+    snprintf(cache->scanned_root, sizeof(cache->scanned_root), "%s", datalab_input_catalog_root(catalog));
+    cache->file_count = catalog->file_count;
+    cache->source_catalog = catalog;
+    cache->source_catalog_file_count = catalog->file_count;
+    cache->last_scan_duration_us = catalog->last_scan_duration_us;
+    cache->refresh_count = catalog->refresh_count;
+    cache->last_refresh_reason = catalog->last_refresh_reason;
+    snprintf(cache->status, sizeof(cache->status),
+             "found %zu supported files [catalog %s %lluus; panel window %u]",
+             catalog->file_count,
+             datalab_input_catalog_refresh_reason_name(catalog->last_refresh_reason),
+             (unsigned long long)catalog->last_scan_duration_us,
+             (unsigned)DATALAB_PANEL_VISIBLE_WINDOW);
+}
+
+static int datalab_panel_cache_matches_catalog(const DatalabPackPanelCache *cache,
+                                               const DatalabInputCatalog *catalog,
+                                               const char *root) {
+    return cache && catalog && root && datalab_input_catalog_root_matches(catalog, root) &&
+           cache->source_catalog == catalog && cache->source_catalog_file_count == catalog->file_count &&
+           cache->refresh_count == catalog->refresh_count &&
+           cache->file_count == catalog->file_count &&
+           strcmp(cache->scanned_root, datalab_input_catalog_root(catalog)) == 0;
+}
+
+static int datalab_panel_refresh_catalog(const char *root,
+                                         DatalabPackPanelCache *cache,
+                                         DatalabInputCatalog *catalog,
+                                         DatalabInputCatalogRefreshReason reason) {
+    CoreResult result;
+    if (!root || !cache || !catalog) {
+        return 0;
+    }
+    if (!datalab_input_catalog_is_busy(catalog)) {
+        result = datalab_input_catalog_begin_refresh(catalog, root, reason);
+    } else {
+        result = core_result_ok();
+    }
+    if (result.code == CORE_OK && datalab_input_catalog_is_busy(catalog)) {
+        result = datalab_input_catalog_step(catalog, 128u);
     }
     cache->file_count = 0u;
     cache->status[0] = '\0';
     snprintf(cache->scanned_root, sizeof(cache->scanned_root), "%s", root);
-    scan = datalab_scan_supported_files(root, cache->files, DATALAB_PANEL_MAX_FILES);
-    cache->file_count = scan.file_count;
-    datalab_format_supported_file_scan_status(&scan,
-                                              root,
-                                              "press O to reselect",
-                                              cache->status,
-                                              sizeof(cache->status));
+    cache->last_scan_duration_us = catalog->last_scan_duration_us;
+    cache->refresh_count = catalog->refresh_count;
+    cache->last_refresh_reason = catalog->last_refresh_reason;
+    if (result.code != CORE_OK) {
+        DatalabSupportedFileScanResult failed_scan = {0};
+        failed_scan.root_unavailable = result.code == CORE_ERR_IO;
+        failed_scan.allocation_failed = result.code == CORE_ERR_OUT_OF_MEMORY;
+        failed_scan.invalid_request = result.code == CORE_ERR_INVALID_ARG;
+        datalab_format_supported_file_scan_status(&failed_scan,
+                                                  root,
+                                                  "press O to reselect",
+                                                  cache->status,
+                                                  sizeof(cache->status));
+    } else if (datalab_input_catalog_is_busy(catalog)) {
+        snprintf(cache->status, sizeof(cache->status), "scanning input catalog…");
+    } else {
+        datalab_panel_cache_copy_catalog(cache, catalog);
+    }
+    fprintf(stderr,
+            "datalab: input catalog refresh reason=%s root=%s duration_us=%llu files=%zu result=%d\n",
+            datalab_input_catalog_refresh_reason_name(reason),
+            root,
+            (unsigned long long)catalog->last_scan_duration_us,
+            catalog->file_count,
+            (int)result.code);
+    return result.code == CORE_OK && datalab_input_catalog_is_ready(catalog);
+}
+
+static int datalab_panel_rescan(const char *root,
+                                DatalabPackPanelCache *cache,
+                                DatalabInputCatalog *catalog,
+                                DatalabInputCatalogRefreshReason reason) {
+    if (!root || !cache || !catalog) {
+        return 0;
+    }
+    return datalab_panel_refresh_catalog(root, cache, catalog, reason);
+}
+
+static DatalabInputCatalog *datalab_session_input_catalog(DatalabAppState *app_state) {
+    if (!app_state) {
+        return NULL;
+    }
+    return app_state->input_catalog ? app_state->input_catalog : &g_fallback_input_catalog;
 }
 
 void datalab_session_controls_tick(DatalabAppState *app_state) {
     const char *root = NULL;
+    DatalabInputCatalog *catalog = NULL;
     uint32_t now_ticks = 0u;
     int rescanned = 0;
-    if (!app_state) {
+    int catalog_synced = 0;
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(app_state)) {
         return;
     }
     root = app_state->input_root;
+    catalog = datalab_session_input_catalog(app_state);
     if (root[0] == '\0') {
         datalab_panel_apply_state(app_state, &g_pack_panel_cache, root, 0, 0u);
         return;
     }
     now_ticks = SDL_GetTicks();
-    if (app_state->panel_rescan_requested ||
-        strncmp(g_pack_panel_cache.scanned_root, root, sizeof(g_pack_panel_cache.scanned_root)) != 0 ||
-        (now_ticks - g_pack_panel_cache.last_scan_ticks) > DATALAB_PANEL_REFRESH_MS) {
-        datalab_panel_rescan(root, &g_pack_panel_cache);
-        g_pack_panel_cache.last_scan_ticks = now_ticks;
+    if (datalab_input_catalog_is_busy(catalog)) {
+        rescanned = datalab_panel_rescan(root,
+                                         &g_pack_panel_cache,
+                                         catalog,
+                                         catalog->last_refresh_reason);
+    } else if (app_state->panel_rescan_requested) {
+        rescanned = datalab_panel_rescan(root,
+                                         &g_pack_panel_cache,
+                                         catalog,
+                                         DATALAB_INPUT_CATALOG_REFRESH_EXPLICIT);
         app_state->panel_rescan_requested = 0;
-        rescanned = 1;
+    } else if (!datalab_input_catalog_root_matches(catalog, root)) {
+        rescanned = datalab_panel_rescan(root,
+                                         &g_pack_panel_cache,
+                                         catalog,
+                                         datalab_input_catalog_root(catalog)[0] == '\0'
+                                             ? DATALAB_INPUT_CATALOG_REFRESH_INITIAL
+                                             : DATALAB_INPUT_CATALOG_REFRESH_ROOT_CHANGE);
+    } else if (datalab_input_catalog_fingerprint_changed(catalog, root)) {
+        rescanned = datalab_panel_rescan(root,
+                                         &g_pack_panel_cache,
+                                         catalog,
+                                         DATALAB_INPUT_CATALOG_REFRESH_FINGERPRINT_CHANGED);
     }
-    datalab_panel_apply_state(app_state, &g_pack_panel_cache, root, rescanned, now_ticks);
+    if (!rescanned && !datalab_panel_cache_matches_catalog(&g_pack_panel_cache, catalog, root)) {
+        /* The runtime catalog is refreshed before viewer restoration. A fresh
+         * process therefore needs a UI-cache seed even though no filesystem
+         * rescan or root transition is pending. */
+        datalab_panel_cache_copy_catalog(&g_pack_panel_cache, catalog);
+        catalog_synced = 1;
+    }
+    if (rescanned || catalog_synced) {
+        g_pack_panel_cache.last_scan_ticks = now_ticks;
+    }
+    datalab_panel_apply_state(app_state, &g_pack_panel_cache, root, rescanned || catalog_synced, now_ticks);
 }
 
 static void datalab_recent_input_root_activate(DatalabAppState *app_state, const char *path) {
@@ -84,13 +192,16 @@ static void datalab_recent_input_root_activate(DatalabAppState *app_state, const
     if (!datalab_app_state_select_input_root(app_state, path)) {
         return;
     }
-    datalab_panel_rescan(app_state->input_root, &g_pack_panel_cache);
+    (void)datalab_panel_rescan(app_state->input_root,
+                               &g_pack_panel_cache,
+                               datalab_session_input_catalog(app_state),
+                               DATALAB_INPUT_CATALOG_REFRESH_ROOT_CHANGE);
     now_ticks = SDL_GetTicks();
     g_pack_panel_cache.last_scan_ticks = now_ticks;
     if (g_pack_panel_cache.file_count > 0u) {
-        datalab_panel_request_pack_under_root(app_state,
-                                              app_state->input_root,
-                                              g_pack_panel_cache.files[0]);
+        char first_name[DATALAB_APP_PATH_CAP];
+        if (datalab_input_catalog_name_copy(g_pack_panel_cache.source_catalog, 0u, first_name, sizeof(first_name)))
+            datalab_panel_request_pack_under_root(app_state, app_state->input_root, first_name);
     }
 }
 
@@ -98,22 +209,29 @@ int datalab_session_controls_mouse_enabled(const DatalabAppState *app_state) {
     if (!app_state) {
         return 0;
     }
-    if (app_state->workspace_authoring_stub_active) {
-        return 0;
-    }
-    return 1;
+    return datalab_workspace_authoring_runtime_mutation_allowed(app_state);
 }
 
 size_t datalab_session_controls_file_count(void) {
     return g_pack_panel_cache.file_count;
 }
 
+const char *datalab_session_controls_catalog_status(void) {
+    return g_pack_panel_cache.status;
+}
+
 const char *datalab_session_controls_selected_file_name(const DatalabAppState *app_state) {
+    static char selected_name[DATALAB_APP_PATH_CAP];
     if (!app_state || g_pack_panel_cache.file_count == 0u ||
         app_state->panel_selected_index >= g_pack_panel_cache.file_count) {
         return "";
     }
-    return g_pack_panel_cache.files[app_state->panel_selected_index];
+    if (g_pack_panel_cache.source_catalog &&
+        datalab_input_catalog_name_copy(g_pack_panel_cache.source_catalog,
+                                        (uint64_t)app_state->panel_selected_index,
+                                        selected_name, sizeof(selected_name))) return selected_name;
+    return app_state->panel_selected_index < DATALAB_PANEL_VISIBLE_WINDOW
+               ? g_pack_panel_cache.files[app_state->panel_selected_index] : "";
 }
 
 int datalab_session_controls_route_mouse_event(SDL_Window *window,
@@ -346,7 +464,7 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     pack_path = app_state->pack_path && app_state->pack_path[0] ? app_state->pack_path : "<none>";
     active_name = core_path_basename(pack_path);
     shortcut_line = datalab_profile_supports_raster_viewport(app_state->profile)
-                        ? "H hide HUD | Wheel zoom | Left drag pan | R reset | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan"
+                        ? "A 1:1 | S sampler | C alpha checker | Click probe | Wheel zoom | R reset | O picker | U/J nav | F5 rescan"
                         : "H hide HUD | Space play/pause | O picker | U/J nav | Enter load | Left/Right cycle image | F5 rescan";
     datalab_renderer_backend_output_size(renderer, &ww, &wh);
     pad = datalab_scaled_px(8.0f);
@@ -529,7 +647,17 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                 list_box.w - datalab_scaled_px(4.0f),
                 list_box.h - datalab_scaled_px(4.0f)
             };
+            char page[DATALAB_PANEL_VISIBLE_WINDOW][DATALAB_APP_PATH_CAP];
+            size_t page_count = 0u;
             size_t i;
+            if (g_pack_panel_cache.source_catalog) {
+                const size_t request_rows = (size_t)max_rows < DATALAB_PANEL_VISIBLE_WINDOW
+                                                ? (size_t)max_rows : DATALAB_PANEL_VISIBLE_WINDOW;
+                page_count = datalab_input_catalog_page_copy(g_pack_panel_cache.source_catalog,
+                                                             (uint64_t)start_idx,
+                                                             page,
+                                                             request_rows);
+            }
             for (i = 0u; (int)i < max_rows; ++i) {
                 size_t idx = start_idx + i;
                 int y = start_y + ((int)i * row_h);
@@ -539,7 +667,13 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
                 if (idx >= g_pack_panel_cache.file_count) {
                     break;
                 }
-                name = g_pack_panel_cache.files[idx];
+                if (g_pack_panel_cache.source_catalog) {
+                    if (i >= page_count) break;
+                    name = page[i];
+                } else {
+                    if (idx >= DATALAB_PANEL_VISIBLE_WINDOW) break;
+                    name = g_pack_panel_cache.files[idx];
+                }
                 is_selected = (idx == app_state->panel_selected_index);
                 is_active = (active_name[0] != '\0') && (strcasecmp(name, active_name) == 0);
                 if (is_selected || is_active) {

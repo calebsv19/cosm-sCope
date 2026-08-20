@@ -1,18 +1,30 @@
 #include "app/datalab_runtime_pack.h"
+#include "app/datalab_runtime_prefs.h"
+#include "app/datalab_viewer_session_prefs.h"
 
-#include <dirent.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
+#include "app/datalab_input_catalog.h"
+#include "app/datalab_async_decode.h"
 #include "core_data.h"
 #include "data/dataset_builders.h"
 #include "data/input_file_loader.h"
 
-#define DATALAB_PREFETCH_SCAN_MAX 256
 
-static const int k_prefetch_offsets[DATALAB_FRAME_PREFETCH_SLOT_COUNT] = { -1, 1, 2 };
+void datalab_runtime_note_active_raster_content(DatalabAppRuntime *runtime) {
+    if (!runtime || !runtime->frame.drawing_rgba) {
+        return;
+    }
+    if (runtime->raster_content_generation != UINT64_MAX) {
+        runtime->raster_content_generation += 1u;
+    }
+    if (runtime->raster_content_generation == 0u) {
+        runtime->raster_content_generation = 1u;
+    }
+    runtime->frame.raster_content_generation = runtime->raster_content_generation;
+}
 
 static const char *datalab_runtime_path_basename(const char *path) {
     const char *base = NULL;
@@ -69,167 +81,80 @@ static int datalab_runtime_split_parent_dir(const char *path, char *out_dir, siz
     return 1;
 }
 
-static int datalab_runtime_name_cmp(const void *a, const void *b) {
-    const char *aa = (const char *)a;
-    const char *bb = (const char *)b;
-    return strcasecmp(aa, bb);
-}
-
-static size_t datalab_runtime_scan_supported_files(const char *root,
-                                                   char files[][DATALAB_APP_PATH_CAP],
-                                                   size_t cap) {
-    DIR *dir = NULL;
-    struct dirent *entry = NULL;
-    size_t count = 0u;
-    if (!root || root[0] == '\0' || !files || cap == 0u) {
-        return 0u;
-    }
-    dir = opendir(root);
-    if (!dir) {
-        return 0u;
-    }
-    while ((entry = readdir(dir)) != NULL) {
-        char child_path[DATALAB_APP_PATH_CAP];
-        if (entry->d_name[0] == '.') {
-            continue;
-        }
-        if (!datalab_input_root_join_child_file(root,
-                                               entry->d_name,
-                                               child_path,
-                                               sizeof(child_path))) {
-            continue;
-        }
-        if (!datalab_input_file_is_supported(entry->d_name)) {
-            continue;
-        }
-        if (count >= cap) {
-            break;
-        }
-        snprintf(files[count], DATALAB_APP_PATH_CAP, "%s", entry->d_name);
-        count++;
-    }
-    closedir(dir);
-    if (count > 1u) {
-        qsort(files, count, sizeof(files[0]), datalab_runtime_name_cmp);
-    }
-    return count;
-}
-
-static int datalab_runtime_find_name_index(const char *name,
-                                           char files[][DATALAB_APP_PATH_CAP],
-                                           size_t file_count) {
-    size_t i = 0u;
-    if (!name || !files) {
-        return -1;
-    }
-    for (i = 0u; i < file_count; ++i) {
-        if (strcasecmp(name, files[i]) == 0) {
-            return (int)i;
-        }
-    }
-    return -1;
-}
-
-static void datalab_runtime_prefetch_slot_clear(DatalabFramePrefetchSlot *slot) {
-    if (!slot) {
-        return;
-    }
-    if (slot->valid) {
-        datalab_frame_free(&slot->frame);
-        datalab_frame_init(&slot->frame);
-    }
-    slot->valid = 0;
-    slot->path[0] = '\0';
-}
-
-static void datalab_runtime_prefetch_clear_all(DatalabAppRuntime *runtime) {
-    int i = 0;
-    if (!runtime) {
-        return;
-    }
-    for (i = 0; i < DATALAB_FRAME_PREFETCH_SLOT_COUNT; ++i) {
-        datalab_runtime_prefetch_slot_clear(&runtime->prefetch_slots[i]);
-    }
-}
-
 void datalab_runtime_reset_prefetch(DatalabAppRuntime *runtime) {
-    datalab_runtime_prefetch_clear_all(runtime);
+    if (runtime && runtime->image_residency) {
+        datalab_image_residency_clear_cpu(runtime->image_residency);
+    }
 }
 
 static int datalab_runtime_prefetch_take_hit(DatalabAppRuntime *runtime) {
-    int i = 0;
-    if (!runtime || !runtime->pack_path || runtime->pack_path[0] == '\0') {
+    if (!runtime || !runtime->image_residency || !runtime->pack_path || runtime->pack_path[0] == '\0') {
         return 0;
     }
-    for (i = 0; i < DATALAB_FRAME_PREFETCH_SLOT_COUNT; ++i) {
-        DatalabFramePrefetchSlot *slot = &runtime->prefetch_slots[i];
-        if (!slot->valid) {
-            continue;
-        }
-        if (strcasecmp(slot->path, runtime->pack_path) == 0) {
-            runtime->frame = slot->frame;
-            datalab_frame_init(&slot->frame);
-            slot->valid = 0;
-            slot->path[0] = '\0';
-            runtime->frame_loaded = 1;
-            return 1;
-        }
+    if (datalab_image_residency_take_cpu(runtime->image_residency, runtime->pack_path, &runtime->frame)) {
+        datalab_runtime_note_active_raster_content(runtime);
+        datalab_image_residency_note_active(runtime->image_residency, runtime->pack_path, &runtime->frame);
+        runtime->frame_loaded = 1;
+        return 1;
     }
     return 0;
 }
 
-static void datalab_runtime_prefetch_neighbor_bmps(DatalabAppRuntime *runtime) {
-    char root[DATALAB_APP_PATH_CAP];
-    char files[DATALAB_PREFETCH_SCAN_MAX][DATALAB_APP_PATH_CAP];
-    size_t file_count = 0u;
-    const char *active_name = NULL;
-    int active_index = -1;
-    int slot_index = 0;
-    if (!runtime || !runtime->pack_path || runtime->pack_path[0] == '\0') {
-        return;
-    }
-    datalab_runtime_prefetch_clear_all(runtime);
-    if (!datalab_input_file_is_bmp(runtime->pack_path)) {
-        return;
-    }
-    if (!datalab_runtime_split_parent_dir(runtime->pack_path, root, sizeof(root))) {
-        return;
-    }
-    file_count = datalab_runtime_scan_supported_files(root, files, DATALAB_PREFETCH_SCAN_MAX);
-    if (file_count == 0u) {
-        return;
-    }
-    active_name = datalab_runtime_path_basename(runtime->pack_path);
-    active_index = datalab_runtime_find_name_index(active_name, files, file_count);
-    if (active_index < 0) {
-        return;
-    }
+void datalab_runtime_prefetch_neighbors(DatalabAppRuntime *runtime) {
+    /* W4 replaces the former render-thread synchronous neighbor decoder.
+     * Compatibility callers retain this no-op; interactive selection uses
+     * datalab_runtime_focus_request below. */
+    (void)runtime;
+}
 
-    for (slot_index = 0; slot_index < DATALAB_FRAME_PREFETCH_SLOT_COUNT; ++slot_index) {
-        int neighbor_index = active_index + k_prefetch_offsets[slot_index];
-        DatalabFramePrefetchSlot *slot = &runtime->prefetch_slots[slot_index];
-        CoreResult load_r;
-        if (neighbor_index < 0 || (size_t)neighbor_index >= file_count) {
+int datalab_runtime_focus_request(DatalabAppRuntime *runtime,
+                                  const DatalabAppState *app_state,
+                                  const char *selected_path) {
+    DatalabFocusWindowIntent intent;
+    char root[DATALAB_APP_PATH_CAP];
+    char name[DATALAB_APP_PATH_CAP];
+    char path[DATALAB_APP_PATH_CAP];
+    uint64_t selected_index = 0u;
+    int direction = 1;
+    uint32_t velocity = 1u;
+    int selected_submitted = 0;
+    if (!runtime || !app_state || !selected_path || !selected_path[0] ||
+        !datalab_runtime_split_parent_dir(selected_path, root, sizeof(root)) ||
+        !datalab_input_catalog_root_matches(&runtime->input_catalog, root) ||
+        !datalab_input_catalog_find_index(&runtime->input_catalog,
+                                          datalab_runtime_path_basename(selected_path),
+                                          &selected_index)) return 0;
+    if (app_state->playback_direction < 0 || app_state->panel_selection_delta < 0) direction = -1;
+    if (app_state->playback_active) velocity = (uint32_t)(app_state->playback_speed_index + 1);
+    datalab_focus_window_select(&runtime->focus_window,
+                                runtime->input_catalog.generation,
+                                (uint64_t)runtime->input_catalog.file_count,
+                                selected_index,
+                                direction,
+                                velocity,
+                                app_state->playback_active);
+    while (datalab_focus_window_pop_intent(&runtime->focus_window, &intent)) {
+        int accepted = 0;
+        if (!datalab_input_catalog_name_copy(&runtime->input_catalog, intent.logical_index, name, sizeof(name)) ||
+            !datalab_input_catalog_file_is_current(&runtime->input_catalog, root, name) ||
+            !datalab_input_root_join_child_file(root, name, path, sizeof(path))) {
+            datalab_focus_window_note_complete(&runtime->focus_window, &intent, 0);
             continue;
         }
-        if (!datalab_input_file_is_bmp(files[neighbor_index])) {
-            continue;
+        if (intent.kind == DATALAB_FOCUS_WINDOW_INTENT_SELECTED) {
+            accepted = datalab_async_decode_request_selected(&runtime->async_decode, path);
+            if (accepted) {
+                datalab_focus_window_set_pending(&runtime->focus_window, intent.logical_index);
+                selected_submitted = 1;
+            }
+        } else {
+            accepted = datalab_async_decode_request_neighbor(&runtime->async_decode,
+                                                              path,
+                                                              datalab_async_decode_current_generation(&runtime->async_decode));
         }
-        if (!datalab_input_root_join_child_file(root,
-                                               files[neighbor_index],
-                                               slot->path,
-                                               sizeof(slot->path))) {
-            continue;
-        }
-        load_r = datalab_load_input_file(slot->path, &slot->frame);
-        if (load_r.code != CORE_OK || slot->frame.profile != DATALAB_PROFILE_IMAGE) {
-            slot->path[0] = '\0';
-            datalab_frame_free(&slot->frame);
-            datalab_frame_init(&slot->frame);
-            continue;
-        }
-        slot->valid = 1;
+        if (!accepted) datalab_focus_window_note_complete(&runtime->focus_window, &intent, 0);
     }
+    return selected_submitted;
 }
 
 int datalab_runtime_load_frame(DatalabAppRuntime *runtime) {
@@ -239,7 +164,6 @@ int datalab_runtime_load_frame(DatalabAppRuntime *runtime) {
     }
     runtime->last_load_error[0] = '\0';
     if (datalab_runtime_prefetch_take_hit(runtime)) {
-        datalab_runtime_prefetch_neighbor_bmps(runtime);
         return 0;
     }
     load_r = datalab_load_input_file(runtime->pack_path, &runtime->frame);
@@ -253,11 +177,28 @@ int datalab_runtime_load_frame(DatalabAppRuntime *runtime) {
                 (int)load_r.code,
                 datalab_runtime_path_basename(runtime->pack_path),
                 load_r.message ? load_r.message : "unsupported or invalid file");
-        datalab_runtime_prefetch_clear_all(runtime);
         return 2;
     }
     runtime->frame_loaded = 1;
-    datalab_runtime_prefetch_neighbor_bmps(runtime);
+    datalab_runtime_note_active_raster_content(runtime);
+    if (runtime->viewer_session_restore_pending) {
+        datalab_viewer_session_apply_presentation(&runtime->viewer_session,
+                                                  runtime->frame.profile,
+                                                  runtime->frame.width,
+                                                  runtime->frame.height,
+                                                  &runtime->raster_viewport,
+                                                  &runtime->playback_active,
+                                                  &runtime->playback_mode,
+                                                  &runtime->playback_speed_index,
+                                                  &runtime->playback_interval_ms,
+                                                  &runtime->session_hud_collapsed,
+                                                  &runtime->sampling_mode);
+        runtime->viewer_session_restore_pending = 0;
+    }
+    if (runtime->image_residency && runtime->frame.profile == DATALAB_PROFILE_IMAGE) {
+        datalab_image_residency_note_active(runtime->image_residency, runtime->pack_path, &runtime->frame);
+    }
+    (void)datalab_runtime_prefs_save_last_opened_input_file(runtime->pack_path);
     return 0;
 }
 

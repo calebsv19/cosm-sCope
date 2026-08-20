@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-08-08
+Last updated: 2026-08-17
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -11,6 +11,67 @@ Last updated: 2026-08-08
 
 ## Current Shipped State
 - Startup picker + in-session source panel are active.
+- DL-IMG2 keeps one app-local supported-file catalog for the selected input root:
+  picker, session panel, and the W4 focus window reuse its ordered truth;
+  refreshes occur only on explicit request, root change, or cheap directory
+  fingerprint invalidation. Catalog refresh diagnostics record reason and scan
+  duration, while unavailable roots, allocation failure, and vanished selected
+  entries clear or reject catalog state rather than accepting stale paths.
+- DL-IMG3 now uses the vendored `core_workers` 1.0.1, `core_queue` 1.0.1,
+  and `core_wake` 1.0.2 contracts through an app-local decode controller:
+  selected BMP/PNG requests advance a bounded generation, stale completions
+  are freed, and only the render thread adopts a current CPU frame before it
+  recreates the session-owned SDL texture resources. Shared source and versions
+  remain unchanged.
+- DL-IMG4 adds app-local byte-accounted image residency: full CPU frames use a
+  256 MiB budget, renderer-owned textures a 256 MiB budget, and bounded
+  thumbnail primitives a separate 64 MiB budget. Entries are keyed by
+  canonical path plus device/inode/size/mtime identity; stale identities and
+  admissions that would displace the pinned active frame are rejected. The
+  four-entry CPU neighbor LRU owns transferable frame memory; selected async
+  completions validate generation and captured file identity before replacing
+  the current frame. Renderer-thread-only full/tiled GPU residency is byte
+  capped and uses an active-frame semantic content generation paired with a
+  drawable-resource generation. Presentation-only frames do not re-upload
+  unchanged pixels; content replacement and resize/resource recreation each
+  require one fresh upload. DL-IMG5 makes the same thumbnail residency owner
+  retain bounded picker RGBA pixels: picker textures are aspect-preserving at a
+  512px maximum edge (at most 1 MiB each). Preview decode and downscale now run
+  on a dedicated one-job app-local worker instead of the picker/render thread;
+  selection changes use a responsive 40ms debounce, rapid changes converge on
+  the newest identity, and canonical path/device/inode/size/mtime mismatch
+  causes a reload while the last valid preview remains visible. Only the render
+  thread admits completed pixels and creates or replaces SDL textures.
+- W4 adds `datalab_focus_window`, an app-local catalog-index scheduler. It
+  owns no decoded pixels, paths, or textures: a selection emits one selected
+  intent plus a bounded direction-biased neighborhood (default radius `2`,
+  hard maximum `4`; critical pressure is selected-only). New selection or
+  catalog generation cancels stale queued work; decode stays on the worker and
+  only the render thread stages/swaps a fully decoded texture. Neighbor frames
+  enter the CPU LRU only after identity validation. Active/staged candidates
+  remain protected, and any failure retains the last presented frame. Metrics
+  expose active/pending indices, radius, queue/inflight/completion/cancel/stale
+  counts, peak queue, and independent CPU/GPU/thumbnail residency counters.
+- W5 is complete in the isolated worktree/package acceptance lane. The explicit
+  `--w5-acceptance /new/output-dir` driver is inert during normal launches and
+  creates only caller-selected temporary fixtures. Its installed-path receipt
+  covers real `0/1/64/65/160/161/256/257` directories, a 300-file mixed
+  BMP/PNG directory with corrupt/remove transitions, a 1m synthetic catalog
+  at the 58,331,648-byte peak, and a deterministic 20,000-operation
+  SDL-event/scheduler soak. This is an equivalent accelerated soak, not a
+  replacement claim for subjective visual review on an operator display.
+- Startup restores the saved input root first, refreshes and attaches that
+  catalog, then restores viewer mode only when the remembered supported file is
+  a current member of that same root. A missing, renamed, or outside-root file
+  fails closed to the picker without discarding a valid saved root.
+- DL-IMG7 persists a versioned `viewer_session_v1` snapshot through atomic
+  temp/flush/close/rename replacement. Its named fields independently fall
+  back on malformed or unknown values: selected file, fit/free viewport,
+  playback active/mode/speed, HUD collapse, and a forward-compatible sampling
+  preference. The session is considered only for a viewer startup without CLI
+  overrides, and the viewport applies only after a supported raster frame has
+  loaded. Sampling currently round-trips as intent only; visible nearest/linear
+  behavior remains the explicit DL-IMG8 boundary.
 - Input-root switching now includes a shared recent-directories MRU lane:
   - startup picker exposes a persistent right-hand recent-directories rail
     with independently clipped wheel/drag-thumb scrolling
@@ -62,6 +123,9 @@ Last updated: 2026-08-08
     overlay now route through shared `kit_graph_timeseries`; trace sample
     ownership, lane meaning, cursor policy, and SDL replay remain DataLab-owned
   - viewport zoom/pan/reset for sketch/image lanes (`wheel`, drag, `R`)
+  - BMP/PNG technical image inspection: persisted nearest/linear sampler intent is applied explicitly to raster textures; `A` sets a 1:1 view, `C` enables checkerboard alpha context, and click reports source-pixel RGBA
+  - image metadata surfaces decoded dimensions, source bit depth, alpha, and PNG sRGB/gAMA/ICC presence. Pixels are raw 8-bit RGBA; untagged images are labeled sRGB-assumed and ICC profiles are explicitly untransformed.
+  - natural-number sequence scans report missing frame counts; rejected/corrupt async image neighbors retain the current valid frame and provide skip/retry/picker recovery guidance.
 - Oversized-raster handling is active:
   - tiled rendering fallback when full texture exceeds limits
   - visible-tile cache with short halo prefetch
@@ -80,6 +144,9 @@ Last updated: 2026-08-08
   - this is presentation adoption, not Vulkan compute acceleration or a claim
     that app-owned profile rendering has moved into shared code.
 - Picker load failures now return safely to picker with status feedback.
+- Startup restores the last top-level surface: closing in the library returns
+  to the library, while closing a valid viewer can reopen that viewer. Runtime
+  root/file state is seeded before session controls evaluate mutation gates.
 - A single platform window-close request exits the picker immediately. The
   retired Linux-candidate workaround no longer swallows the first pre-input
   `SDL_QUIT`; unsolicited host close events must be diagnosed at their source.
@@ -87,6 +154,24 @@ Last updated: 2026-08-08
   - `Alt+C+V` enters authoring from picker launch or active profile runtime
   - authoring overlay cycles between pane takeover and font/theme takeover
   - top-level authoring actions currently route through shared `kit_workspace_authoring` controls (`cycle`, `apply`, `cancel`)
+  - a DataLab-local adapter now uses `core_workspace_authoring_session` for
+    enter/apply/cancel/fail-safe-recovery/shutdown transitions; it declares
+    only Font/Theme draft, layout draft, and safe-runtime-gate capability
+  - Apply accepts the current Font/Theme draft and resumes runtime; Cancel
+    restores the captured entry baseline and resumes runtime
+  - while authoring is active, the runtime gate suppresses session-control
+    ticking and direct app-local panel/file, playback, picker, and profile
+    mutation helpers; queued pre-entry work remains frozen until runtime resumes
+  - an active draft cannot cross the runtime handoff; loop close/shutdown
+    cancels it back to its entry baseline before accepted prefs are copied
+  - accepted authoring preferences use atomic local replacement; malformed,
+    trailing, or out-of-range persisted authoring values are rejected without
+    replacing runtime defaults or the last accepted on-disk value
+  - Pane mode now projects exactly two source-proven visualizer surfaces through
+    a fixed local `core_pane` tree: the active profile canvas and its
+    in-session source-controls surface. Its bounded divider is draftable only
+    during opaque authoring takeover; picker geometry and floating HUDs remain
+    app-local and outside this projection.
 - High-DPI authoring pointer input maps SDL window coordinates into renderer
   coordinates before shared UI hit testing; the unimplemented `+Pane` action
   is no longer presented as a successful layout mutation.
@@ -119,21 +204,31 @@ Last updated: 2026-08-08
 
 ## Runtime Contract
 - Default GUI launch opens picker and does not require `--pack`.
+- After a successful GUI artifact load, DataLab atomically records that exact
+  artifact and reopens it on the next GUI launch when it is still a supported,
+  regular file. A stale, malformed, or unreadable remembered artifact fails
+  safe to the picker rather than presenting an empty or misleading session.
 - Headless mode still requires explicit `--pack`.
 - Runtime prefs persist text zoom and input-root state.
 - Runtime prefs also persist recent input-root history in `data/runtime/recent_input_roots_v1.txt`.
 - Runtime prefs persist recent full artifact paths in
   `data/runtime/recent_input_files_v1.txt`.
-- Runtime prefs also persist workspace-authoring theme/custom-theme state.
+- Runtime prefs also persist workspace-authoring theme/custom-theme state and
+  the accepted fixed visualizer projection divider in
+  `data/runtime/workspace_authoring_projection_v1.txt`; malformed or
+  out-of-range ratios are rejected without changing the runtime default.
 - CLI `--input-root` takes precedence over persisted root.
 - Recent-directory activation behavior is mode-specific:
   - startup picker selection rescans the new root and highlights the first supported file
   - active runtime selection immediately requests the first supported file in the chosen root
 - While authoring is active:
   - `Tab` cycles overlay mode
-  - `Enter` applies the pending draft state
-  - `Esc` cancels the draft state and exits authoring
+  - `Enter` applies the pending draft state and resumes runtime
+  - `Esc` restores the entry baseline and resumes runtime
   - host-authoring input has first-right-of-refusal over profile handlers
+- The Font/Theme authoring view is a compact operator surface: it uses readable
+  Retina-scale controls, only describes working local custom-theme operations,
+  and states the Apply/Cancel return behavior without debug counters.
 - The active visualizer bottom HUD:
   - consumes clicks before viewport/session mouse routing
   - leaves playback policy app-owned
@@ -208,6 +303,10 @@ Last updated: 2026-08-08
     - `Enter` apply behavior
     - `Esc` authoring exit behavior
     - custom-theme popup `Esc` close-only behavior
+    - fixed two-surface `core_pane` projection solving, bounded divider draft,
+      and Cancel baseline restoration
+    - direct runtime-mutation gate coverage and accepted-only runtime handoff
+    - atomic authoring-preference replacement and malformed-value rejection
   - includes an unattended raster-viewport contract lane for:
     - reset requests clearing active drag state
     - fresh fit bootstrap from invalid viewport state

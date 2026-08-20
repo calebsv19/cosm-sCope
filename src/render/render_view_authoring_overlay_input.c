@@ -166,6 +166,14 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
                                                              &pointer_y)) {
                 return 1;
             }
+            if (g_datalab_authoring_overlay_ui.projection_drag_active) {
+                (void)datalab_workspace_authoring_projection_apply_drag(
+                    app_state,
+                    pointer_x - g_datalab_authoring_overlay_ui.projection_drag_last_x,
+                    g_datalab_authoring_overlay_ui.viewport_w);
+                g_datalab_authoring_overlay_ui.projection_drag_last_x = pointer_x;
+                return 1;
+            }
             top_button = kit_workspace_authoring_ui_overlay_hit_test(g_datalab_authoring_overlay_ui.top_buttons,
                                                                       g_datalab_authoring_overlay_ui.top_button_count,
                                                                       (float)pointer_x,
@@ -204,6 +212,15 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
                 return 1;
             }
 
+            if (app_state->workspace_authoring_overlay_mode == DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE &&
+                datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.projection_splitter,
+                                              pointer_x,
+                                              pointer_y)) {
+                g_datalab_authoring_overlay_ui.projection_drag_active = 1u;
+                g_datalab_authoring_overlay_ui.projection_drag_last_x = pointer_x;
+                return 1;
+            }
+
             if (app_state->workspace_authoring_overlay_mode == DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME) {
                 font_hit = datalab_overlay_font_theme_hit_test(pointer_x, pointer_y);
                 if (app_state->workspace_authoring_custom_theme_popup_open &&
@@ -218,6 +235,11 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
             return 1;
 
         case SDL_MOUSEBUTTONUP:
+            if (event->button.button == SDL_BUTTON_LEFT &&
+                g_datalab_authoring_overlay_ui.projection_drag_active) {
+                g_datalab_authoring_overlay_ui.projection_drag_active = 0u;
+            }
+            return 1;
         case SDL_MOUSEWHEEL:
             return 1;
 

@@ -18,6 +18,31 @@ typedef enum DatalabProfile {
     DATALAB_PROFILE_LINE_DIAGNOSTIC = 8
 } DatalabProfile;
 
+typedef enum DatalabImageFormat {
+    DATALAB_IMAGE_FORMAT_UNKNOWN = 0,
+    DATALAB_IMAGE_FORMAT_BMP = 1,
+    DATALAB_IMAGE_FORMAT_PNG = 2
+} DatalabImageFormat;
+
+typedef enum DatalabImageTransfer {
+    DATALAB_IMAGE_TRANSFER_UNKNOWN = 0,
+    DATALAB_IMAGE_TRANSFER_UNTAGGED_SRGB_ASSUMED = 1,
+    DATALAB_IMAGE_TRANSFER_SRGB = 2,
+    DATALAB_IMAGE_TRANSFER_GAMA = 3,
+    DATALAB_IMAGE_TRANSFER_ICC_UNTRANSFORMED = 4
+} DatalabImageTransfer;
+
+typedef struct DatalabImageMetadata {
+    DatalabImageFormat format;
+    DatalabImageTransfer transfer;
+    uint8_t source_bit_depth;
+    uint8_t source_has_alpha;
+    uint8_t png_srgb_present;
+    uint8_t png_gamma_present;
+    uint8_t png_icc_present;
+    double png_gamma;
+} DatalabImageMetadata;
+
 typedef struct DatalabDawMarker {
     uint64_t frame;
     double beat;
@@ -112,6 +137,9 @@ typedef struct DatalabFrame {
     uint32_t drawing_rendered_object_count;
     uint32_t drawing_unsupported_object_count;
     uint8_t *drawing_rgba;
+    DatalabImageMetadata image_metadata;
+    /* Assigned when this raster becomes the active render-thread frame. */
+    uint64_t raster_content_generation;
 
     char *manifest_json;
     size_t manifest_size;

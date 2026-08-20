@@ -1,4 +1,6 @@
 #include "render/render_view_internal.h"
+#include "app/datalab_async_decode.h"
+#include "datalab/datalab_app_main.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -16,6 +18,94 @@ typedef struct DatalabPhysicsLoopContext {
 typedef struct DatalabSketchLoopContext {
     DatalabRasterTextureState *texture_state;
 } DatalabSketchLoopContext;
+
+static uint64_t datalab_loop_next_content_generation(const DatalabAppRuntime *runtime) {
+    if (!runtime || runtime->raster_content_generation == UINT64_MAX) {
+        return UINT64_MAX;
+    }
+    return runtime->raster_content_generation + 1u;
+}
+
+static int datalab_loop_try_present_pending_image(SDL_Window *window,
+                                                  SDL_Renderer *renderer,
+                                                  DatalabSketchLoopContext *ctx,
+                                                  DatalabAppState *app_state,
+                                                  DatalabRenderSubmitOutcome *out_submit) {
+    const DatalabAsyncDecodeCompletion *pending = NULL;
+    DatalabRasterTextureState staged_state;
+    DatalabAppState staged_app_state;
+    DatalabSketchRenderDeriveFrame staged_derive;
+    CoreResult prepare_result;
+    DatalabRenderSubmitOutcome staged_submit = {0};
+    uint64_t pending_bytes = 0u;
+    if (!window || !renderer || !ctx || !ctx->texture_state || !app_state || !out_submit ||
+        !app_state->async_decode || !app_state->runtime_owner) {
+        return 0;
+    }
+    pending = datalab_async_decode_pending_selected(app_state->async_decode);
+    if (!pending) {
+        app_state->async_decode_frame_ready = 0;
+        return 0;
+    }
+    pending_bytes = datalab_image_rgba_bytes(pending->frame.width, pending->frame.height);
+
+    memset(&staged_state, 0, sizeof(staged_state));
+    prepare_result = datalab_raster_texture_state_prepare(renderer,
+                                                          pending->frame.width,
+                                                          pending->frame.height,
+                                                          &staged_state);
+    if (prepare_result.code != CORE_OK) {
+        datalab_async_decode_reject_pending_selected(app_state->async_decode,
+                                                      app_state->runtime_owner,
+                                                      app_state,
+                                                      prepare_result.message);
+        return 0;
+    }
+    /* Stage a new texture before touching the current one. A failed upload or
+     * render therefore leaves the last presented GPU image intact. */
+    datalab_raster_texture_state_note_content_generation(
+        &staged_state,
+        datalab_loop_next_content_generation(app_state->runtime_owner));
+    staged_app_state = *app_state;
+    staged_app_state.pack_path = pending->path;
+    staged_app_state.profile = pending->frame.profile;
+    datalab_raster_viewport_request_reset(&staged_app_state.raster_viewport);
+    datalab_sketch_render_derive_frame(renderer, &pending->frame, &staged_app_state, &staged_derive);
+    datalab_sketch_render_submit_frame(window,
+                                       renderer,
+                                       &staged_state,
+                                       &pending->frame,
+                                       &staged_app_state,
+                                       &staged_derive,
+                                       &staged_submit);
+    if (staged_submit.result.code != CORE_OK || !staged_submit.presented) {
+        datalab_async_decode_reject_pending_selected(app_state->async_decode,
+                                                      app_state->runtime_owner,
+                                                      app_state,
+                                                      staged_submit.result.message);
+        datalab_raster_texture_state_destroy(&staged_state);
+        return 0;
+    }
+    if (!datalab_async_decode_commit_pending_selected(app_state->async_decode,
+                                                      app_state->runtime_owner,
+                                                      app_state)) {
+        datalab_raster_texture_state_destroy(&staged_state);
+        return 0;
+    }
+    if (app_state->runtime_owner) {
+        datalab_focus_window_commit_pending(&app_state->runtime_owner->focus_window);
+        if (app_state->runtime_owner->image_residency) {
+            datalab_image_residency_note_gpu(app_state->runtime_owner->image_residency,
+                                             pending_bytes,
+                                             0);
+        }
+    }
+    datalab_raster_texture_state_destroy(ctx->texture_state);
+    *ctx->texture_state = staged_state;
+    memset(&staged_state, 0, sizeof(staged_state));
+    *out_submit = staged_submit;
+    return 1;
+}
 
 static CoreResult datalab_loop_render_step_physics(SDL_Window *window,
                                                    SDL_Renderer *renderer,
@@ -88,6 +178,9 @@ static CoreResult datalab_loop_render_step_sketch(SDL_Window *window,
     DatalabSketchRenderDeriveFrame render_derive;
     if (!ctx || !out_submit) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid sketch loop context" };
+    }
+    if (datalab_loop_try_present_pending_image(window, renderer, ctx, app_state, out_submit)) {
+        return out_submit->result;
     }
     datalab_sketch_render_derive_frame(renderer, frame, app_state, &render_derive);
     datalab_sketch_render_submit_frame(window,

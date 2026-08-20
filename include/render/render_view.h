@@ -2,6 +2,8 @@
 #define DATALAB_RENDER_VIEW_H
 
 #include "app/app_state.h"
+#include "app/datalab_input_catalog.h"
+#include "app/datalab_image_residency.h"
 #include "core_base.h"
 #include "data/pack_loader.h"
 
@@ -17,7 +19,9 @@ CoreResult datalab_render_capture_first_frame(DatalabRenderSession *session,
                                               DatalabAppState *app_state,
                                               const char *output_path);
 CoreResult datalab_render_run(const DatalabFrame *frame, DatalabAppState *app_state);
-CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
+CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
+                                         DatalabImageResidency *image_residency,
+                                         const char *initial_input_root,
                                          const char *initial_status,
                                          char *io_input_root,
                                          size_t input_root_cap,

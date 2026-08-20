@@ -5,7 +5,13 @@
 #include <stdint.h>
 
 #include "core_viewport2d.h"
+#include "core_pane.h"
+#include "core_workspace_authoring_session.h"
 #include "data/pack_loader.h"
+
+struct DatalabInputCatalog;
+struct DatalabAppRuntime;
+struct DatalabAsyncDecode;
 
 #define DATALAB_APP_PATH_CAP 1024
 #define DATALAB_RECENT_INPUT_ROOT_LIMIT 48
@@ -38,6 +44,12 @@ typedef enum DatalabPlaybackMode {
     DATALAB_PLAYBACK_MODE_BOUNCE = 1
 } DatalabPlaybackMode;
 
+typedef enum DatalabSamplingMode {
+    DATALAB_SAMPLING_MODE_DEFAULT = 0,
+    DATALAB_SAMPLING_MODE_NEAREST = 1,
+    DATALAB_SAMPLING_MODE_LINEAR = 2
+} DatalabSamplingMode;
+
 typedef struct DatalabWorkspaceCustomTheme {
     uint8_t clear_r, clear_g, clear_b;
     uint8_t pane_fill_r, pane_fill_g, pane_fill_b;
@@ -64,6 +76,17 @@ typedef struct DatalabRasterViewportState {
     int last_mouse_y;
 } DatalabRasterViewportState;
 
+enum {
+    DATALAB_WORKSPACE_PROJECTION_NODE_COUNT = 3,
+    DATALAB_WORKSPACE_SURFACE_PROFILE = 1u,
+    DATALAB_WORKSPACE_SURFACE_SOURCE_CONTROLS = 2u
+};
+
+typedef struct DatalabWorkspaceAuthoringProjection {
+    CorePaneNode nodes[DATALAB_WORKSPACE_PROJECTION_NODE_COUNT];
+    float profile_surface_ratio;
+} DatalabWorkspaceAuthoringProjection;
+
 #define DATALAB_TEXT_ZOOM_STEP_MIN (-4)
 #define DATALAB_TEXT_ZOOM_STEP_MAX 5
 #define DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT 120u
@@ -74,6 +97,10 @@ typedef struct DatalabRasterViewportState {
 typedef struct DatalabAppState {
     const char *pack_path;
     DatalabProfile profile;
+    struct DatalabInputCatalog *input_catalog;
+    struct DatalabAppRuntime *runtime_owner;
+    struct DatalabAsyncDecode *async_decode;
+    int async_decode_frame_ready;
     char input_root[DATALAB_APP_PATH_CAP];
     char recent_input_roots[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP];
     size_t recent_input_root_count;
@@ -90,6 +117,8 @@ typedef struct DatalabAppState {
     int open_picker_requested;
     int panel_rescan_requested;
     int panel_selection_delta;
+    int panel_selection_home_requested;
+    int panel_selection_end_requested;
     size_t panel_selected_index;
     int panel_open_selected_requested;
     char panel_requested_pack_path[DATALAB_APP_PATH_CAP];
@@ -100,6 +129,12 @@ typedef struct DatalabAppState {
     uint32_t playback_interval_ms;
     uint32_t playback_last_advance_ticks;
     int session_hud_collapsed;
+    DatalabSamplingMode sampling_mode;
+    int raster_actual_pixel_mode;
+    int raster_alpha_checkerboard;
+    int raster_probe_valid;
+    uint32_t raster_probe_x;
+    uint32_t raster_probe_y;
     DatalabRasterViewportState raster_viewport;
     int workspace_authoring_stub_active;
     uint8_t workspace_authoring_entry_chord_mask;
@@ -125,6 +160,9 @@ typedef struct DatalabAppState {
     uint32_t workspace_authoring_overlay_cycle_count;
     uint32_t workspace_authoring_apply_count;
     uint32_t workspace_authoring_cancel_count;
+    DatalabWorkspaceAuthoringProjection workspace_authoring_projection;
+    DatalabWorkspaceAuthoringProjection workspace_authoring_entry_projection;
+    CoreWorkspaceAuthoringSession workspace_authoring_session;
 } DatalabAppState;
 
 void datalab_app_state_init(DatalabAppState *state, const char *pack_path, DatalabProfile profile);
@@ -135,6 +173,8 @@ float datalab_text_zoom_step_multiplier(int step);
 int datalab_playback_speed_index_clamp(int speed_index);
 uint32_t datalab_playback_interval_for_speed_index(int speed_index);
 void datalab_panel_request_step(DatalabAppState *state, int delta, int open_selected);
+void datalab_panel_request_home(DatalabAppState *state, int open_selected);
+void datalab_panel_request_end(DatalabAppState *state, int open_selected);
 void datalab_panel_request_open_selected(DatalabAppState *state);
 void datalab_panel_clear_request(DatalabAppState *state);
 void datalab_panel_request_pack_path(DatalabAppState *state, const char *path);
@@ -170,10 +210,23 @@ int datalab_workspace_authoring_custom_theme_channel_clamp(int value);
 uint8_t datalab_workspace_authoring_cycle_runtime_theme_preset(uint8_t current, int direction);
 void datalab_workspace_authoring_sync_custom_theme_from_active_slot(DatalabAppState *state);
 void datalab_workspace_authoring_capture_entry_snapshot(DatalabAppState *state);
+void datalab_workspace_authoring_projection_init(DatalabWorkspaceAuthoringProjection *projection);
+void datalab_workspace_authoring_projection_capture_entry(DatalabAppState *state);
+void datalab_workspace_authoring_projection_restore_entry(DatalabAppState *state);
+int datalab_workspace_authoring_projection_apply_drag(DatalabAppState *state, float delta_x, float viewport_width);
+int datalab_workspace_authoring_projection_set_profile_surface_ratio(DatalabAppState *state, float ratio);
+int datalab_workspace_authoring_projection_solve(const DatalabAppState *state,
+                                                 int viewport_width,
+                                                 int viewport_height,
+                                                 CorePaneLeafRect out_rects[2]);
+void datalab_workspace_authoring_session_init(DatalabAppState *state);
 void datalab_workspace_authoring_begin_takeover(DatalabAppState *state);
 void datalab_workspace_authoring_cycle_overlay(DatalabAppState *state);
 void datalab_workspace_authoring_apply_takeover(DatalabAppState *state);
 int datalab_workspace_authoring_cancel_and_exit(DatalabAppState *state);
+int datalab_workspace_authoring_runtime_mutation_allowed(const DatalabAppState *state);
+void datalab_workspace_authoring_recover_failed_safe(DatalabAppState *state);
+void datalab_workspace_authoring_shutdown(DatalabAppState *state);
 int datalab_workspace_authoring_close_custom_theme_popup(DatalabAppState *state);
 void datalab_raster_viewport_state_init(DatalabRasterViewportState *state);
 void datalab_raster_viewport_request_reset(DatalabRasterViewportState *state);
@@ -192,5 +245,8 @@ int datalab_raster_viewport_drag_to(DatalabRasterViewportState *state, int scree
 void datalab_raster_viewport_copy_for_runtime(DatalabRasterViewportState *dst,
                                               const DatalabRasterViewportState *src);
 int datalab_profile_supports_raster_viewport(DatalabProfile profile);
+void datalab_raster_viewport_toggle_actual_pixel(DatalabAppState *state);
+void datalab_raster_probe_at_screen(DatalabAppState *state, int screen_x, int screen_y);
+void datalab_sampling_mode_cycle(DatalabAppState *state);
 
 #endif

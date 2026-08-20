@@ -1,4 +1,6 @@
 #include "render/render_view_internal.h"
+#include "app/datalab_async_decode.h"
+#include "app/datalab_runtime_pack.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -159,15 +161,30 @@ static int datalab_loop_frame_phase_runtime_tick(DatalabLoopFramePhases *phase,
     if (!phase || !app_state) {
         return 0;
     }
-    phase->panel_rescan_pending = app_state->panel_rescan_requested;
-    datalab_session_controls_tick(app_state);
+    if (app_state->async_decode && app_state->runtime_owner) {
+        (void)datalab_async_decode_pump(app_state->async_decode, app_state->runtime_owner, app_state);
+    }
+    if (datalab_workspace_authoring_runtime_mutation_allowed(app_state)) {
+        phase->panel_rescan_pending = app_state->panel_rescan_requested;
+        datalab_session_controls_tick(app_state);
+        if (app_state->async_decode && app_state->panel_requested_pack_path[0] != '\0' &&
+            datalab_runtime_focus_request(app_state->runtime_owner,
+                                          app_state,
+                                          app_state->panel_requested_pack_path)) {
+            app_state->panel_requested_pack_path[0] = '\0';
+        }
+    }
     phase->boundary_signals.sync_input_invalidated =
         phase->input_frame.invalidation.invalidation_reason_bits ? 1u : 0u;
+    phase->boundary_signals.async_decode_frame_ready =
+        datalab_async_decode_pending_selected(app_state->async_decode) ? 1u : 0u;
+    app_state->async_decode_frame_ready = phase->boundary_signals.async_decode_frame_ready;
     phase->boundary_signals.async_panel_rescan_pending =
         phase->panel_rescan_pending ? 1u : 0u;
     phase->boundary_signals.async_authoring_pending =
         app_state->workspace_authoring_pending_stub ? 1u : 0u;
-    return app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0';
+    return datalab_workspace_authoring_runtime_mutation_allowed(app_state) &&
+            (app_state->open_picker_requested || app_state->panel_requested_pack_path[0] != '\0');
 }
 
 static uint32_t datalab_loop_frame_phase_render_decision(const DatalabLoopFramePhases *phase,

@@ -12,8 +12,12 @@ void datalab_runtime_copy_to_app_state(const DatalabAppRuntime *runtime,
     if (!runtime || !app_state) {
         return;
     }
-
+    /* This is the initialization boundary for app_state. Its prior bytes are
+     * not session state and must never gate the runtime-to-app seed. */
     datalab_app_state_init(app_state, runtime->pack_path, runtime->frame.profile);
+    app_state->input_catalog = (DatalabInputCatalog *)&runtime->input_catalog;
+    app_state->runtime_owner = (DatalabAppRuntime *)runtime;
+    app_state->async_decode = (DatalabAsyncDecode *)&runtime->async_decode;
     app_state->text_zoom_step = runtime->text_zoom_step;
     app_state->workspace_authoring_theme_preset_id = runtime->workspace_authoring_theme_preset_id;
     app_state->workspace_authoring_custom_theme_active_slot =
@@ -27,6 +31,8 @@ void datalab_runtime_copy_to_app_state(const DatalabAppRuntime *runtime,
                        runtime->workspace_authoring_custom_theme_slot_names[i]);
     }
     app_state->workspace_authoring_custom_theme = runtime->workspace_authoring_custom_theme;
+    (void)datalab_workspace_authoring_projection_set_profile_surface_ratio(
+        app_state, runtime->workspace_authoring_profile_surface_ratio);
     datalab_workspace_authoring_capture_entry_snapshot(app_state);
     snprintf(app_state->input_root, sizeof(app_state->input_root), "%s", runtime->input_root);
     app_state->recent_input_root_count = runtime->recent_input_root_count;
@@ -49,6 +55,7 @@ void datalab_runtime_copy_to_app_state(const DatalabAppRuntime *runtime,
             : datalab_playback_interval_for_speed_index(app_state->playback_speed_index);
     app_state->playback_last_advance_ticks = SDL_GetTicks();
     app_state->session_hud_collapsed = runtime->session_hud_collapsed;
+    app_state->sampling_mode = runtime->sampling_mode;
     datalab_raster_viewport_copy_for_runtime(&app_state->raster_viewport, &runtime->raster_viewport);
 }
 
@@ -58,10 +65,15 @@ void datalab_runtime_copy_from_app_state(DatalabAppRuntime *runtime,
     if (!runtime || !app_state) {
         return;
     }
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(app_state)) {
+        return;
+    }
     runtime->workspace_authoring_theme_preset_id = app_state->workspace_authoring_theme_preset_id;
     runtime->workspace_authoring_custom_theme_active_slot =
         app_state->workspace_authoring_custom_theme_active_slot;
     runtime->workspace_authoring_custom_theme = app_state->workspace_authoring_custom_theme;
+    runtime->workspace_authoring_profile_surface_ratio =
+        app_state->workspace_authoring_projection.profile_surface_ratio;
     for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
         runtime->workspace_authoring_custom_theme_slots[i] =
             app_state->workspace_authoring_custom_theme_slots[i];
@@ -86,5 +98,6 @@ void datalab_runtime_copy_from_app_state(DatalabAppRuntime *runtime,
     runtime->playback_speed_index = datalab_playback_speed_index_clamp(app_state->playback_speed_index);
     runtime->playback_interval_ms = app_state->playback_interval_ms;
     runtime->session_hud_collapsed = app_state->session_hud_collapsed;
+    runtime->sampling_mode = app_state->sampling_mode;
     datalab_raster_viewport_copy_for_runtime(&runtime->raster_viewport, &app_state->raster_viewport);
 }

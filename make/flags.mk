@@ -110,6 +110,8 @@ endif
 COMMON_CFLAGS := $(CSTD) $(WARN) $(DEBUG) -I$(INC_DIR) -I$(SRC_DIR) \
 	-I$(CORE_BASE_DIR)/include -I$(CORE_VIEWPORT2D_DIR)/include -I$(CORE_IO_DIR)/include -I$(CORE_DATA_DIR)/include \
 	-I$(CORE_LAYOUT_DIR)/include -I$(CORE_PANE_DIR)/include \
+	-I$(CORE_WORKSPACE_AUTHORING_SESSION_DIR)/include \
+	-I$(CORE_QUEUE_DIR)/include -I$(CORE_WAKE_DIR)/include -I$(CORE_WORKERS_DIR)/include \
 	-I$(CORE_PACK_DIR)/include -I$(KIT_VIZ_DIR)/include -I$(KIT_GRAPH_TS_DIR)/include \
 	-I$(KIT_RENDER_DIR)/include -I$(CORE_THEME_DIR)/include -I$(CORE_FONT_DIR)/include \
 	-I$(KIT_WORKSPACE_AUTHORING_DIR)/include -I$(KIT_UI_DIR)/include \

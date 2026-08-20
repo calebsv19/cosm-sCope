@@ -4,6 +4,7 @@
 #include "app/datalab_app_internal.h"
 #include "app/datalab_runtime_pack.h"
 #include "app/datalab_runtime_prefs.h"
+#include "app/datalab_viewer_session_prefs.h"
 #include "render/render_view.h"
 #include "render/render_view_internal.h"
 
@@ -71,6 +72,9 @@ int datalab_app_subsystems_init(DatalabAppRuntime *runtime, DatalabAppState *app
     }
 
     datalab_runtime_copy_to_app_state(runtime, app_state, 0);
+    /* The first visible frame can be captured before the render loop ticks.
+     * Seed the process-local session cache from the retained catalog now. */
+    datalab_session_controls_tick(app_state);
     return 0;
 }
 
@@ -90,7 +94,10 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             if (!runtime->pack_path || runtime->pack_path[0] == '\0') {
                 datalab_render_session_close(render_session);
                 render_session = NULL;
-                run_r = datalab_render_pick_pack_path(runtime->input_root,
+                (void)datalab_runtime_prefs_save_startup_surface(DATALAB_STARTUP_SURFACE_PICKER);
+                run_r = datalab_render_pick_pack_path(&runtime->input_catalog,
+                                                      runtime->image_residency,
+                                                      runtime->input_root,
                                                       runtime->last_load_error,
                                                       runtime->input_root,
                                                       sizeof(runtime->input_root),
@@ -145,6 +152,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             }
             if (app_state) {
                 datalab_runtime_copy_to_app_state(runtime, app_state, 1);
+                datalab_session_controls_tick(app_state);
                 if (picker_enter_authoring) {
                     datalab_workspace_authoring_begin_takeover(app_state);
                     picker_enter_authoring = 0;
@@ -158,6 +166,11 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                 datalab_log_render_failure("render session", run_r);
                 exit_code = 4;
                 goto cleanup;
+            }
+            if (!datalab_async_decode_start(&runtime->async_decode)) {
+                fprintf(stderr,
+                        "datalab: async image decode unavailable: %s\n",
+                        datalab_async_decode_last_error(&runtime->async_decode));
             }
         }
 
@@ -176,12 +189,18 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
             goto cleanup;
         }
 
+        (void)datalab_runtime_prefs_save_startup_surface(DATALAB_STARTUP_SURFACE_VIEWER);
         run_r = datalab_render_run_with_session(render_session, &runtime->frame, app_state);
         if (app_state) {
+            /* A close or render-loop handoff can leave authoring active. Restore
+             * its entry baseline before values cross into accepted runtime prefs. */
+            datalab_workspace_authoring_shutdown(app_state);
             datalab_runtime_copy_from_app_state(runtime, app_state);
         }
         datalab_runtime_prefs_save_text_zoom_step(app_state ? app_state->text_zoom_step : runtime->text_zoom_step);
         datalab_runtime_prefs_save_theme_preset_id(runtime->workspace_authoring_theme_preset_id);
+        datalab_runtime_prefs_save_workspace_authoring_profile_surface_ratio(
+            runtime->workspace_authoring_profile_surface_ratio);
         datalab_runtime_prefs_save_custom_theme(&runtime->workspace_authoring_custom_theme);
         datalab_runtime_prefs_save_custom_theme_slots(runtime->workspace_authoring_custom_theme_slots,
                                                       DATALAB_CUSTOM_THEME_SLOT_COUNT);
@@ -190,6 +209,17 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
         datalab_runtime_prefs_save_custom_theme_active_slot(runtime->workspace_authoring_custom_theme_active_slot);
         datalab_runtime_prefs_save_input_root(runtime->input_root);
         datalab_runtime_prefs_save_recent_input_roots(runtime->recent_input_roots, runtime->recent_input_root_count);
+        if (runtime->pack_path && runtime->pack_path[0] != '\0') {
+            datalab_viewer_session_capture(&runtime->viewer_session,
+                                           runtime->pack_path,
+                                           &runtime->raster_viewport,
+                                           runtime->playback_active,
+                                           runtime->playback_mode,
+                                           runtime->playback_speed_index,
+                                           runtime->session_hud_collapsed,
+                                           runtime->sampling_mode);
+            (void)datalab_viewer_session_save(&runtime->viewer_session);
+        }
         if (run_r.code != CORE_OK) {
             datalab_log_render_failure("render", run_r);
             exit_code = 4;
@@ -201,6 +231,7 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
                                                       sizeof(runtime->selected_pack_path))) {
             runtime->pack_path = runtime->selected_pack_path;
         } else if (app_state && app_state->open_picker_requested) {
+            datalab_async_decode_cancel(&runtime->async_decode);
             datalab_render_session_close(render_session);
             render_session = NULL;
             runtime->pack_path = NULL;
@@ -223,6 +254,9 @@ int datalab_runtime_start(DatalabAppRuntime *runtime, DatalabAppState *app_state
     }
 
 cleanup:
+    if (app_state) {
+        datalab_workspace_authoring_shutdown(app_state);
+    }
     datalab_render_session_close(render_session);
     return exit_code;
 }
@@ -437,6 +471,13 @@ void datalab_app_shutdown_ctx(DatalabAppContext *ctx) {
         runtime->frame_loaded = 0;
     }
     datalab_runtime_reset_prefetch(runtime);
+    datalab_async_decode_shutdown(&runtime->async_decode);
+    if (runtime->image_residency) {
+        datalab_image_residency_destroy(runtime->image_residency);
+        core_free(runtime->image_residency);
+        runtime->image_residency = NULL;
+    }
+    datalab_input_catalog_destroy(&runtime->input_catalog);
     datalab_app_release_ownership_ctx(ctx);
     ctx->ownership.shutdown_owned = 1;
     ctx->stage = DATALAB_APP_STAGE_SHUTDOWN_COMPLETED;

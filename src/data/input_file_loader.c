@@ -125,6 +125,10 @@ static CoreResult datalab_load_bmp_file(const char *path, DatalabFrame *out_fram
     out_frame->logical_width = out_frame->width;
     out_frame->logical_height = out_frame->height;
     out_frame->drawing_rgba = rgba_copy;
+    out_frame->image_metadata.format = DATALAB_IMAGE_FORMAT_BMP;
+    out_frame->image_metadata.transfer = DATALAB_IMAGE_TRANSFER_UNTAGGED_SRGB_ASSUMED;
+    out_frame->image_metadata.source_bit_depth = 8u;
+    out_frame->image_metadata.source_has_alpha = 0u;
     return core_result_ok();
 }
 
@@ -138,6 +142,15 @@ static CoreResult datalab_load_png_file(const char *path, DatalabFrame *out_fram
     png_uint_32 height = 0u;
     int bit_depth = 0;
     int color_type = 0;
+    int intent = 0;
+    int has_srgb = 0;
+    int has_gamma = 0;
+    int has_icc = 0;
+    double gamma = 0.0;
+    png_charp icc_name = NULL;
+    int icc_compression = 0;
+    png_bytep icc_profile = NULL;
+    png_uint_32 icc_profile_len = 0u;
     size_t row_bytes = 0u;
     size_t image_bytes = 0u;
     CoreResult result = core_result_ok();
@@ -169,6 +182,9 @@ static CoreResult datalab_load_png_file(const char *path, DatalabFrame *out_fram
     height = png_get_image_height(png, info);
     bit_depth = png_get_bit_depth(png, info);
     color_type = png_get_color_type(png, info);
+    has_srgb = png_get_sRGB(png, info, &intent);
+    has_gamma = png_get_gAMA(png, info, &gamma);
+    has_icc = png_get_iCCP(png, info, &icc_name, &icc_compression, &icc_profile, &icc_profile_len);
     if (bit_depth == 16) png_set_strip_16(png);
     if (color_type == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(png);
     if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8) png_set_expand_gray_1_2_4_to_8(png);
@@ -199,6 +215,24 @@ static CoreResult datalab_load_png_file(const char *path, DatalabFrame *out_fram
     out_frame->logical_width = out_frame->width;
     out_frame->logical_height = out_frame->height;
     out_frame->drawing_rgba = rgba;
+    out_frame->image_metadata.format = DATALAB_IMAGE_FORMAT_PNG;
+    out_frame->image_metadata.source_bit_depth = (uint8_t)bit_depth;
+    out_frame->image_metadata.source_has_alpha = (uint8_t)(color_type == PNG_COLOR_TYPE_GRAY_ALPHA ||
+                                                             color_type == PNG_COLOR_TYPE_RGBA ||
+                                                             png_get_valid(png, info, PNG_INFO_tRNS));
+    out_frame->image_metadata.png_srgb_present = (uint8_t)(has_srgb != 0);
+    out_frame->image_metadata.png_gamma_present = (uint8_t)(has_gamma != 0);
+    out_frame->image_metadata.png_icc_present = (uint8_t)(has_icc != 0);
+    out_frame->image_metadata.png_gamma = gamma;
+    if (out_frame->image_metadata.png_icc_present) {
+        out_frame->image_metadata.transfer = DATALAB_IMAGE_TRANSFER_ICC_UNTRANSFORMED;
+    } else if (out_frame->image_metadata.png_srgb_present) {
+        out_frame->image_metadata.transfer = DATALAB_IMAGE_TRANSFER_SRGB;
+    } else if (out_frame->image_metadata.png_gamma_present) {
+        out_frame->image_metadata.transfer = DATALAB_IMAGE_TRANSFER_GAMA;
+    } else {
+        out_frame->image_metadata.transfer = DATALAB_IMAGE_TRANSFER_UNTAGGED_SRGB_ASSUMED;
+    }
     rgba = NULL;
 cleanup:
     core_free(rows);
