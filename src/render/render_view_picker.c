@@ -147,13 +147,12 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
     status[0] = '\0';
     if (initial_status && initial_status[0] != '\0') {
         snprintf(status, sizeof(status), "%s", initial_status);
+    } else {
+        /* A saved input root can reside on a slow or temporarily unavailable
+         * filesystem. Do not let that scan prevent the picker window from
+         * opening; the user can choose a root or explicitly rescan it. */
+        snprintf(status, sizeof(status), "input root ready; press R to scan or B to choose a folder");
     }
-
-    all_file_count = datalab_picker_scan_files(input_root,
-                                           all_files,
-                                           status[0] ? NULL : status,
-                                           status[0] ? 0u : sizeof(status));
-    file_count = datalab_picker_apply_filter(files, all_files, all_file_count, filter);
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
@@ -440,6 +439,14 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                     edit_mode = !edit_mode;
                     if (edit_mode) {
                         snprintf(edit_root, sizeof(edit_root), "%s", input_root);
+                    }
+                    break;
+                case SDLK_r:
+                    if (!edit_mode && !filter_edit_mode) {
+                        all_file_count = datalab_picker_scan_files(input_root, all_files, status, sizeof(status));
+                        file_count = datalab_picker_apply_filter(files, all_files, all_file_count, filter);
+                        selected = 0;
+                        frame_scroll_reveal_selection = 1;
                     }
                     break;
                 case SDLK_SLASH:
@@ -763,7 +770,7 @@ CoreResult datalab_render_pick_pack_path(const char *initial_input_root,
                           "DATALAB LIBRARY", 2,
                           palette.text_primary_r, palette.text_primary_g, palette.text_primary_b, 255);
             draw_text_5x7(renderer, top.x + pad, y_help,
-                          "TECHNICAL WORKSPACE  |  PACK + BMP + PNG  |  CMD/CTRL+T THEME  / FILTER  B BROWSE  E EDIT LOCATION  ENTER OPEN",
+                          "TECHNICAL WORKSPACE  |  PACK + BMP + PNG  |  CMD/CTRL+T THEME  / FILTER  R RESCAN  B BROWSE  E EDIT LOCATION  ENTER OPEN",
                           1, palette.text_secondary_r, palette.text_secondary_g, palette.text_secondary_b, 255);
             draw_text_5x7(renderer, top.x + pad, y_path_label,
                           edit_mode ? "PATH (EDIT MODE):" : "PATH:",

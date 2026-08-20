@@ -60,6 +60,11 @@ def verify_adoption(repo: Path) -> None:
     backend = (repo / "src/render/datalab_renderer_backend.c").read_text()
     if "datalab_renderer_backend_create(window)" not in picker:
         raise SystemExit("picker is not attached to the managed backend")
+    pre_window = picker.split("SDL_CreateWindow", 1)[0]
+    if "datalab_picker_scan_files" in pre_window:
+        raise SystemExit("picker scans its saved input root before creating a window")
+    if "case SDLK_r:" not in picker or "press R to scan or B to choose a folder" not in picker:
+        raise SystemExit("picker lacks the explicit saved-root rescan recovery path")
     if "datalab_renderer_backend_create(session->window)" not in session:
         raise SystemExit("render session is not attached to the managed backend")
     offenders = []
