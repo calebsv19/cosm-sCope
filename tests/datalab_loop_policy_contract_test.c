@@ -105,11 +105,16 @@ static int test_render_reason_bits_cover_force_heartbeat_and_boundaries(void) {
     }
 
     signals.sync_input_invalidated = 1u;
+    signals.async_decode_frame_ready = 1u;
     signals.async_panel_rescan_pending = 1u;
     signals.async_authoring_pending = 1u;
     reason_bits = datalab_loop_compute_render_reason_bits(&signals, 1, 100u, 120u);
     if (!datalab_test_assert((reason_bits & DATALAB_LOOP_RENDER_REASON_INPUT_INVALIDATE) != 0u,
                              "input invalidation should request render")) {
+        return 0;
+    }
+    if (!datalab_test_assert((reason_bits & DATALAB_LOOP_RENDER_REASON_ASYNC_DECODE_READY) != 0u,
+                             "a staged async image must request an immediate in-session render")) {
         return 0;
     }
     if (!datalab_test_assert((reason_bits & DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN) != 0u,

@@ -76,6 +76,7 @@ typedef struct DatalabLoopWaitPolicyInput {
 
 typedef struct DatalabLoopBoundarySignals {
     uint8_t sync_input_invalidated;
+    uint8_t async_decode_frame_ready;
     uint8_t async_panel_rescan_pending;
     uint8_t async_authoring_pending;
 } DatalabLoopBoundarySignals;
@@ -87,7 +88,8 @@ enum {
     DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN = 1u << 2,
     DATALAB_LOOP_RENDER_REASON_ASYNC_AUTHORING = 1u << 3,
     DATALAB_LOOP_RENDER_REASON_RESIZE = 1u << 4,
-    DATALAB_LOOP_RENDER_REASON_HEARTBEAT = 1u << 5
+    DATALAB_LOOP_RENDER_REASON_HEARTBEAT = 1u << 5,
+    DATALAB_LOOP_RENDER_REASON_ASYNC_DECODE_READY = 1u << 6
 };
 
 typedef struct DatalabWorkspaceAuthoringAdapterResult {
@@ -168,7 +170,8 @@ typedef struct DatalabRasterTileCacheEntry {
     int tile_w;
     int tile_h;
     uint64_t stamp;
-    uint64_t frame_generation;
+    uint64_t content_generation;
+    uint64_t resource_generation;
     int valid;
 } DatalabRasterTileCacheEntry;
 
@@ -185,23 +188,45 @@ typedef struct DatalabRasterTextureState {
     uint32_t content_width;
     uint32_t content_height;
     uint64_t cache_stamp;
-    uint64_t frame_generation;
+    uint64_t content_generation;
+    uint64_t resource_generation;
+    uint64_t uploaded_content_generation;
+    uint64_t uploaded_resource_generation;
+    int resource_output_width;
+    int resource_output_height;
+    uint64_t upload_count;
+    uint64_t upload_byte_count;
+    uint64_t upload_reuse_count;
+    uint64_t resource_invalidation_count;
+    uint64_t gpu_resident_bytes;
+    uint64_t gpu_budget_bytes;
 } DatalabRasterTextureState;
 
-#define DATALAB_PANEL_MAX_FILES 160
+/* A render/page window, never a catalog cap.  Tests may use this fallback
+ * storage without changing the runtime's full logical catalog ownership. */
+#define DATALAB_PANEL_VISIBLE_WINDOW 160
 
 typedef struct DatalabPackPanelCache {
     char scanned_root[DATALAB_APP_PATH_CAP];
-    char files[DATALAB_PANEL_MAX_FILES][DATALAB_APP_PATH_CAP];
+    char files[DATALAB_PANEL_VISIBLE_WINDOW][DATALAB_APP_PATH_CAP];
     size_t file_count;
+    const DatalabInputCatalog *source_catalog;
+    size_t source_catalog_file_count;
     uint32_t last_scan_ticks;
+    uint64_t last_scan_duration_us;
+    uint64_t refresh_count;
+    DatalabInputCatalogRefreshReason last_refresh_reason;
     char status[160];
 } DatalabPackPanelCache;
 
 typedef struct DatalabSupportedFileScanResult {
     size_t file_count;
+    size_t available_file_count;
+    size_t sequence_gap_count;
+    int truncated;
     int invalid_request;
     int root_unavailable;
+    int allocation_failed;
 } DatalabSupportedFileScanResult;
 
 int datalab_ir1_diag_enabled(void);
@@ -244,6 +269,7 @@ void datalab_loop_diag_tick(double frame_elapsed_sec,
                             uint32_t wait_call_count);
 int datalab_session_controls_mouse_enabled(const DatalabAppState *app_state);
 size_t datalab_session_controls_file_count(void);
+const char *datalab_session_controls_catalog_status(void);
 const char *datalab_session_controls_selected_file_name(const DatalabAppState *app_state);
 void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *app_state);
 CoreResult datalab_trace_graph_draw_shared(SDL_Renderer *renderer,
@@ -352,11 +378,24 @@ CoreResult datalab_raster_texture_state_prepare(SDL_Renderer *renderer,
                                                 uint32_t content_height,
                                                 DatalabRasterTextureState *state);
 void datalab_raster_texture_state_begin_frame(DatalabRasterTextureState *state);
+void datalab_raster_texture_state_note_content_generation(DatalabRasterTextureState *state,
+                                                           uint64_t content_generation);
+void datalab_raster_texture_state_note_resource_recreation(DatalabRasterTextureState *state);
+int datalab_raster_texture_state_upload_required(const DatalabRasterTextureState *state);
+void datalab_raster_texture_state_note_upload(DatalabRasterTextureState *state,
+                                              uint64_t byte_count);
+void datalab_raster_texture_state_note_upload_reuse(DatalabRasterTextureState *state);
+int datalab_raster_tile_cache_entry_matches(const DatalabRasterTileCacheEntry *entry,
+                                             const DatalabRasterTextureState *state,
+                                             int tile_x_index,
+                                             int tile_y_index);
+SDL_ScaleMode datalab_raster_sampling_scale_mode(DatalabSamplingMode mode);
 void datalab_raster_texture_state_destroy(DatalabRasterTextureState *state);
 CoreResult datalab_raster_render_frame(SDL_Renderer *renderer,
                                        const DatalabFrame *frame,
                                        const DatalabSketchRenderDeriveFrame *derive,
-                                       DatalabRasterTextureState *state);
+                                       DatalabRasterTextureState *state,
+                                       DatalabSamplingMode sampling_mode);
 void datalab_physics_render_submit_frame(SDL_Window *window,
                                          SDL_Renderer *renderer,
                                          SDL_Texture *texture,

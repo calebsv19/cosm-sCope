@@ -1,6 +1,8 @@
 #include "render/render_view_internal.h"
+#include "app/datalab_image_residency.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 enum {
@@ -34,6 +36,26 @@ static int datalab_raster_tile_cache_clamp_capacity(int capacity) {
     return capacity;
 }
 
+static uint64_t datalab_raster_rgba_bytes(uint32_t width, uint32_t height) {
+    return datalab_image_rgba_bytes(width, height);
+}
+
+SDL_ScaleMode datalab_raster_sampling_scale_mode(DatalabSamplingMode mode) {
+    return mode == DATALAB_SAMPLING_MODE_LINEAR ? SDL_ScaleModeLinear : SDL_ScaleModeNearest;
+}
+
+static void datalab_raster_apply_sampling(SDL_Texture *texture, DatalabSamplingMode mode) {
+    SDL_ScaleMode scale = datalab_raster_sampling_scale_mode(mode);
+    if (texture) (void)SDL_SetTextureScaleMode(texture, scale);
+}
+
+static void datalab_raster_apply_sampling_all(DatalabRasterTextureState *state, DatalabSamplingMode mode) {
+    if (!state) return;
+    datalab_raster_apply_sampling(state->full_texture, mode);
+    datalab_raster_apply_sampling(state->tile_texture, mode);
+    for (int i = 0; state->cache_entries && i < state->cache_capacity; ++i) datalab_raster_apply_sampling(state->cache_entries[i].texture, mode);
+}
+
 static void datalab_raster_texture_state_reset(DatalabRasterTextureState *state) {
     if (!state) {
         return;
@@ -50,7 +72,8 @@ static void datalab_raster_tile_cache_reset_entry(DatalabRasterTileCacheEntry *e
     entry->tile_w = 0;
     entry->tile_h = 0;
     entry->stamp = 0u;
-    entry->frame_generation = 0u;
+    entry->content_generation = 0u;
+    entry->resource_generation = 0u;
     entry->valid = 0;
 }
 
@@ -182,14 +205,21 @@ static DatalabRasterTileCacheEntry *datalab_raster_tile_cache_find(DatalabRaster
     }
     for (int i = 0; i < state->cache_capacity; ++i) {
         DatalabRasterTileCacheEntry *entry = &state->cache_entries[i];
-        if (entry->valid &&
-            entry->frame_generation == state->frame_generation &&
-            entry->tile_x_index == tile_x_index &&
-            entry->tile_y_index == tile_y_index) {
+        if (datalab_raster_tile_cache_entry_matches(entry, state, tile_x_index, tile_y_index)) {
             return entry;
         }
     }
     return NULL;
+}
+
+int datalab_raster_tile_cache_entry_matches(const DatalabRasterTileCacheEntry *entry,
+                                             const DatalabRasterTextureState *state,
+                                             int tile_x_index,
+                                             int tile_y_index) {
+    return entry && state && entry->valid &&
+           entry->content_generation == state->content_generation &&
+           entry->resource_generation == state->resource_generation &&
+           entry->tile_x_index == tile_x_index && entry->tile_y_index == tile_y_index;
 }
 
 static DatalabRasterTileCacheEntry *datalab_raster_tile_cache_pick_slot(DatalabRasterTextureState *state) {
@@ -235,6 +265,7 @@ static CoreResult datalab_raster_tile_cache_touch(DatalabRasterTextureState *sta
     entry = datalab_raster_tile_cache_find(state, tile_x_index, tile_y_index);
     if (entry) {
         entry->stamp = ++state->cache_stamp;
+        datalab_raster_texture_state_note_upload_reuse(state);
         if (out_entry) {
             *out_entry = entry;
         }
@@ -272,8 +303,12 @@ static CoreResult datalab_raster_tile_cache_touch(DatalabRasterTextureState *sta
     entry->tile_w = tile_w;
     entry->tile_h = tile_h;
     entry->stamp = ++state->cache_stamp;
-    entry->frame_generation = state->frame_generation;
+    entry->content_generation = state->content_generation;
+    entry->resource_generation = state->resource_generation;
     entry->valid = 1;
+    datalab_raster_texture_state_note_upload(state,
+                                             datalab_raster_rgba_bytes((uint32_t)tile_w,
+                                                                       (uint32_t)tile_h));
     if (out_entry) {
         *out_entry = entry;
     }
@@ -451,10 +486,15 @@ CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
     }
 
     datalab_raster_texture_state_reset(state);
+    state->gpu_budget_bytes = DATALAB_IMAGE_GPU_BUDGET_BYTES;
     datalab_raster_texture_state_note_renderer_limits(renderer, state);
     state->content_width = content_width;
     state->content_height = content_height;
     if (!datalab_raster_texture_state_needs_tiling(state, content_width, content_height)) {
+        uint64_t full_bytes = datalab_raster_rgba_bytes(content_width, content_height);
+        if (full_bytes == 0u || full_bytes > state->gpu_budget_bytes) {
+            return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "raster texture exceeds DL-IMG4 GPU budget" };
+        }
         state->full_texture = SDL_CreateTexture(renderer,
                                                 SDL_PIXELFORMAT_RGBA32,
                                                 SDL_TEXTUREACCESS_STREAMING,
@@ -462,6 +502,7 @@ CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
                                                 (int)content_height);
         if (state->full_texture) {
             state->use_tiled = 0;
+            state->gpu_resident_bytes = full_bytes;
             return core_result_ok();
         }
     }
@@ -470,8 +511,20 @@ CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
     state->tile_edge = datalab_raster_tile_clamp_edge(state->max_texture_width, state->max_texture_height);
     state->prefetch_radius = DATALAB_RASTER_TILE_PREFETCH_RADIUS_DEFAULT;
     state->cache_capacity = datalab_raster_tile_cache_target_capacity(renderer, state->tile_edge);
-    state->cache_entries = (DatalabRasterTileCacheEntry *)core_alloc((size_t)state->cache_capacity *
-                                                                     sizeof(DatalabRasterTileCacheEntry));
+    {
+        uint64_t tile_bytes = datalab_raster_rgba_bytes((uint32_t)state->tile_edge, (uint32_t)state->tile_edge);
+        uint64_t max_tiles = tile_bytes == 0u ? 0u : state->gpu_budget_bytes / tile_bytes;
+        if (max_tiles == 0u) {
+            return (CoreResult){ CORE_ERR_OUT_OF_MEMORY, "raster tile exceeds DL-IMG4 GPU budget" };
+        }
+        if (max_tiles < DATALAB_RASTER_TILE_CACHE_MIN) {
+            state->cache_capacity = 0;
+        } else if ((uint64_t)state->cache_capacity > max_tiles) {
+            state->cache_capacity = (int)max_tiles;
+        }
+    }
+    state->cache_entries = state->cache_capacity > 0 ?
+        (DatalabRasterTileCacheEntry *)core_alloc((size_t)state->cache_capacity * sizeof(DatalabRasterTileCacheEntry)) : NULL;
     if (state->cache_entries) {
         memset(state->cache_entries, 0, (size_t)state->cache_capacity * sizeof(DatalabRasterTileCacheEntry));
         for (int i = 0; i < state->cache_capacity; ++i) {
@@ -486,17 +539,15 @@ CoreResult datalab_raster_texture_state_init(SDL_Renderer *renderer,
             }
             datalab_raster_tile_cache_reset_entry(&state->cache_entries[i]);
         }
+        if (state->cache_entries) {
+            state->gpu_resident_bytes = datalab_raster_rgba_bytes((uint32_t)state->tile_edge,
+                                                                   (uint32_t)state->tile_edge) * (uint64_t)state->cache_capacity;
+        }
     }
     if (!state->cache_entries) {
-        state->tile_texture = SDL_CreateTexture(renderer,
-                                                SDL_PIXELFORMAT_RGBA32,
-                                                SDL_TEXTUREACCESS_STREAMING,
-                                                state->tile_edge,
-                                                state->tile_edge);
-        if (!state->tile_texture) {
-            datalab_raster_texture_state_destroy(state);
-            return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
-        }
+        datalab_raster_texture_state_destroy(state);
+        return (CoreResult){ CORE_ERR_OUT_OF_MEMORY,
+                             "raster tile residency unavailable within DL-IMG4 GPU budget" };
     }
     return core_result_ok();
 }
@@ -519,16 +570,57 @@ CoreResult datalab_raster_texture_state_prepare(SDL_Renderer *renderer,
 }
 
 void datalab_raster_texture_state_begin_frame(DatalabRasterTextureState *state) {
+    (void)state;
+}
+
+void datalab_raster_texture_state_note_content_generation(DatalabRasterTextureState *state,
+                                                           uint64_t content_generation) {
+    if (state && content_generation != 0u) {
+        state->content_generation = content_generation;
+    }
+}
+
+void datalab_raster_texture_state_note_resource_recreation(DatalabRasterTextureState *state) {
     if (!state) {
         return;
     }
-    state->frame_generation += 1u;
+    if (state->resource_generation != UINT64_MAX) {
+        state->resource_generation += 1u;
+    }
+    if (state->resource_generation == 0u) {
+        state->resource_generation = 1u;
+    }
+    state->resource_invalidation_count += 1u;
+}
+
+int datalab_raster_texture_state_upload_required(const DatalabRasterTextureState *state) {
+    return state && (state->uploaded_content_generation != state->content_generation ||
+                     state->uploaded_resource_generation != state->resource_generation);
+}
+
+void datalab_raster_texture_state_note_upload(DatalabRasterTextureState *state,
+                                              uint64_t byte_count) {
+    if (!state) {
+        return;
+    }
+    state->upload_count += 1u;
+    state->upload_byte_count += byte_count;
+    state->uploaded_content_generation = state->content_generation;
+    state->uploaded_resource_generation = state->resource_generation;
+}
+
+void datalab_raster_texture_state_note_upload_reuse(DatalabRasterTextureState *state) {
+    if (state) {
+        state->upload_reuse_count += 1u;
+    }
 }
 
 void datalab_raster_texture_state_destroy(DatalabRasterTextureState *state) {
     if (!state) {
         return;
     }
+    /* The render-session owner calls this on its SDL renderer thread; decode
+     * workers never create or destroy GPU resources. */
     if (state->full_texture) {
         SDL_DestroyTexture(state->full_texture);
     }
@@ -542,16 +634,36 @@ void datalab_raster_texture_state_destroy(DatalabRasterTextureState *state) {
 CoreResult datalab_raster_render_frame(SDL_Renderer *renderer,
                                        const DatalabFrame *frame,
                                        const DatalabSketchRenderDeriveFrame *derive,
-                                       DatalabRasterTextureState *state) {
+                                       DatalabRasterTextureState *state,
+                                       DatalabSamplingMode sampling_mode) {
     if (!renderer || !frame || !derive || !state || !frame->drawing_rgba) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid raster render frame request" };
     }
+    {
+        int output_width = 0;
+        int output_height = 0;
+        datalab_raster_texture_state_note_content_generation(state, frame->raster_content_generation);
+        datalab_renderer_backend_output_size(renderer, &output_width, &output_height);
+        if (state->resource_generation == 0u || output_width != state->resource_output_width ||
+            output_height != state->resource_output_height) {
+            state->resource_output_width = output_width;
+            state->resource_output_height = output_height;
+            datalab_raster_texture_state_note_resource_recreation(state);
+        }
+    }
+    datalab_raster_apply_sampling_all(state, sampling_mode);
     if (!state->use_tiled) {
         if (!state->full_texture) {
             return (CoreResult){ CORE_ERR_INVALID_ARG, "missing full raster texture" };
         }
-        if (SDL_UpdateTexture(state->full_texture, NULL, frame->drawing_rgba, (int)frame->width * 4) != 0) {
-            return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
+        if (datalab_raster_texture_state_upload_required(state)) {
+            if (SDL_UpdateTexture(state->full_texture, NULL, frame->drawing_rgba, (int)frame->width * 4) != 0) {
+                return (CoreResult){ CORE_ERR_IO, SDL_GetError() };
+            }
+            datalab_raster_texture_state_note_upload(state,
+                                                     datalab_raster_rgba_bytes(frame->width, frame->height));
+        } else {
+            datalab_raster_texture_state_note_upload_reuse(state);
         }
         if (SDL_RenderCopy(renderer, state->full_texture, NULL, &derive->dst) != 0) {
             return (CoreResult){ CORE_ERR_IO, SDL_GetError() };

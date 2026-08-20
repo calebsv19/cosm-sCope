@@ -22,6 +22,9 @@ DataLab is a C-based data visualizer and technical artifact library for `.pack`,
 ## Implemented Today
 
 - Startup technical library on no-arg GUI launch (artifact/root history, `.pack`/`.bmp`/`.png` discovery, compact image preview, and pack inspector).
+- Picker image previews decode/downscale on a bounded single-flight worker;
+  rapid selection is latest-wins, cached thumbnails appear immediately, and
+  the last valid preview remains visible until its replacement is ready.
 - `/` filters visible artifacts by name/type; `P` persists a selected artifact
   pin independently from automatic history.
 - PhysicsSim VF3H volume packs render their declared bounded central XY plane;
@@ -65,6 +68,10 @@ DataLab is a C-based data visualizer and technical artifact library for `.pack`,
   - mouse-wheel cursor-anchor zoom
   - left-drag pan
   - `R` reset-to-fit
+- Technical BMP/PNG inspection for active image sessions:
+  - `A` toggles exact 1:1 source-pixel view; `S` selects persisted nearest or linear sampling; `C` toggles an alpha checkerboard; click probes source RGBA
+  - PNG exposes source bit depth, alpha presence, sRGB/gAMA/ICC flags, and truthful transfer assumptions; all decoded pixels remain raw 8-bit RGBA and ICC profiles are reported but not transformed
+  - naturally numbered catalog entries report missing-frame counts; failed async neighbor loads retain the current valid frame with skip/retry/picker guidance
 - Shared trace graph rendering for trace profiles:
   - visible view ranges derive through `kit_graph_timeseries`
   - trace zoom uses the shared zoom helper
@@ -181,6 +188,7 @@ launcher/runtime boundaries.
 - Workspace authoring is still a host-pilot lane, not a full dataset editing/export workflow.
 - Current authoring focus is overlay/theme validation rather than object/data mutation.
 - sketCh object rendering is currently bounded (unsupported object types are counted and reported).
+- HDR/EXR, 16-bit image preservation, and ICC color transformation are intentionally deferred.
 
 See `KNOWN_ISSUES.md` for release-facing caveats.
 

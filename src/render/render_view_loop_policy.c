@@ -82,6 +82,9 @@ uint32_t datalab_loop_compute_render_reason_bits(const DatalabLoopBoundarySignal
     if (signals->sync_input_invalidated) {
         reason_bits |= DATALAB_LOOP_RENDER_REASON_INPUT_INVALIDATE;
     }
+    if (signals->async_decode_frame_ready) {
+        reason_bits |= DATALAB_LOOP_RENDER_REASON_ASYNC_DECODE_READY;
+    }
     if (signals->async_panel_rescan_pending) {
         reason_bits |= DATALAB_LOOP_RENDER_REASON_ASYNC_PANEL_RESCAN;
     }

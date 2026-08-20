@@ -87,6 +87,9 @@ typedef struct DatalabAuthoringOverlayUiState {
     DatalabAuthoringFontThemeHitId hover_font_hit;
     uint8_t font_controls_valid;
     uint8_t font_theme_shared_layout_valid;
+    uint8_t projection_drag_active;
+    int projection_drag_last_x;
+    SDL_Rect projection_splitter;
     KitWorkspaceAuthoringFontThemeLayout font_theme_shared_layout;
     SDL_Rect text_dec_button;
     SDL_Rect text_inc_button;

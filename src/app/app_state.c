@@ -45,7 +45,7 @@ uint32_t datalab_playback_interval_for_speed_index(int speed_index) {
 }
 
 void datalab_panel_request_step(DatalabAppState *state, int delta, int open_selected) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->panel_selection_delta += delta;
@@ -54,24 +54,40 @@ void datalab_panel_request_step(DatalabAppState *state, int delta, int open_sele
     }
 }
 
+void datalab_panel_request_home(DatalabAppState *state, int open_selected) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) return;
+    state->panel_selection_home_requested = 1;
+    state->panel_selection_end_requested = 0;
+    if (open_selected) state->panel_open_selected_requested = 1;
+}
+
+void datalab_panel_request_end(DatalabAppState *state, int open_selected) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) return;
+    state->panel_selection_end_requested = 1;
+    state->panel_selection_home_requested = 0;
+    if (open_selected) state->panel_open_selected_requested = 1;
+}
+
 void datalab_panel_request_open_selected(DatalabAppState *state) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->panel_open_selected_requested = 1;
 }
 
 void datalab_panel_clear_request(DatalabAppState *state) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->panel_selection_delta = 0;
+    state->panel_selection_home_requested = 0;
+    state->panel_selection_end_requested = 0;
     state->panel_open_selected_requested = 0;
     state->panel_requested_pack_path[0] = '\0';
 }
 
 void datalab_panel_request_pack_path(DatalabAppState *state, const char *path) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->panel_requested_pack_path[0] = '\0';
@@ -111,7 +127,7 @@ int datalab_input_root_join_child_file(const char *root,
 int datalab_panel_request_pack_under_root(DatalabAppState *state,
                                           const char *root,
                                           const char *file_name) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return 0;
     }
     state->panel_requested_pack_path[0] = '\0';
@@ -134,7 +150,7 @@ int datalab_panel_consume_requested_pack_path(DatalabAppState *state, char *out_
 }
 
 void datalab_panel_reset_interaction_state(DatalabAppState *state) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->panel_rescan_requested = 0;
@@ -145,7 +161,7 @@ void datalab_panel_reset_interaction_state(DatalabAppState *state) {
 void datalab_playback_toggle_active(DatalabAppState *state,
                                     uint32_t now_ticks,
                                     uint32_t fallback_interval_ms) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->playback_active = !state->playback_active;
@@ -162,7 +178,7 @@ void datalab_playback_toggle_active(DatalabAppState *state,
 void datalab_playback_set_speed_index(DatalabAppState *state,
                                       int speed_index,
                                       uint32_t now_ticks) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->playback_speed_index = datalab_playback_speed_index_clamp(speed_index);
@@ -172,7 +188,7 @@ void datalab_playback_set_speed_index(DatalabAppState *state,
 }
 
 void datalab_playback_set_mode(DatalabAppState *state, DatalabPlaybackMode mode) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     switch (mode) {
@@ -195,7 +211,7 @@ void datalab_playback_stop(DatalabAppState *state) {
 }
 
 int datalab_app_state_select_input_root(DatalabAppState *state, const char *path) {
-    if (!state || !path || path[0] == '\0') {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || !path || path[0] == '\0') {
         return 0;
     }
     if (!datalab_input_root_select_recent(state->input_root,
@@ -213,7 +229,7 @@ int datalab_app_state_select_input_root(DatalabAppState *state, const char *path
 }
 
 void datalab_app_state_request_picker(DatalabAppState *state) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->recent_input_root_dropdown_open = 0;
@@ -221,14 +237,14 @@ void datalab_app_state_request_picker(DatalabAppState *state) {
 }
 
 void datalab_app_state_request_panel_rescan(DatalabAppState *state) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->panel_rescan_requested = 1;
 }
 
 void datalab_app_state_reset_interactions(DatalabAppState *state) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     state->vector_stride = 8;
@@ -251,7 +267,7 @@ void datalab_app_state_reset_interactions(DatalabAppState *state) {
 }
 
 void datalab_profile_select_view_slot(DatalabAppState *state, int slot) {
-    if (!state) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return;
     }
     if (state->profile == DATALAB_PROFILE_DAW) {
@@ -287,7 +303,8 @@ void datalab_profile_select_view_slot(DatalabAppState *state, int slot) {
 
 void datalab_physics_adjust_vector_stride(DatalabAppState *state, int delta) {
     int next_stride = 0;
-    if (!state || (state->profile != DATALAB_PROFILE_PHYSICS && state->profile != DATALAB_PROFILE_VOLUME) || delta == 0) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) ||
+        (state->profile != DATALAB_PROFILE_PHYSICS && state->profile != DATALAB_PROFILE_VOLUME) || delta == 0) {
         return;
     }
     next_stride = (int)state->vector_stride + delta;
@@ -301,7 +318,7 @@ void datalab_physics_adjust_vector_stride(DatalabAppState *state, int delta) {
 }
 
 void datalab_trace_step_cursor(DatalabAppState *state, int delta) {
-    if (!state || state->profile != DATALAB_PROFILE_TRACE || delta == 0) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || state->profile != DATALAB_PROFILE_TRACE || delta == 0) {
         return;
     }
     if (delta < 0) {
@@ -314,21 +331,21 @@ void datalab_trace_step_cursor(DatalabAppState *state, int delta) {
 }
 
 void datalab_trace_set_cursor_home(DatalabAppState *state) {
-    if (!state || state->profile != DATALAB_PROFILE_TRACE) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || state->profile != DATALAB_PROFILE_TRACE) {
         return;
     }
     state->trace_cursor_index = 0u;
 }
 
 void datalab_trace_set_cursor_end(DatalabAppState *state) {
-    if (!state || state->profile != DATALAB_PROFILE_TRACE) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || state->profile != DATALAB_PROFILE_TRACE) {
         return;
     }
     state->trace_cursor_index = (size_t)-1;
 }
 
 void datalab_trace_cycle_zoom(DatalabAppState *state) {
-    if (!state || state->profile != DATALAB_PROFILE_TRACE) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || state->profile != DATALAB_PROFILE_TRACE) {
         return;
     }
     state->trace_zoom_stub += 0.25f;
@@ -338,21 +355,21 @@ void datalab_trace_cycle_zoom(DatalabAppState *state) {
 }
 
 void datalab_trace_toggle_selection(DatalabAppState *state) {
-    if (!state || state->profile != DATALAB_PROFILE_TRACE) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || state->profile != DATALAB_PROFILE_TRACE) {
         return;
     }
     state->trace_selection_stub_active = !state->trace_selection_stub_active;
 }
 
 void datalab_trace_request_lane_cycle(DatalabAppState *state) {
-    if (!state || state->profile != DATALAB_PROFILE_TRACE) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || state->profile != DATALAB_PROFILE_TRACE) {
         return;
     }
     state->trace_lane_cycle_requested = 1;
 }
 
 void datalab_trace_clamp_cursor_to_count(DatalabAppState *state, size_t time_count) {
-    if (!state || state->profile != DATALAB_PROFILE_TRACE || time_count == 0u) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || state->profile != DATALAB_PROFILE_TRACE || time_count == 0u) {
         return;
     }
     if (state->trace_cursor_index == (size_t)-1 || state->trace_cursor_index >= time_count) {
@@ -362,7 +379,7 @@ void datalab_trace_clamp_cursor_to_count(DatalabAppState *state, size_t time_cou
 
 void datalab_trace_apply_lane_cycle(DatalabAppState *state, size_t lane_count) {
     size_t cycle_span = 0u;
-    if (!state || state->profile != DATALAB_PROFILE_TRACE) {
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state) || state->profile != DATALAB_PROFILE_TRACE) {
         return;
     }
     if (lane_count == 0u) {
@@ -480,9 +497,10 @@ void datalab_workspace_authoring_capture_entry_snapshot(DatalabAppState *state) 
            sizeof(state->workspace_authoring_entry_custom_theme_slot_names));
     state->workspace_authoring_entry_custom_theme_selected_token = (uint8_t)selected_token;
     state->workspace_authoring_entry_custom_theme_selected_channel = (uint8_t)selected_channel;
+    datalab_workspace_authoring_projection_capture_entry(state);
 }
 
-void datalab_workspace_authoring_begin_takeover(DatalabAppState *state) {
+void datalab_workspace_authoring_draft_begin(DatalabAppState *state) {
     if (!state) {
         return;
     }
@@ -508,7 +526,7 @@ void datalab_workspace_authoring_cycle_overlay(DatalabAppState *state) {
     state->workspace_authoring_overlay_cycle_count += 1u;
 }
 
-void datalab_workspace_authoring_apply_takeover(DatalabAppState *state) {
+void datalab_workspace_authoring_draft_apply(DatalabAppState *state) {
     if (!state) {
         return;
     }
@@ -518,31 +536,30 @@ void datalab_workspace_authoring_apply_takeover(DatalabAppState *state) {
     state->workspace_authoring_apply_count += 1u;
 }
 
-int datalab_workspace_authoring_cancel_and_exit(DatalabAppState *state) {
+int datalab_workspace_authoring_draft_cancel(DatalabAppState *state) {
     int restored_text_zoom = 0;
     if (!state) {
         return 0;
     }
-    if (state->workspace_authoring_pending_stub) {
-        const int restored_step =
-            datalab_text_zoom_step_clamp(state->workspace_authoring_entry_text_zoom_step);
-        restored_text_zoom = (state->text_zoom_step != restored_step) ? 1 : 0;
-        state->text_zoom_step = restored_step;
-        state->workspace_authoring_theme_preset_id =
-            datalab_workspace_authoring_theme_preset_clamp(
-                (int)state->workspace_authoring_entry_theme_preset_id);
-        state->workspace_authoring_custom_theme_active_slot =
-            (uint8_t)datalab_workspace_authoring_custom_theme_slot_clamp(
-                (int)state->workspace_authoring_entry_custom_theme_active_slot);
-        memcpy(state->workspace_authoring_custom_theme_slots,
-               state->workspace_authoring_entry_custom_theme_slots,
-               sizeof(state->workspace_authoring_custom_theme_slots));
-        memcpy(state->workspace_authoring_custom_theme_slot_names,
-               state->workspace_authoring_entry_custom_theme_slot_names,
-               sizeof(state->workspace_authoring_custom_theme_slot_names));
-        state->workspace_authoring_custom_theme = state->workspace_authoring_entry_custom_theme;
-        datalab_workspace_authoring_sync_custom_theme_from_active_slot(state);
-    }
+    const int restored_step =
+        datalab_text_zoom_step_clamp(state->workspace_authoring_entry_text_zoom_step);
+    restored_text_zoom = (state->text_zoom_step != restored_step) ? 1 : 0;
+    state->text_zoom_step = restored_step;
+    state->workspace_authoring_theme_preset_id =
+        datalab_workspace_authoring_theme_preset_clamp(
+            (int)state->workspace_authoring_entry_theme_preset_id);
+    state->workspace_authoring_custom_theme_active_slot =
+        (uint8_t)datalab_workspace_authoring_custom_theme_slot_clamp(
+            (int)state->workspace_authoring_entry_custom_theme_active_slot);
+    memcpy(state->workspace_authoring_custom_theme_slots,
+           state->workspace_authoring_entry_custom_theme_slots,
+           sizeof(state->workspace_authoring_custom_theme_slots));
+    memcpy(state->workspace_authoring_custom_theme_slot_names,
+           state->workspace_authoring_entry_custom_theme_slot_names,
+           sizeof(state->workspace_authoring_custom_theme_slot_names));
+    state->workspace_authoring_custom_theme = state->workspace_authoring_entry_custom_theme;
+    datalab_workspace_authoring_sync_custom_theme_from_active_slot(state);
+    datalab_workspace_authoring_projection_restore_entry(state);
     state->workspace_authoring_custom_theme_selected_token =
         (uint8_t)datalab_workspace_authoring_custom_theme_token_clamp(
             (int)state->workspace_authoring_entry_custom_theme_selected_token);
@@ -710,6 +727,51 @@ void datalab_raster_viewport_copy_for_runtime(DatalabRasterViewportState *dst,
     dst->drag_active = 0;
 }
 
+void datalab_raster_viewport_toggle_actual_pixel(DatalabAppState *state) {
+    DatalabRasterViewportState *viewport = NULL;
+    if (!state || !datalab_profile_supports_raster_viewport(state->profile)) return;
+    viewport = &state->raster_viewport;
+    state->raster_actual_pixel_mode = !state->raster_actual_pixel_mode;
+    if (state->raster_actual_pixel_mode) {
+        viewport->viewport.zoom = 1.0f;
+        viewport->fit_mode = 0;
+        viewport->reset_requested = 0;
+        viewport->valid = 1;
+    } else {
+        datalab_raster_viewport_request_reset(viewport);
+    }
+}
+
+void datalab_raster_probe_at_screen(DatalabAppState *state, int screen_x, int screen_y) {
+    DatalabRasterViewportState *viewport = NULL;
+    float zoom = 0.0f;
+    float source_x = 0.0f;
+    float source_y = 0.0f;
+    if (!state || !datalab_profile_supports_raster_viewport(state->profile)) return;
+    viewport = &state->raster_viewport;
+    zoom = viewport->viewport.zoom;
+    if (!viewport->valid || zoom <= 0.0f || screen_x < (int)viewport->viewport.pan_x || screen_y < (int)viewport->viewport.pan_y) {
+        state->raster_probe_valid = 0;
+        return;
+    }
+    source_x = ((float)screen_x - viewport->viewport.pan_x) / zoom;
+    source_y = ((float)screen_y - viewport->viewport.pan_y) / zoom;
+    if (source_x < 0.0f || source_y < 0.0f || source_x >= (float)viewport->content_width || source_y >= (float)viewport->content_height) {
+        state->raster_probe_valid = 0;
+        return;
+    }
+    state->raster_probe_x = (uint32_t)source_x;
+    state->raster_probe_y = (uint32_t)source_y;
+    state->raster_probe_valid = 1;
+}
+
+void datalab_sampling_mode_cycle(DatalabAppState *state) {
+    if (!state || !datalab_profile_supports_raster_viewport(state->profile)) return;
+    state->sampling_mode = state->sampling_mode == DATALAB_SAMPLING_MODE_NEAREST
+                               ? DATALAB_SAMPLING_MODE_LINEAR
+                               : DATALAB_SAMPLING_MODE_NEAREST;
+}
+
 int datalab_profile_supports_raster_viewport(DatalabProfile profile) {
     return profile == DATALAB_PROFILE_SKETCH || profile == DATALAB_PROFILE_IMAGE;
 }
@@ -720,6 +782,10 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     if (!state) return;
     state->pack_path = pack_path;
     state->profile = profile;
+    state->input_catalog = NULL;
+    state->runtime_owner = NULL;
+    state->async_decode = NULL;
+    state->async_decode_frame_ready = 0;
     state->input_root[0] = '\0';
     state->recent_input_root_count = 0u;
     state->recent_input_root_dropdown_open = 0;
@@ -735,6 +801,8 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->open_picker_requested = 0;
     state->panel_rescan_requested = 0;
     state->panel_selection_delta = 0;
+    state->panel_selection_home_requested = 0;
+    state->panel_selection_end_requested = 0;
     state->panel_selected_index = 0u;
     state->panel_open_selected_requested = 0;
     state->panel_requested_pack_path[0] = '\0';
@@ -745,6 +813,12 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
     state->playback_last_advance_ticks = 0u;
     state->session_hud_collapsed = 0;
+    state->sampling_mode = DATALAB_SAMPLING_MODE_DEFAULT;
+    state->raster_actual_pixel_mode = 0;
+    state->raster_alpha_checkerboard = 0;
+    state->raster_probe_valid = 0;
+    state->raster_probe_x = 0u;
+    state->raster_probe_y = 0u;
     datalab_raster_viewport_state_init(&state->raster_viewport);
     state->workspace_authoring_stub_active = 0;
     state->workspace_authoring_entry_chord_mask = 0u;
@@ -776,10 +850,12 @@ void datalab_app_state_init(DatalabAppState *state, const char *pack_path, Datal
     state->workspace_authoring_custom_theme_popup_open = 0u;
     state->workspace_authoring_custom_theme_selected_token = 0u;
     state->workspace_authoring_custom_theme_selected_channel = 0u;
+    datalab_workspace_authoring_projection_init(&state->workspace_authoring_projection);
     datalab_workspace_authoring_capture_entry_snapshot(state);
     state->workspace_authoring_overlay_cycle_count = 0u;
     state->workspace_authoring_apply_count = 0u;
     state->workspace_authoring_cancel_count = 0u;
+    datalab_workspace_authoring_session_init(state);
 }
 
 const char *datalab_view_mode_name(DatalabViewMode mode) {

@@ -190,6 +190,38 @@ static int test_manual_zoom_and_drag_helpers_switch_to_free_view(void) {
     return 1;
 }
 
+static int test_actual_pixel_and_probe_coordinate_contract(void) {
+    DatalabAppState state;
+    datalab_app_state_init(&state, "fixture.bmp", DATALAB_PROFILE_IMAGE);
+    state.raster_viewport.valid = 1;
+    state.raster_viewport.content_width = 4u;
+    state.raster_viewport.content_height = 4u;
+    state.raster_viewport.viewport.zoom = 2.0f;
+    state.raster_viewport.viewport.pan_x = 10.0f;
+    state.raster_viewport.viewport.pan_y = 20.0f;
+
+    datalab_raster_viewport_toggle_actual_pixel(&state);
+    if (!datalab_test_assert(state.raster_actual_pixel_mode == 1 && state.raster_viewport.fit_mode == 0 &&
+                             state.raster_viewport.viewport.zoom == 1.0f,
+                             "actual-pixel mode must force an exact one-to-one raster scale")) {
+        return 0;
+    }
+    datalab_raster_probe_at_screen(&state, 12, 23);
+    if (!datalab_test_assert(state.raster_probe_valid && state.raster_probe_x == 2u && state.raster_probe_y == 3u,
+                             "screen probes must map through pan and one-to-one scale to source RGBA coordinates")) {
+        return 0;
+    }
+    datalab_raster_probe_at_screen(&state, 14, 24);
+    if (!datalab_test_assert(!state.raster_probe_valid,
+                             "probes outside source bounds must not report a stale source pixel")) {
+        return 0;
+    }
+    datalab_raster_viewport_toggle_actual_pixel(&state);
+    return datalab_test_assert(state.raster_actual_pixel_mode == 0 && state.raster_viewport.fit_mode == 1 &&
+                               state.raster_viewport.reset_requested == 1,
+                               "leaving actual-pixel mode must restore fit-reset behavior");
+}
+
 int main(void) {
     if (!test_request_reset_clears_drag_state()) {
         return 1;
@@ -204,6 +236,9 @@ int main(void) {
         return 1;
     }
     if (!test_manual_zoom_and_drag_helpers_switch_to_free_view()) {
+        return 1;
+    }
+    if (!test_actual_pixel_and_probe_coordinate_contract()) {
         return 1;
     }
     puts("datalab raster viewport contract test passed");

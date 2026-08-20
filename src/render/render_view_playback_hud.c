@@ -181,8 +181,8 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
     int play_w = 0;
     int speed_w = 0;
     int mode_w = 0;
-    int file_count = 0;
-    int selected_index = 0;
+    uint64_t file_count = 0u;
+    uint64_t selected_index = 0u;
     int has_files = 0;
     int can_slow = 0;
     int can_fast = 0;
@@ -220,13 +220,14 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
         gap = datalab_scaled_px(4.0f);
     }
 
-    file_count = (int)datalab_session_controls_file_count();
-    has_files = file_count > 0;
-    selected_index = file_count > 0 ? (int)app_state->panel_selected_index + 1 : 0;
+    file_count = (uint64_t)datalab_session_controls_file_count();
+    has_files = file_count > 0u;
+    selected_index = file_count > 0u ? (uint64_t)app_state->panel_selected_index + 1u : 0u;
     can_slow = app_state->playback_speed_index > DATALAB_PLAYBACK_SPEED_INDEX_MIN;
     can_fast = app_state->playback_speed_index < DATALAB_PLAYBACK_SPEED_INDEX_MAX;
     selected_name = datalab_session_controls_selected_file_name(app_state);
-    snprintf(position, sizeof(position), "%d/%d", selected_index, file_count);
+    snprintf(position, sizeof(position), "%llu/%llu",
+             (unsigned long long)selected_index, (unsigned long long)file_count);
     snprintf(readout,
              sizeof(readout),
              "%s  %s  %s",

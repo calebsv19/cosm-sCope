@@ -9,7 +9,9 @@ include make/sources.mk
 
 .PHONY: all clean test test-smoke test-pack-loader test-contract test-app-contract \
 	test-authoring-input-contract test-raster-viewport-contract test-loop-policy-contract \
-	test-panel-policy-contract test-profile-interaction-contract test-datalab-folder-picker test-linux-launcher-contract test-package-boundary \
+	test-panel-policy-contract test-profile-interaction-contract test-datalab-folder-picker test-image-residency-contract test-raster-generation-contract test-async-decode-contract test-thumbnail-decode-contract test-linux-launcher-contract test-package-boundary \
+	test-input-catalog-contract test-focus-window-contract \
+	test-w5-acceptance \
 	run run-headless run-headless-smoke visual-harness visual-artifact test-stable test-legacy \
 	vulkan-rollout-contract vulkan-rollout-self-test package-desktop-vulkan-self-test \
 	memory-check-build memory-check-run memory-check-audit \

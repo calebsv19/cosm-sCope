@@ -39,7 +39,8 @@ int datalab_handle_mouse_event(SDL_Window *window,
     if (!window || !renderer || !event || !state) {
         return 0;
     }
-    if (!datalab_profile_supports_raster_viewport(state->profile) || state->workspace_authoring_stub_active) {
+    if (!datalab_profile_supports_raster_viewport(state->profile) ||
+        !datalab_workspace_authoring_runtime_mutation_allowed(state)) {
         return 0;
     }
     viewport_state = &state->raster_viewport;
@@ -79,6 +80,7 @@ int datalab_handle_mouse_event(SDL_Window *window,
                                                       &render_y)) {
                 return 0;
             }
+            datalab_raster_probe_at_screen(state, render_x, render_y);
             return datalab_raster_viewport_begin_drag(viewport_state, render_x, render_y);
         case SDL_MOUSEBUTTONUP:
             if (event->button.button != SDL_BUTTON_LEFT) {
@@ -106,6 +108,7 @@ int datalab_handle_mouse_event(SDL_Window *window,
 
 void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state, int *quit) {
     if (!key || !state || !quit) return;
+    if (!datalab_workspace_authoring_runtime_mutation_allowed(state)) return;
 
     if (datalab_zoom_modifier_active((SDL_Keymod)key->keysym.mod)) {
         switch (key->keysym.sym) {
@@ -146,6 +149,12 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
         case SDLK_3:
             datalab_profile_select_view_slot(state, 3);
             break;
+        case SDLK_a:
+            datalab_raster_viewport_toggle_actual_pixel(state);
+            break;
+        case SDLK_s:
+            datalab_sampling_mode_cycle(state);
+            break;
         case SDLK_LEFTBRACKET:
             datalab_physics_adjust_vector_stride(state, -1);
             break;
@@ -167,10 +176,18 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
             }
             break;
         case SDLK_HOME:
-            datalab_trace_set_cursor_home(state);
+            if (state->profile == DATALAB_PROFILE_IMAGE) datalab_panel_request_home(state, 0);
+            else datalab_trace_set_cursor_home(state);
             break;
         case SDLK_END:
-            datalab_trace_set_cursor_end(state);
+            if (state->profile == DATALAB_PROFILE_IMAGE) datalab_panel_request_end(state, 0);
+            else datalab_trace_set_cursor_end(state);
+            break;
+        case SDLK_PAGEUP:
+            if (state->profile == DATALAB_PROFILE_IMAGE) datalab_panel_request_step(state, -16, 0);
+            break;
+        case SDLK_PAGEDOWN:
+            if (state->profile == DATALAB_PROFILE_IMAGE) datalab_panel_request_step(state, 16, 0);
             break;
         case SDLK_z:
             datalab_trace_cycle_zoom(state);
@@ -179,7 +196,8 @@ void datalab_handle_keydown(const SDL_KeyboardEvent *key, DatalabAppState *state
             datalab_trace_toggle_selection(state);
             break;
         case SDLK_c:
-            datalab_trace_request_lane_cycle(state);
+            if (datalab_profile_supports_raster_viewport(state->profile)) state->raster_alpha_checkerboard = !state->raster_alpha_checkerboard;
+            else datalab_trace_request_lane_cycle(state);
             break;
         case SDLK_r:
             datalab_app_state_reset_interactions(state);

@@ -1,12 +1,35 @@
 #include "app/datalab_app_internal.h"
+#include "app/datalab_runtime_prefs.h"
+
+#include <sys/stat.h>
+
+#include "data/input_file_loader.h"
 
 #include <stdio.h>
 #include <string.h>
 
 #include "app/datalab_runtime_pack.h"
-#include "app/datalab_runtime_prefs.h"
 
 static const char *k_datalab_default_input_root = "data/import";
+
+static int datalab_last_opened_input_is_in_restored_catalog(const DatalabAppRuntime *runtime,
+                                                            const char *input_path) {
+    const char *last_slash = NULL;
+    size_t root_len = 0u;
+    if (!runtime || !input_path || input_path[0] == '\0' || !datalab_input_file_is_supported(input_path)) {
+        return 0;
+    }
+    last_slash = strrchr(input_path, '/');
+    if (!last_slash || last_slash == input_path || last_slash[1] == '\0') {
+        return 0;
+    }
+    root_len = (size_t)(last_slash - input_path);
+    return strlen(runtime->input_root) == root_len &&
+           strncmp(runtime->input_root, input_path, root_len) == 0 &&
+           datalab_input_catalog_file_is_current(&runtime->input_catalog,
+                                                 runtime->input_root,
+                                                 last_slash + 1);
+}
 
 int datalab_app_transition_stage(DatalabAppContext *ctx,
                                  DatalabAppStage expected,
@@ -31,7 +54,7 @@ int datalab_app_transition_stage(DatalabAppContext *ctx,
 }
 
 void datalab_print_usage(const char *argv0) {
-    printf("usage: %s [--pack /path/to/frame.pack|frame.bmp|frame.png] [--input-root /path/to/folder] [--no-gui] [--visual-artifact /path/to/frame.bmp]\n", argv0);
+    printf("usage: %s [--pack /path/to/frame.pack|frame.bmp|frame.png] [--input-root /path/to/folder] [--no-gui] [--visual-artifact /path/to/frame.bmp] [--w5-acceptance /new/temp/output-dir]\n", argv0);
 }
 
 void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
@@ -41,10 +64,18 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
     }
     memset(runtime, 0, sizeof(*runtime));
     datalab_frame_init(&runtime->frame);
+    datalab_input_catalog_init(&runtime->input_catalog);
+    datalab_async_decode_init(&runtime->async_decode);
+    datalab_focus_window_init(&runtime->focus_window);
+    runtime->image_residency = (DatalabImageResidency *)core_alloc(sizeof(*runtime->image_residency));
+    if (runtime->image_residency) {
+        datalab_image_residency_init(runtime->image_residency);
+    }
     snprintf(runtime->input_root, sizeof(runtime->input_root), "%s", k_datalab_default_input_root);
     runtime->recent_input_root_count = 0u;
     runtime->workspace_authoring_theme_preset_id =
         (uint8_t)DATALAB_WORKSPACE_AUTHORING_THEME_MIDNIGHT_CONTRAST;
+    runtime->workspace_authoring_profile_surface_ratio = 0.72f;
     runtime->workspace_authoring_custom_theme = (DatalabWorkspaceCustomTheme){
         12, 14, 20,
         54, 36, 74,
@@ -65,21 +96,20 @@ void datalab_app_runtime_init(DatalabAppRuntime *runtime) {
                        i + 1);
     }
     runtime->input_root_from_cli = 0;
+    runtime->reopened_last_input_file = 0;
     runtime->playback_active = 0;
     runtime->playback_mode = DATALAB_PLAYBACK_MODE_LOOP;
     runtime->playback_direction = 1;
     runtime->playback_speed_index = DATALAB_PLAYBACK_SPEED_INDEX_DEFAULT;
     runtime->playback_interval_ms = DATALAB_PLAYBACK_INTERVAL_MS_DEFAULT;
     runtime->session_hud_collapsed = 0;
+    runtime->sampling_mode = DATALAB_SAMPLING_MODE_DEFAULT;
     datalab_raster_viewport_state_init(&runtime->raster_viewport);
+    datalab_viewer_session_init(&runtime->viewer_session);
+    runtime->viewer_session_restore_pending = 0;
     runtime->selected_pack_path[0] = '\0';
     runtime->visual_artifact_path[0] = '\0';
     runtime->last_load_error[0] = '\0';
-    for (i = 0; i < DATALAB_FRAME_PREFETCH_SLOT_COUNT; ++i) {
-        runtime->prefetch_slots[i].valid = 0;
-        runtime->prefetch_slots[i].path[0] = '\0';
-        datalab_frame_init(&runtime->prefetch_slots[i].frame);
-    }
 }
 
 int datalab_app_bootstrap_ctx(DatalabAppContext *ctx, int argc, char **argv) {
@@ -145,11 +175,14 @@ int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
     int loaded_step = 0;
     uint8_t loaded_theme_preset = 0u;
     uint8_t loaded_custom_slot = 0u;
+    float loaded_profile_surface_ratio = 0.0f;
     int i = 0;
     DatalabWorkspaceCustomTheme loaded_custom_theme;
     DatalabWorkspaceCustomTheme loaded_custom_slots[DATALAB_CUSTOM_THEME_SLOT_COUNT];
     char loaded_custom_slot_names[DATALAB_CUSTOM_THEME_SLOT_COUNT][DATALAB_CUSTOM_THEME_NAME_CAP];
     char loaded_input_root[DATALAB_APP_PATH_CAP];
+    char loaded_last_opened_input_file[DATALAB_APP_PATH_CAP];
+    DatalabStartupSurface startup_surface = DATALAB_STARTUP_SURFACE_PICKER;
     char loaded_recent_input_roots[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP];
     size_t loaded_recent_input_root_count = 0u;
     DatalabAppRuntime *runtime = NULL;
@@ -179,6 +212,9 @@ int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
     }
     if (datalab_runtime_prefs_load_theme_preset_id(&loaded_theme_preset)) {
         runtime->workspace_authoring_theme_preset_id = loaded_theme_preset;
+    }
+    if (datalab_runtime_prefs_load_workspace_authoring_profile_surface_ratio(&loaded_profile_surface_ratio)) {
+        runtime->workspace_authoring_profile_surface_ratio = loaded_profile_surface_ratio;
     }
     if (datalab_runtime_prefs_load_custom_theme_slots(loaded_custom_slots, DATALAB_CUSTOM_THEME_SLOT_COUNT)) {
         for (i = 0; i < DATALAB_CUSTOM_THEME_SLOT_COUNT; ++i) {
@@ -230,6 +266,36 @@ int datalab_app_config_load_ctx(DatalabAppContext *ctx) {
                                            &runtime->recent_input_root_count,
                                            DATALAB_RECENT_INPUT_ROOT_LIMIT,
                                            runtime->input_root);
+    (void)datalab_runtime_prefs_load_startup_surface(&startup_surface);
+    /* Refresh the retained catalog before any viewer restoration. The saved
+     * root is its own preference and must not be re-derived from a file path. */
+    if (!runtime->no_gui) {
+        (void)datalab_input_catalog_refresh(&runtime->input_catalog,
+                                            runtime->input_root,
+                                            DATALAB_INPUT_CATALOG_REFRESH_INITIAL);
+    }
+    loaded_last_opened_input_file[0] = '\0';
+    if (startup_surface == DATALAB_STARTUP_SURFACE_VIEWER &&
+        !runtime->no_gui && !runtime->input_root_from_cli && !runtime->pack_path) {
+        const int session_loaded = datalab_viewer_session_load(&runtime->viewer_session);
+        const char *restore_path = NULL;
+        if (session_loaded && runtime->viewer_session.selected_path_present) {
+            restore_path = runtime->viewer_session.selected_path;
+        } else if ((!session_loaded || !runtime->viewer_session.selected_path_present) &&
+                   datalab_runtime_prefs_load_last_opened_input_file(loaded_last_opened_input_file,
+                                                                      sizeof(loaded_last_opened_input_file))) {
+            restore_path = loaded_last_opened_input_file;
+        }
+        if (restore_path && datalab_last_opened_input_is_in_restored_catalog(runtime, restore_path)) {
+            snprintf(runtime->selected_pack_path,
+                     sizeof(runtime->selected_pack_path),
+                     "%s",
+                     restore_path);
+            runtime->pack_path = runtime->selected_pack_path;
+            runtime->reopened_last_input_file = 1;
+            runtime->viewer_session_restore_pending = session_loaded;
+        }
+    }
     if (!datalab_app_transition_stage(ctx,
                                       DATALAB_APP_STAGE_BOOTSTRAPPED,
                                       DATALAB_APP_STAGE_CONFIG_LOADED,
@@ -290,6 +356,21 @@ int datalab_app_state_seed_ctx(DatalabAppContext *ctx) {
     {
         int load_rc = datalab_runtime_load_frame(runtime);
         if (load_rc != 0) {
+            if (runtime->reopened_last_input_file && !runtime->no_gui) {
+                runtime->reopened_last_input_file = 0;
+                runtime->pack_path = NULL;
+                runtime->selected_pack_path[0] = '\0';
+                runtime->last_load_error[0] = '\0';
+                if (!datalab_app_transition_stage(ctx,
+                                                  DATALAB_APP_STAGE_CONFIG_LOADED,
+                                                  DATALAB_APP_STAGE_STATE_SEEDED,
+                                                  "datalab_app_state_seed",
+                                                  __func__)) {
+                    return 1;
+                }
+                ctx->ownership.state_seed_owned = 1;
+                return 0;
+            }
             return load_rc;
         }
         datalab_runtime_print_loaded_frame_summary(runtime);

@@ -1,5 +1,9 @@
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "app/app_state.h"
 #include "render/render_view_internal.h"
@@ -13,10 +17,67 @@ static int datalab_test_assert(int condition, const char *message) {
 }
 
 static void datalab_test_cache_set_file(DatalabPackPanelCache *cache, size_t index, const char *name) {
-    if (!cache || index >= DATALAB_PANEL_MAX_FILES || !name) {
+    if (!cache || index >= DATALAB_PANEL_VISIBLE_WINDOW || !name) {
         return;
     }
     snprintf(cache->files[index], sizeof(cache->files[index]), "%s", name);
+}
+
+static int datalab_test_write_fixture_file(const char *path) {
+    FILE *fp = NULL;
+    if (!path) {
+        return 0;
+    }
+    fp = fopen(path, "wb");
+    if (!fp) {
+        return 0;
+    }
+    if (fputs("fixture", fp) < 0 || fclose(fp) != 0) {
+        return 0;
+    }
+    return 1;
+}
+
+static int test_retained_catalog_seeds_empty_session_cache(void) {
+    DatalabAppState state;
+    DatalabInputCatalog catalog;
+    CoreResult refresh_result;
+    char root_template[] = "/private/tmp/datalab-panel-cache.XXXXXX";
+    char first_path[DATALAB_APP_PATH_CAP];
+    char active_path[DATALAB_APP_PATH_CAP];
+    char *root = mkdtemp(root_template);
+    int ok = 0;
+
+    if (!root ||
+        snprintf(first_path, sizeof(first_path), "%s/frame_0000.bmp", root) >= (int)sizeof(first_path) ||
+        snprintf(active_path, sizeof(active_path), "%s/frame_0001.bmp", root) >= (int)sizeof(active_path) ||
+        !datalab_test_write_fixture_file(first_path) || !datalab_test_write_fixture_file(active_path)) {
+        return 0;
+    }
+
+    datalab_input_catalog_init(&catalog);
+    refresh_result = datalab_input_catalog_refresh(&catalog, root, DATALAB_INPUT_CATALOG_REFRESH_INITIAL);
+    datalab_app_state_init(&state, active_path, DATALAB_PROFILE_IMAGE);
+    state.input_catalog = &catalog;
+    snprintf(state.input_root, sizeof(state.input_root), "%s", root);
+    datalab_session_controls_tick(&state);
+
+    ok = datalab_test_assert(refresh_result.code == CORE_OK && catalog.refresh_count == 1u,
+                             "fixture should begin with one retained catalog refresh") &&
+         datalab_test_assert(datalab_session_controls_file_count() == 2u,
+                             "first session tick should seed the empty process-local cache") &&
+         datalab_test_assert(strcmp(datalab_session_controls_selected_file_name(&state), "frame_0001.bmp") == 0,
+                             "retained catalog seed should align selection to the restored viewer file") &&
+         datalab_test_assert(strstr(datalab_session_controls_catalog_status(), "found 2 supported files") != NULL,
+                             "retained catalog seed should publish current catalog status") &&
+         datalab_test_assert(catalog.refresh_count == 1u,
+                             "retained catalog seed must not issue a redundant filesystem refresh");
+
+    datalab_input_catalog_destroy(&catalog);
+    (void)unlink(first_path);
+    (void)unlink(active_path);
+    (void)rmdir(root);
+    return ok;
 }
 
 static int test_empty_root_resets_panel_state(void) {
@@ -476,6 +537,9 @@ static int test_supported_file_scan_status_is_actionable(void) {
 }
 
 int main(void) {
+    if (!test_retained_catalog_seeds_empty_session_cache()) {
+        return 1;
+    }
     if (!test_empty_root_resets_panel_state()) {
         return 1;
     }

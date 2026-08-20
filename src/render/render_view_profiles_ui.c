@@ -910,12 +910,43 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
     }
     SDL_SetRenderDrawColor(renderer, 12, 12, 16, 255);
     SDL_RenderClear(renderer);
-    outcome->result = datalab_raster_render_frame(renderer, frame, derive, texture_state);
+    if (app_state->raster_alpha_checkerboard) {
+        const int edge = 16;
+        for (int y = derive->dst.y; y < derive->dst.y + derive->dst.h; y += edge) {
+            for (int x = derive->dst.x; x < derive->dst.x + derive->dst.w; x += edge) {
+                SDL_Rect cell = { x, y, edge, edge };
+                const int dark = ((x - derive->dst.x) / edge + (y - derive->dst.y) / edge) & 1;
+                SDL_SetRenderDrawColor(renderer, dark ? 72 : 128, dark ? 72 : 128, dark ? 78 : 134, 255);
+                SDL_RenderFillRect(renderer, &cell);
+            }
+        }
+    }
+    outcome->result = datalab_raster_render_frame(renderer, frame, derive, texture_state, app_state->sampling_mode);
     if (outcome->result.code != CORE_OK) {
         return;
     }
     datalab_draw_recent_input_root_header(renderer, app_state);
     datalab_draw_session_controls(renderer, app_state);
+    if (frame->profile == DATALAB_PROFILE_IMAGE) {
+        char inspection[256];
+        const char *format = frame->image_metadata.format == DATALAB_IMAGE_FORMAT_PNG ? "PNG" : "BMP";
+        const char *transfer = frame->image_metadata.transfer == DATALAB_IMAGE_TRANSFER_ICC_UNTRANSFORMED ? "ICC present; raw/untransformed" :
+                               frame->image_metadata.transfer == DATALAB_IMAGE_TRANSFER_SRGB ? "sRGB" :
+                               frame->image_metadata.transfer == DATALAB_IMAGE_TRANSFER_GAMA ? "gAMA" : "untagged; sRGB assumed";
+        (void)snprintf(inspection, sizeof(inspection), "%s %u-bit %s | %s | sampler=%s | %s",
+                       format, (unsigned int)frame->image_metadata.source_bit_depth,
+                       frame->image_metadata.source_has_alpha ? "alpha" : "opaque", transfer,
+                       app_state->sampling_mode == DATALAB_SAMPLING_MODE_LINEAR ? "linear" : "nearest",
+                       app_state->raster_actual_pixel_mode ? "1:1" : "fit/free");
+        draw_text_5x7(renderer, 12, 12, inspection, 1, 220, 230, 240, 255);
+        if (app_state->raster_probe_valid && app_state->raster_probe_x < frame->width && app_state->raster_probe_y < frame->height) {
+            const uint8_t *pixel = frame->drawing_rgba + (((size_t)app_state->raster_probe_y * frame->width + app_state->raster_probe_x) * 4u);
+            (void)snprintf(inspection, sizeof(inspection), "PIXEL %u,%u RGBA %u %u %u %u",
+                           app_state->raster_probe_x, app_state->raster_probe_y,
+                           pixel[0], pixel[1], pixel[2], pixel[3]);
+            draw_text_5x7(renderer, 12, 24, inspection, 1, 255, 235, 150, 255);
+        }
+    }
     datalab_draw_playback_hud(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->common.title);
