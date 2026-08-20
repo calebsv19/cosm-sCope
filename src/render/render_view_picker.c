@@ -9,6 +9,7 @@
 #include "kit_workspace_authoring.h"
 #include "app/datalab_catalog_view.h"
 #include "app/datalab_runtime_prefs.h"
+#include "app/datalab_thumbnail_window.h"
 #include "data/input_file_loader.h"
 #include "data/pack_inspector.h"
 #include "platform/datalab_folder_picker.h"
@@ -125,6 +126,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
     DatalabCatalogView catalog_view;
     uint64_t file_count = 0u;
     uint64_t selected = 0u;
+    uint64_t preview_last_selected = UINT64_MAX;
+    int preview_navigation_direction = 0;
     char input_root[DATALAB_APP_PATH_CAP];
     char edit_root[DATALAB_APP_PATH_CAP];
     char status[256];
@@ -762,6 +765,10 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             char display_edit_root[DATALAB_APP_PATH_CAP] = "";
             char display_recent_roots[DATALAB_RECENT_INPUT_ROOT_LIMIT][DATALAB_APP_PATH_CAP] = {{0}};
             char preview_path[DATALAB_APP_PATH_CAP] = "";
+            char preview_prefetch_paths[DATALAB_THUMBNAIL_WINDOW_MAX_CANDIDATES][DATALAB_APP_PATH_CAP] = {{0}};
+            const char *preview_prefetch_path_refs[DATALAB_THUMBNAIL_WINDOW_MAX_CANDIDATES] = {0};
+            uint64_t preview_prefetch_indices[DATALAB_THUMBNAIL_WINDOW_MAX_CANDIDATES] = {0};
+            size_t preview_prefetch_count = 0u;
             char preview_label[160] = "DIRECTORY IMAGE PREVIEW";
             char selected_detail[192] = "SELECT AN ARTIFACT TO INSPECT";
             datalab_renderer_backend_output_size(renderer, &ww, &wh);
@@ -874,9 +881,35 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                     snprintf(inspected_pack_path, sizeof(inspected_pack_path), "%s", selected_path);
                 }
             }
-            /* W3 never walks the catalog looking for a preview: only the
-             * selected item can request thumbnail/decode work. */
-            datalab_library_preview_prepare(renderer, &library_preview, image_residency, preview_path, SDL_GetTicks());
+            if (preview_last_selected != UINT64_MAX && selected != preview_last_selected) {
+                preview_navigation_direction = selected > preview_last_selected ? 1 : -1;
+            }
+            preview_last_selected = selected;
+            if (preview_path[0] != '\0') {
+                const size_t candidate_count = datalab_thumbnail_window_indices(
+                    selected, file_count, preview_navigation_direction,
+                    preview_prefetch_indices, DATALAB_THUMBNAIL_WINDOW_MAX_CANDIDATES);
+                for (size_t candidate_i = 0u; candidate_i < candidate_count; ++candidate_i) {
+                    char candidate_name[1][DATALAB_APP_PATH_CAP] = {{0}};
+                    if (datalab_catalog_view_page_copy(&catalog_view,
+                                                       preview_prefetch_indices[candidate_i],
+                                                       1u, candidate_name, 1u) == 1u &&
+                        datalab_input_root_join_child_file(input_root, candidate_name[0],
+                                                           preview_prefetch_paths[preview_prefetch_count],
+                                                           DATALAB_APP_PATH_CAP) &&
+                        (datalab_input_file_is_png(preview_prefetch_paths[preview_prefetch_count]) ||
+                         datalab_input_file_is_bmp(preview_prefetch_paths[preview_prefetch_count]))) {
+                        preview_prefetch_path_refs[preview_prefetch_count] =
+                            preview_prefetch_paths[preview_prefetch_count];
+                        ++preview_prefetch_count;
+                    }
+                }
+            }
+            /* Selection always wins. One bounded worker fills the directional
+             * neighborhood only after the visible frame is resident. */
+            datalab_library_preview_prepare_window(renderer, &library_preview, image_residency,
+                                                   preview_path, preview_prefetch_path_refs,
+                                                   preview_prefetch_count, SDL_GetTicks());
 
             SDL_SetRenderDrawColor(renderer, palette.top_fill_r, palette.top_fill_g, palette.top_fill_b, 255);
             SDL_RenderFillRect(renderer, &directories);

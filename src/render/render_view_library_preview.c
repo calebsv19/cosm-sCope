@@ -87,14 +87,17 @@ void datalab_library_preview_destroy(DatalabLibraryPreview *preview) {
     preview->pending_path[0] = '\0';
 }
 
-void datalab_library_preview_prepare(SDL_Renderer *renderer,
-                                     DatalabLibraryPreview *preview,
-                                     DatalabImageResidency *residency,
-                                     const char *path,
-                                     uint32_t now_ticks) {
+void datalab_library_preview_prepare_window(SDL_Renderer *renderer,
+                                            DatalabLibraryPreview *preview,
+                                            DatalabImageResidency *residency,
+                                            const char *path,
+                                            const char *const *prefetch_paths,
+                                            size_t prefetch_count,
+                                            uint32_t now_ticks) {
     DatalabThumbnailDecodeCompletion *completion = NULL;
     DatalabImageIdentity identity = {0};
     const DatalabThumbnailResidencySlot *thumbnail = NULL;
+    int selected_ready = 0;
     if (!renderer || !preview || !residency || !path) {
         return;
     }
@@ -111,7 +114,6 @@ void datalab_library_preview_prepare(SDL_Renderer *renderer,
         preview->image_unavailable = 0u;
         memset(&preview->failed_identity, 0, sizeof(preview->failed_identity));
         datalab_thumbnail_decode_cancel(preview->decode);
-        return;
     }
     if (preview->image_ready && !datalab_image_residency_identity_is_current(&preview->displayed_identity)) {
         preview->pending_since_ticks = now_ticks;
@@ -124,20 +126,23 @@ void datalab_library_preview_prepare(SDL_Renderer *renderer,
     }
     completion = datalab_thumbnail_decode_take_current(preview->decode);
     if (completion) {
-        if (datalab_image_identity_equal(&completion->identity, &identity) && completion->result.code == CORE_OK &&
-            completion->rgba && datalab_image_residency_admit_thumbnail_pixels(residency,
-                                                                               &completion->identity,
-                                                                               completion->rgba,
-                                                                               completion->width,
-                                                                               completion->height)) {
+        const int completion_is_selected = datalab_image_identity_equal(&completion->identity, &identity);
+        if (completion->result.code == CORE_OK && completion->rgba &&
+            datalab_image_residency_identity_is_current(&completion->identity) &&
+            datalab_image_residency_admit_thumbnail_pixels(residency,
+                                                            &completion->identity,
+                                                            completion->rgba,
+                                                            completion->width,
+                                                            completion->height)) {
             completion->rgba = NULL;
-            thumbnail = datalab_image_residency_find_thumbnail(residency, &identity);
-            if (thumbnail && datalab_library_preview_adopt_texture(renderer, preview, thumbnail, &identity)) {
-                datalab_thumbnail_decode_completion_destroy(completion);
-                return;
+            if (completion_is_selected) {
+                thumbnail = datalab_image_residency_find_thumbnail(residency, &identity);
+                if (thumbnail && datalab_library_preview_adopt_texture(renderer, preview, thumbnail, &identity)) {
+                    selected_ready = 1;
+                }
             }
         }
-        if (datalab_image_identity_equal(&completion->identity, &identity)) {
+        if (completion_is_selected && !selected_ready) {
             preview->image_unavailable = 1u;
             preview->image_pending = 0u;
             preview->failed_identity = identity;
@@ -147,19 +152,50 @@ void datalab_library_preview_prepare(SDL_Renderer *renderer,
     if (preview->image_unavailable && datalab_image_identity_equal(&preview->failed_identity, &identity)) return;
     if (preview->image_ready && datalab_image_identity_equal(&preview->displayed_identity, &identity)) {
         preview->image_pending = 0u;
+        selected_ready = 1;
+    }
+    if (!selected_ready) {
+        thumbnail = datalab_image_residency_find_thumbnail(residency, &identity);
+        if (thumbnail && datalab_library_preview_adopt_texture(renderer, preview, thumbnail, &identity)) {
+            selected_ready = 1;
+        }
+    }
+    /* The selected frame bypasses debounce so held-key navigation continually
+     * retargets the latest-wins worker instead of waiting for key repeat to
+     * stop. The one-worker controller keeps CPU and queue pressure bounded. */
+    if (!selected_ready) {
+        if (!preview->decode || !datalab_thumbnail_decode_request(preview->decode,
+                                                                  identity.canonical_path,
+                                                                  DATALAB_LIBRARY_THUMBNAIL_MAX_EDGE,
+                                                                  DATALAB_LIBRARY_THUMBNAIL_MAX_BYTES)) {
+            preview->image_unavailable = 1u;
+            preview->image_pending = 0u;
+            preview->failed_identity = identity;
+        }
         return;
     }
-    thumbnail = datalab_image_residency_find_thumbnail(residency, &identity);
-    if (thumbnail && datalab_library_preview_adopt_texture(renderer, preview, thumbnail, &identity)) return;
-    if (!datalab_library_preview_debounce_ready(preview->pending_since_ticks, now_ticks)) return;
-    if (!preview->decode || !datalab_thumbnail_decode_request(preview->decode,
-                                                              identity.canonical_path,
-                                                              DATALAB_LIBRARY_THUMBNAIL_MAX_EDGE,
-                                                              DATALAB_LIBRARY_THUMBNAIL_MAX_BYTES)) {
-        preview->image_unavailable = 1u;
-        preview->image_pending = 0u;
-        preview->failed_identity = identity;
+    for (size_t i = 0u; i < prefetch_count; ++i) {
+        DatalabImageIdentity candidate = {0};
+        if (!prefetch_paths || !prefetch_paths[i] ||
+            (!datalab_input_file_is_png(prefetch_paths[i]) && !datalab_input_file_is_bmp(prefetch_paths[i])) ||
+            !datalab_image_identity_from_path(prefetch_paths[i], &candidate) ||
+            datalab_image_residency_find_thumbnail(residency, &candidate)) {
+            continue;
+        }
+        (void)datalab_thumbnail_decode_request(preview->decode,
+                                               candidate.canonical_path,
+                                               DATALAB_LIBRARY_THUMBNAIL_MAX_EDGE,
+                                               DATALAB_LIBRARY_THUMBNAIL_MAX_BYTES);
+        break;
     }
+}
+
+void datalab_library_preview_prepare(SDL_Renderer *renderer,
+                                     DatalabLibraryPreview *preview,
+                                     DatalabImageResidency *residency,
+                                     const char *path,
+                                     uint32_t now_ticks) {
+    datalab_library_preview_prepare_window(renderer, preview, residency, path, NULL, 0u, now_ticks);
 }
 
 void datalab_library_preview_draw(SDL_Renderer *renderer,

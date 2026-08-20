@@ -23,8 +23,9 @@ DataLab is a C-based data visualizer and technical artifact library for `.pack`,
 
 - Startup technical library on no-arg GUI launch (artifact/root history, `.pack`/`.bmp`/`.png` discovery, compact image preview, and pack inspector).
 - Picker image previews decode/downscale on a bounded single-flight worker;
-  rapid selection is latest-wins, cached thumbnails appear immediately, and
-  the last valid preview remains visible until its replacement is ready.
+  rapid selection immediately retargets latest-wins work, cached thumbnails
+  appear without a blank frame, and an eight-item direction-aware neighborhood
+  is prefetched after the selected image becomes resident.
 - `/` filters visible artifacts by name/type; `P` persists a selected artifact
   pin independently from automatic history.
 - PhysicsSim VF3H volume packs render their declared bounded central XY plane;

@@ -38,10 +38,12 @@ Last updated: 2026-08-17
   retain bounded picker RGBA pixels: picker textures are aspect-preserving at a
   512px maximum edge (at most 1 MiB each). Preview decode and downscale now run
   on a dedicated one-job app-local worker instead of the picker/render thread;
-  selection changes use a responsive 40ms debounce, rapid changes converge on
-  the newest identity, and canonical path/device/inode/size/mtime mismatch
-  causes a reload while the last valid preview remains visible. Only the render
-  thread admits completed pixels and creates or replaces SDL textures.
+  selected-image changes bypass debounce and immediately retarget the
+  latest-wins worker. Once selected pixels are resident, that same bounded
+  worker fills an eight-item direction-aware window (six ahead and two behind,
+  with boundary refill). Canonical path/device/inode/size/mtime mismatch causes
+  a reload while the last valid preview remains visible. Only the render thread
+  admits completed pixels and creates or replaces SDL textures.
 - W4 adds `datalab_focus_window`, an app-local catalog-index scheduler. It
   owns no decoded pixels, paths, or textures: a selection emits one selected
   intent plus a bounded direction-biased neighborhood (default radius `2`,

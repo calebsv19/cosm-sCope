@@ -45,6 +45,13 @@ void datalab_library_preview_prepare(SDL_Renderer *renderer,
                                      DatalabImageResidency *residency,
                                      const char *path,
                                      uint32_t now_ticks);
+void datalab_library_preview_prepare_window(SDL_Renderer *renderer,
+                                            DatalabLibraryPreview *preview,
+                                            DatalabImageResidency *residency,
+                                            const char *path,
+                                            const char *const *prefetch_paths,
+                                            size_t prefetch_count,
+                                            uint32_t now_ticks);
 int datalab_library_preview_thumbnail_dimensions(uint32_t source_width,
                                                  uint32_t source_height,
                                                  uint32_t *out_width,

@@ -6,6 +6,7 @@
 #include <SDL2/SDL.h>
 
 #include "app/datalab_thumbnail_decode.h"
+#include "app/datalab_thumbnail_window.h"
 #include "render/render_view_library_preview.h"
 
 static int require(int condition, const char *message) {
@@ -43,6 +44,7 @@ int main(void) {
     char root_template[] = "/private/tmp/datalab-thumbnail-decode.XXXXXX";
     char first_path[DATALAB_APP_PATH_CAP];
     char second_path[DATALAB_APP_PATH_CAP];
+    char third_path[DATALAB_APP_PATH_CAP];
     char *root = mkdtemp(root_template);
     DatalabThumbnailDecode *decode = NULL;
     DatalabThumbnailDecodeCompletion *completion = NULL;
@@ -51,12 +53,27 @@ int main(void) {
     SDL_Renderer *preview_renderer = NULL;
     DatalabImageResidency residency = {0};
     DatalabLibraryPreview preview = {0};
+    uint64_t window_indices[DATALAB_THUMBNAIL_WINDOW_MAX_CANDIDATES] = {0};
     int ok = 0;
     if (!root ||
         snprintf(first_path, sizeof(first_path), "%s/first.bmp", root) >= (int)sizeof(first_path) ||
         snprintf(second_path, sizeof(second_path), "%s/second.bmp", root) >= (int)sizeof(second_path) ||
+        snprintf(third_path, sizeof(third_path), "%s/third.bmp", root) >= (int)sizeof(third_path) ||
         !write_bmp(first_path, 1024, 512, 0xff0000ffu) ||
-        !write_bmp(second_path, 800, 1200, 0xff00ff00u)) return 1;
+        !write_bmp(second_path, 800, 1200, 0xff00ff00u) ||
+        !write_bmp(third_path, 640, 480, 0xffff0000u)) return 1;
+
+    if (!require(datalab_thumbnail_window_indices(10u, 20u, 1, window_indices, 8u) == 8u &&
+                     window_indices[0] == 11u && window_indices[5] == 16u &&
+                     window_indices[6] == 9u && window_indices[7] == 8u,
+                 "forward navigation must reserve a six-ahead, two-behind window") ||
+        !require(datalab_thumbnail_window_indices(10u, 20u, -1, window_indices, 8u) == 8u &&
+                     window_indices[0] == 9u && window_indices[5] == 4u &&
+                     window_indices[6] == 11u && window_indices[7] == 12u,
+                 "reverse navigation must mirror the directional window") ||
+        !require(datalab_thumbnail_window_indices(0u, 20u, 1, window_indices, 8u) == 8u &&
+                     window_indices[0] == 1u && window_indices[7] == 8u,
+                 "boundary windows must refill unused capacity in the viable direction")) goto cleanup;
 
     decode = datalab_thumbnail_decode_create();
     if (!require(decode != NULL, "bounded worker must initialize") ||
@@ -98,9 +115,27 @@ int main(void) {
     }
     if (!require(preview.image_ready && preview.texture && preview.width == 512u && preview.height == 256u,
                  "picker integration must asynchronously admit and upload the bounded thumbnail")) goto cleanup;
-    datalab_library_preview_prepare(preview_renderer, &preview, &residency, second_path, 2000u);
-    if (!require(preview.image_ready && preview.image_pending && preview.texture,
-                 "new selection must retain the last good texture while replacement is pending")) goto cleanup;
+    {
+        const char *prefetch_paths[] = {second_path, third_path};
+        DatalabImageIdentity second_identity = {0};
+        if (!require(datalab_image_identity_from_path(second_path, &second_identity),
+                     "prefetch test identity must resolve")) goto cleanup;
+        for (int attempt = 0;
+             attempt < 1000 && !datalab_image_residency_find_thumbnail(&residency, &second_identity);
+             ++attempt) {
+            datalab_library_preview_prepare_window(preview_renderer, &preview, &residency,
+                                                   first_path, prefetch_paths, 2u,
+                                                   2000u + (uint32_t)attempt);
+            SDL_Delay(1u);
+        }
+        if (!require(datalab_image_residency_find_thumbnail(&residency, &second_identity) != NULL,
+                     "directional neighbor must be decoded into thumbnail residency")) goto cleanup;
+        datalab_library_preview_prepare_window(preview_renderer, &preview, &residency,
+                                               second_path, NULL, 0u, 4000u);
+        if (!require(preview.image_ready && !preview.image_pending && preview.texture &&
+                         datalab_image_identity_equal(&preview.displayed_identity, &second_identity),
+                     "a buffered neighbor selection must swap immediately without a blank frame")) goto cleanup;
+    }
     ok = 1;
 
 cleanup:
@@ -112,6 +147,7 @@ cleanup:
     datalab_thumbnail_decode_destroy(decode);
     (void)unlink(first_path);
     (void)unlink(second_path);
+    (void)unlink(third_path);
     if (root) (void)rmdir(root);
     if (ok) puts("datalab thumbnail decode contract test passed");
     return ok ? 0 : 1;
