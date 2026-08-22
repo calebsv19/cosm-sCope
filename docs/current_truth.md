@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-08-17
+Last updated: 2026-08-21
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -135,7 +135,7 @@ Last updated: 2026-08-17
   - window/backend/raster texture containers are reused during stepping/autoplay.
 - The default presentation path now uses the managed shared Vulkan stack:
   - vendored `vk_runtime 0.6.0` owns Vulkan instance/device/queue identity and
-    validation lifecycle beneath `vk_renderer 1.3.1`;
+    validation lifecycle beneath `vk_renderer 1.3.2`;
   - DataLab keeps its existing SDL draw API through an app-local compatibility
     backend, uploads the stable software canvas without filtering, and presents
     at the physical high-DPI drawable size;
@@ -275,7 +275,7 @@ Last updated: 2026-08-17
     readback, resize recovery, native capture, restart, and real first-frame
     presentation from both the picker and active session;
   - the accepted source manifest SHA-256 is
-    `a060065f01676165a273a97450a29e8afff81a5d35058e4898458f5ba51d1620`.
+    `56b3146c2c667ed96b5ea884b869dbcad51013392957c8f41bafd75f60e337e4`.
 - Stable tests:
   - `make -C datalab test-stable`
   - targeted lanes:

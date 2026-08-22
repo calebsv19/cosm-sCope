@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-08-08
+Last updated: 2026-08-21
 
 ## Direction
 
@@ -18,7 +18,7 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 
 2. Continue renderer/profile-loop hardening without breaking current path contracts:
 - maintain persistent render-session reuse across file switches
-- preserve the managed `vk_runtime 0.6.0` / `vk_renderer 1.3.1` default
+- preserve the managed `vk_runtime 0.6.0` / `vk_renderer 1.3.2` default
   presentation path, its high-DPI nearest-upload compatibility canvas, and the
   explicit SDL fallback/oracle
 - keep validation, native readback/capture, resize recovery, restart, picker,

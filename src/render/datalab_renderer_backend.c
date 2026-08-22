@@ -37,6 +37,21 @@ static int datalab_backend_env_enabled(const char *name) {
                      strcmp(value, "yes") == 0);
 }
 
+static unsigned long datalab_backend_capture_frame(void) {
+    const char *value = getenv("DATALAB_VULKAN_CAPTURE_FRAME");
+    char *end = NULL;
+    unsigned long frame;
+
+    if (!value || value[0] == '\0') {
+        return 0u;
+    }
+    frame = strtoul(value, &end, 10);
+    if (!end || end == value || end[0] != '\0') {
+        return 0u;
+    }
+    return frame;
+}
+
 static int datalab_backend_vulkan_requested(void) {
     const char *value = getenv("DATALAB_RENDER_BACKEND");
     const char *video_driver = getenv("SDL_VIDEODRIVER");
@@ -243,7 +258,7 @@ int datalab_renderer_backend_present(SDL_Renderer *renderer) {
     if (!datalab_backend_sync_size(backend)) {
         return 0;
     }
-    if (backend->frame_count == 0u) {
+    if (backend->frame_count == datalab_backend_capture_frame()) {
         const char *automatic_capture = getenv("DATALAB_VULKAN_CAPTURE");
         if (automatic_capture && automatic_capture[0] &&
             vk_renderer_request_capture(&backend->vk, automatic_capture) != VK_SUCCESS) {

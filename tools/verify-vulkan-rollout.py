@@ -7,7 +7,7 @@ import struct
 import subprocess
 from pathlib import Path
 
-EXPECTED_SHARED_COMMIT = "60084f90564105983c7c74e862a299d8b6775347"
+EXPECTED_SHARED_COMMIT = "ddc0c2b1420d95132ef089e68e2ce7728fbc53a4"
 
 
 def output(command: list[str], cwd: Path) -> str:
@@ -171,6 +171,7 @@ def run_actual_hosts(app: Path, default_pack: Path, evidence_root: Path,
 
     picker_env = env.copy()
     picker_env["DATALAB_VULKAN_CAPTURE"] = str(picker_native.resolve())
+    picker_env["DATALAB_VULKAN_CAPTURE_FRAME"] = "1"
     picker_env["DATALAB_PICKER_PROOF_EXIT"] = "1"
     picker = subprocess.run([str(app.resolve())], env=picker_env, text=True,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -218,7 +219,7 @@ def main() -> int:
     verify_adoption(args.repo_root.resolve())
     runtime = version(args.shared_root / "vk_runtime/VERSION")
     renderer = version(args.shared_root / "vk_renderer/VERSION")
-    if runtime != (0, 6, 0) or renderer != (1, 3, 1):
+    if runtime != (0, 6, 0) or renderer != (1, 3, 2):
         raise SystemExit(f"unexpected Vulkan versions: runtime={runtime} renderer={renderer}")
     if args.app:
         if not args.initial_capture or not args.resized_capture or not args.log:
@@ -236,7 +237,7 @@ def main() -> int:
         run_actual_hosts(args.app, args.default_pack, args.log.parent, args.shader_root)
     print("DataLab Vulkan rollout contract: "
           f"canonical_commit={EXPECTED_SHARED_COMMIT} "
-          f"source_manifest_sha256={manifest} vk_runtime=0.6.0 vk_renderer=1.3.1")
+          f"source_manifest_sha256={manifest} vk_runtime=0.6.0 vk_renderer=1.3.2")
     return 0
 
 

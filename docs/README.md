@@ -17,7 +17,7 @@ Start here for public repository documentation.
   the source-render `visual-artifact` target, not the manual `visual-harness`
   readiness gate.
 - DataLab now defaults to the managed vendored `vk_runtime 0.6.0` plus
-  `vk_renderer 1.3.1` presentation stack through a high-DPI SDL compatibility
+  `vk_renderer 1.3.2` presentation stack through a high-DPI SDL compatibility
   canvas. `DATALAB_RENDER_BACKEND=sdl` remains the explicit fallback/oracle.
 
 ## Verification Entry Points
