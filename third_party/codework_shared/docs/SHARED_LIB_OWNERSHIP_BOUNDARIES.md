@@ -19,7 +19,9 @@ This document defines what each shared library owns so behavior does not overlap
 - `core_wake`: cross-thread wake/wait abstraction for kernel orchestration.
 - `core_kernel`: runtime phase orchestration and module lifecycle policy.
 - `core_scene`: scene schema and scene-level object grouping/state metadata.
-- `core_scene_compile`: shared authoring-to-runtime scene compile and normalization boundary.
+- `core_scene_compile`: shared authoring-to-runtime scene compile,
+  normalization, content-addressed dependency payload publication, and bundle
+  verification boundary; apps retain discovery and dependency-kind meaning.
 - `core_scene_view`: renderer-free scene-view packet schema/readback vocabulary, including preview quality, degraded reason, display flags, pick ids, compact JSON readback validation, and compact summary derivation from validated readback metadata.
 - `core_mesh_preview`: viewport-safe runtime mesh preview sidecar contract,
   bounded feature-edge payload generation, local bounds/source-count metadata,
