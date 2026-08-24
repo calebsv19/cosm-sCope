@@ -417,9 +417,11 @@ Last updated: 2026-08-21
   `vk_renderer 1.3.3` owns render-finished semaphores per swapchain image and
   recreates them with the swapchain. Its expanded eight-frame live test passes
   with Vulkan validation enabled, including resize and capture.
-- Final stable/headless/package verification for this native-image slice is
-  recorded after the targeted `vk_renderer 1.3.3` adoption. No DataLab release
-  version bump, publication, or Linux-PC rollout is part of this lane.
+- After the targeted `vk_renderer 1.3.3` adoption, the manifest clean build and
+  full test command, `test-stable`, headless smoke, desktop package refresh,
+  and package self-test all pass. The validation-required real-image proof also
+  passes with zero warnings/errors. No DataLab release version bump,
+  publication, or Linux-PC rollout is part of this lane.
 - Current library boundary: VF3H is renderable only as its declared central
   XY slice. GrowthSim and LineDrawing are still inspection-only families;
   their future adapters must not be described as current visualization support.
