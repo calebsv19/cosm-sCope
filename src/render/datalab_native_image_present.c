@@ -1,42 +1,6 @@
 #include "render/datalab_native_image_present.h"
 
-#include <stdlib.h>
 #include <string.h>
-
-static int datalab_native_image_shadow_store(DatalabNativeImagePresent *present,
-                                             const SDL_Surface *surface,
-                                             uint32_t width,
-                                             uint32_t height) {
-    size_t row_bytes;
-    size_t total_bytes;
-    uint8_t *resized;
-    uint32_t row;
-    if (!present || !surface || !surface->pixels || width == 0u || height == 0u ||
-        (size_t)width > SIZE_MAX / 4u) {
-        return 0;
-    }
-    row_bytes = (size_t)width * 4u;
-    if ((size_t)surface->pitch < row_bytes || (size_t)height > SIZE_MAX / row_bytes) {
-        return 0;
-    }
-    total_bytes = row_bytes * (size_t)height;
-    if (present->overlay_shadow_size != total_bytes) {
-        resized = (uint8_t *)realloc(present->overlay_shadow, total_bytes);
-        if (!resized) {
-            return 0;
-        }
-        present->overlay_shadow = resized;
-        present->overlay_shadow_size = total_bytes;
-    }
-    for (row = 0u; row < height; ++row) {
-        memcpy(present->overlay_shadow + ((size_t)row * row_bytes),
-               (const uint8_t *)surface->pixels + ((size_t)row * (size_t)surface->pitch),
-               row_bytes);
-    }
-    present->overlay_width = width;
-    present->overlay_height = height;
-    return 1;
-}
 
 static uint64_t datalab_native_image_rgba_bytes(uint32_t width, uint32_t height) {
     return (uint64_t)width * (uint64_t)height * 4u;
@@ -50,17 +14,25 @@ VkResult datalab_native_image_present_prepare(DatalabNativeImagePresent *present
                                               uint64_t content_generation,
                                               int sampling_mode,
                                               const SDL_Rect *destination,
-                                              int checkerboard_enabled) {
+                                              int checkerboard_enabled,
+                                              const DatalabImageOverlayIdentity *overlay_identity,
+                                              int *out_overlay_redraw_required) {
     DatalabNativeImageIdentity requested = {
         width, height, content_generation, sampling_mode, 1
     };
     DatalabNativeImageFrameDecision decision = {0};
     VkResult result;
-    if (!present || !renderer || !pixels || !destination || destination->w <= 0 ||
+    if (out_overlay_redraw_required) {
+        *out_overlay_redraw_required = 0;
+    }
+    if (!present || !renderer || !pixels || !destination || !overlay_identity ||
+        !overlay_identity->valid || destination->w <= 0 ||
         destination->h <= 0 ||
         !datalab_native_image_plan_frame(&present->resident_identity,
                                          &requested,
-                                         1,
+                                         datalab_image_overlay_identity_equal(
+                                             &present->resident_overlay_identity,
+                                             overlay_identity),
                                          &decision)) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
@@ -90,7 +62,12 @@ VkResult datalab_native_image_present_prepare(DatalabNativeImagePresent *present
     }
     present->destination = *destination;
     present->checkerboard_enabled = checkerboard_enabled ? 1 : 0;
+    present->requested_overlay_identity = *overlay_identity;
+    present->overlay_redraw_required = decision.upload_overlay;
     present->frame_active = 1;
+    if (out_overlay_redraw_required) {
+        *out_overlay_redraw_required = decision.upload_overlay;
+    }
     return VK_SUCCESS;
 }
 
@@ -102,7 +79,6 @@ VkResult datalab_native_image_present_sync_overlay(DatalabNativeImagePresent *pr
                                                    uint32_t height,
                                                    int *out_uploaded,
                                                    uint64_t *out_upload_bytes) {
-    int overlay_equal;
     VkResult result;
     if (out_uploaded) {
         *out_uploaded = 0;
@@ -114,16 +90,9 @@ VkResult datalab_native_image_present_sync_overlay(DatalabNativeImagePresent *pr
         !overlay_surface->pixels || width == 0u || height == 0u) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
-    overlay_equal = datalab_native_image_overlay_equal(present->overlay_shadow,
-                                                       present->overlay_shadow_size,
-                                                       present->overlay_width,
-                                                       present->overlay_height,
-                                                       overlay_surface->pixels,
-                                                       (size_t)overlay_surface->pitch,
-                                                       width,
-                                                       height);
-    if (overlay_equal) {
+    if (!present->overlay_redraw_required) {
         present->stats.overlay_reuse_count += 1u;
+        present->stats.overlay_redraw_reuse_count += 1u;
         return VK_SUCCESS;
     }
     result = vk_renderer_texture_update_rgba_subrect(renderer,
@@ -137,12 +106,10 @@ VkResult datalab_native_image_present_sync_overlay(DatalabNativeImagePresent *pr
     if (result != VK_SUCCESS) {
         return result;
     }
-    if (!datalab_native_image_shadow_store(present, overlay_surface, width, height)) {
-        datalab_native_image_present_invalidate_overlay(present);
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
+    present->resident_overlay_identity = present->requested_overlay_identity;
     present->stats.overlay_upload_count += 1u;
     present->stats.overlay_upload_bytes += datalab_native_image_rgba_bytes(width, height);
+    present->stats.overlay_redraw_count += 1u;
     if (out_uploaded) {
         *out_uploaded = 1;
     }
@@ -246,8 +213,11 @@ void datalab_native_image_present_invalidate_overlay(DatalabNativeImagePresent *
     if (!present) {
         return;
     }
-    present->overlay_width = 0u;
-    present->overlay_height = 0u;
+    memset(&present->resident_overlay_identity, 0,
+           sizeof(present->resident_overlay_identity));
+    memset(&present->requested_overlay_identity, 0,
+           sizeof(present->requested_overlay_identity));
+    present->overlay_redraw_required = 1;
 }
 
 void datalab_native_image_present_destroy(DatalabNativeImagePresent *present,
@@ -258,7 +228,6 @@ void datalab_native_image_present_destroy(DatalabNativeImagePresent *present,
     if (renderer && present->image_texture_initialized) {
         vk_renderer_texture_destroy(renderer, &present->image_texture);
     }
-    free(present->overlay_shadow);
     memset(present, 0, sizeof(*present));
 }
 

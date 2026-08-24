@@ -432,7 +432,9 @@ int datalab_renderer_backend_prepare_native_image(SDL_Renderer *renderer,
                                                   uint64_t resource_generation,
                                                   int sampling_mode,
                                                   const SDL_Rect *destination,
-                                                  int checkerboard_enabled) {
+                                                  int checkerboard_enabled,
+                                                  const DatalabImageOverlayIdentity *overlay_identity,
+                                                  int *out_overlay_redraw_required) {
     DatalabRendererBackend *backend = &g_datalab_backend;
     const DatalabNativeImagePresentStats *stats;
     VkResult result;
@@ -448,7 +450,9 @@ int datalab_renderer_backend_prepare_native_image(SDL_Renderer *renderer,
                                                   content_generation,
                                                   sampling_mode,
                                                   destination,
-                                                  checkerboard_enabled);
+                                                  checkerboard_enabled,
+                                                  overlay_identity,
+                                                  out_overlay_redraw_required);
     if (result != VK_SUCCESS) {
         return -1;
     }
@@ -467,12 +471,15 @@ int datalab_renderer_backend_native_image_counters(SDL_Renderer *renderer,
                                                    uint64_t *image_upload_count,
                                                    uint64_t *image_reuse_count,
                                                    uint64_t *overlay_upload_count,
-                                                   uint64_t *overlay_reuse_count) {
+                                                   uint64_t *overlay_reuse_count,
+                                                   uint64_t *overlay_redraw_count,
+                                                   uint64_t *overlay_redraw_reuse_count) {
     DatalabRendererBackend *backend = &g_datalab_backend;
     const DatalabNativeImagePresentStats *stats;
     if (!renderer || renderer != backend->canvas ||
         backend->kind != DATALAB_RENDERER_BACKEND_VULKAN || !image_upload_count ||
-        !image_reuse_count || !overlay_upload_count || !overlay_reuse_count) {
+        !image_reuse_count || !overlay_upload_count || !overlay_reuse_count ||
+        !overlay_redraw_count || !overlay_redraw_reuse_count) {
         return 0;
     }
     stats = datalab_native_image_present_stats(&backend->native_image);
@@ -483,6 +490,8 @@ int datalab_renderer_backend_native_image_counters(SDL_Renderer *renderer,
     *image_reuse_count = stats->image_reuse_count;
     *overlay_upload_count = stats->overlay_upload_count;
     *overlay_reuse_count = stats->overlay_reuse_count;
+    *overlay_redraw_count = stats->overlay_redraw_count;
+    *overlay_redraw_reuse_count = stats->overlay_redraw_reuse_count;
     return 1;
 }
 

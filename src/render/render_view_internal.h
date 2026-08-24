@@ -271,6 +271,7 @@ int datalab_session_controls_mouse_enabled(const DatalabAppState *app_state);
 size_t datalab_session_controls_file_count(void);
 const char *datalab_session_controls_catalog_status(void);
 const char *datalab_session_controls_selected_file_name(const DatalabAppState *app_state);
+uint64_t datalab_session_controls_visual_revision(const DatalabAppState *app_state);
 void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *app_state);
 CoreResult datalab_trace_graph_draw_shared(SDL_Renderer *renderer,
                                            int frame_width,

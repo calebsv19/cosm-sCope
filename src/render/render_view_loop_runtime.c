@@ -230,6 +230,8 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
     uint64_t proof_image_reuse_baseline = 0u;
     uint64_t proof_overlay_upload_baseline = 0u;
     uint64_t proof_overlay_reuse_baseline = 0u;
+    uint64_t proof_overlay_redraw_baseline = 0u;
+    uint64_t proof_overlay_redraw_reuse_baseline = 0u;
     if (!window || !renderer || !frame || !app_state || !ops || !ops->render_step) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid datalab loop profile request" };
     }
@@ -276,12 +278,16 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
                     uint64_t image_reuse_count = 0u;
                     uint64_t overlay_upload_count = 0u;
                     uint64_t overlay_reuse_count = 0u;
+                    uint64_t overlay_redraw_count = 0u;
+                    uint64_t overlay_redraw_reuse_count = 0u;
                     if (!datalab_renderer_backend_native_image_counters(
                             renderer,
                             &image_upload_count,
                             &image_reuse_count,
                             &overlay_upload_count,
-                            &overlay_reuse_count)) {
+                            &overlay_reuse_count,
+                            &overlay_redraw_count,
+                            &overlay_redraw_reuse_count)) {
                         return (CoreResult){CORE_ERR_IO,
                                            "native image reuse proof requires Vulkan image counters"};
                     }
@@ -294,6 +300,8 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
                         proof_image_reuse_baseline = image_reuse_count;
                         proof_overlay_upload_baseline = overlay_upload_count;
                         proof_overlay_reuse_baseline = overlay_reuse_count;
+                        proof_overlay_redraw_baseline = overlay_redraw_count;
+                        proof_overlay_redraw_reuse_baseline = overlay_redraw_reuse_count;
                         SDL_GetWindowSize(window, &window_width, &window_height);
                         SDL_WarpMouseInWindow(window, window_width / 2, window_height / 2);
                         zoom_event.type = SDL_MOUSEWHEEL;
@@ -313,17 +321,25 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
                             overlay_upload_count - proof_overlay_upload_baseline;
                         const uint64_t overlay_reuse_delta =
                             overlay_reuse_count - proof_overlay_reuse_baseline;
+                        const uint64_t overlay_redraw_delta =
+                            overlay_redraw_count - proof_overlay_redraw_baseline;
+                        const uint64_t overlay_redraw_reuse_delta =
+                            overlay_redraw_reuse_count - proof_overlay_redraw_reuse_baseline;
                         const int passed = image_upload_delta == 0u &&
                                            overlay_upload_delta == 0u &&
+                                           overlay_redraw_delta == 0u &&
                                            image_reuse_delta >= 1u &&
-                                           overlay_reuse_delta >= 1u;
+                                           overlay_reuse_delta >= 1u &&
+                                           overlay_redraw_reuse_delta >= 1u;
                         fprintf(stdout,
-                                "DATALAB_NATIVE_IMAGE_REUSE schema=1 status=%s image_upload_delta=%llu image_reuse_delta=%llu compatibility_upload_delta=%llu overlay_reuse_delta=%llu\n",
+                                "DATALAB_NATIVE_IMAGE_REUSE schema=2 status=%s image_upload_delta=%llu image_reuse_delta=%llu compatibility_upload_delta=%llu overlay_reuse_delta=%llu overlay_redraw_delta=%llu overlay_redraw_reuse_delta=%llu\n",
                                 passed ? "pass" : "fail",
                                 (unsigned long long)image_upload_delta,
                                 (unsigned long long)image_reuse_delta,
                                 (unsigned long long)overlay_upload_delta,
-                                (unsigned long long)overlay_reuse_delta);
+                                (unsigned long long)overlay_reuse_delta,
+                                (unsigned long long)overlay_redraw_delta,
+                                (unsigned long long)overlay_redraw_reuse_delta);
                         if (!passed) {
                             return (CoreResult){CORE_ERR_IO,
                                                "native image stable zoom performed an upload"};

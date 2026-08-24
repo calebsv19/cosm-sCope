@@ -17,6 +17,25 @@ static DatalabPackPanelCache g_pack_panel_cache;
 static DatalabInputCatalog g_fallback_input_catalog;
 static DatalabRecentInputRootUiState g_recent_input_root_ui;
 
+static uint64_t datalab_session_visual_hash_bytes(uint64_t hash,
+                                                  const void *bytes,
+                                                  size_t size) {
+    const uint8_t *cursor = (const uint8_t *)bytes;
+    size_t i;
+    for (i = 0u; bytes && i < size; ++i) {
+        hash ^= cursor[i];
+        hash *= UINT64_C(1099511628211);
+    }
+    return hash;
+}
+
+static uint64_t datalab_session_visual_hash_string(uint64_t hash,
+                                                   const char *value) {
+    const size_t length = value ? strlen(value) : 0u;
+    hash = datalab_session_visual_hash_bytes(hash, &length, sizeof(length));
+    return datalab_session_visual_hash_bytes(hash, value, length);
+}
+
 static int datalab_clamp_int(int value, int min_value, int max_value) {
     if (value < min_value) return min_value;
     if (value > max_value) return max_value;
@@ -232,6 +251,28 @@ const char *datalab_session_controls_selected_file_name(const DatalabAppState *a
                                         selected_name, sizeof(selected_name))) return selected_name;
     return app_state->panel_selected_index < DATALAB_PANEL_VISIBLE_WINDOW
                ? g_pack_panel_cache.files[app_state->panel_selected_index] : "";
+}
+
+uint64_t datalab_session_controls_visual_revision(const DatalabAppState *app_state) {
+    uint64_t hash = UINT64_C(1469598103934665603);
+    const uint64_t file_count = (uint64_t)g_pack_panel_cache.file_count;
+    const uint64_t refresh_count = (uint64_t)g_pack_panel_cache.refresh_count;
+    const uint64_t catalog_generation = g_pack_panel_cache.source_catalog
+                                            ? g_pack_panel_cache.source_catalog->generation
+                                            : 0u;
+    if (!app_state) {
+        return 0u;
+    }
+    hash = datalab_session_visual_hash_bytes(hash, &file_count, sizeof(file_count));
+    hash = datalab_session_visual_hash_bytes(hash, &refresh_count, sizeof(refresh_count));
+    hash = datalab_session_visual_hash_bytes(hash,
+                                             &catalog_generation,
+                                             sizeof(catalog_generation));
+    hash = datalab_session_visual_hash_string(hash, g_pack_panel_cache.scanned_root);
+    hash = datalab_session_visual_hash_string(hash, g_pack_panel_cache.status);
+    hash = datalab_session_visual_hash_string(
+        hash, datalab_session_controls_selected_file_name(app_state));
+    return hash;
 }
 
 int datalab_session_controls_route_mouse_event(SDL_Window *window,

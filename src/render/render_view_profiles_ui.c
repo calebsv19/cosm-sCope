@@ -1,5 +1,6 @@
 #include "render/render_view_internal.h"
 #include "render/datalab_render_perf_diag.h"
+#include "render/datalab_image_overlay_identity.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -893,6 +894,10 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
                                         DatalabRenderSubmitOutcome *outcome) {
     uint64_t software_begin = 0u;
     int native_image_status = 0;
+    int native_overlay_redraw = 0;
+    int output_width = 0;
+    int output_height = 0;
+    DatalabImageOverlayIdentity overlay_identity = {0};
     if (!outcome) {
         return;
     }
@@ -916,6 +921,23 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
     if (frame->profile == DATALAB_PROFILE_IMAGE) {
         datalab_raster_texture_state_note_content_generation(
             texture_state, frame->raster_content_generation);
+        if (datalab_renderer_backend_kind(renderer) == DATALAB_RENDERER_BACKEND_VULKAN &&
+            (datalab_renderer_backend_output_size(renderer,
+                                                  &output_width,
+                                                  &output_height) != 0 ||
+             !datalab_image_overlay_identity_build(
+                 frame,
+                 app_state,
+                 (uint32_t)output_width,
+                 (uint32_t)output_height,
+                 datalab_session_controls_visual_revision(app_state),
+                 &overlay_identity))) {
+            datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                               software_begin);
+            outcome->result = (CoreResult){CORE_ERR_IO,
+                                           "native Vulkan overlay identity failed"};
+            return;
+        }
         native_image_status = datalab_renderer_backend_prepare_native_image(
             renderer,
             frame->drawing_rgba,
@@ -923,9 +945,11 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
             frame->height,
             texture_state->content_generation,
             texture_state->resource_generation,
-            (int)app_state->sampling_mode,
+            app_state->sampling_mode == DATALAB_SAMPLING_MODE_LINEAR ? 1 : 0,
             &derive->dst,
-            app_state->raster_alpha_checkerboard);
+            app_state->raster_alpha_checkerboard,
+            &overlay_identity,
+            &native_overlay_redraw);
         if (native_image_status < 0) {
             datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
                                                software_begin);
@@ -935,16 +959,14 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
         }
     }
     if (native_image_status > 0) {
-        int output_width = 0;
-        int output_height = 0;
         SDL_Rect drawable = {0};
-        datalab_renderer_backend_output_size(renderer, &output_width, &output_height);
         drawable.w = output_width;
         drawable.h = output_height;
-        if (SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE) != 0 ||
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0) != 0 ||
-            SDL_RenderFillRect(renderer, &drawable) != 0 ||
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND) != 0) {
+        if (native_overlay_redraw &&
+            (SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE) != 0 ||
+             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0) != 0 ||
+             SDL_RenderFillRect(renderer, &drawable) != 0 ||
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND) != 0)) {
             datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
                                                software_begin);
             outcome->result = (CoreResult){CORE_ERR_IO,
@@ -982,9 +1004,12 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
                                            software_begin);
         return;
     }
-    datalab_draw_recent_input_root_header(renderer, app_state);
-    datalab_draw_session_controls(renderer, app_state);
-    if (frame->profile == DATALAB_PROFILE_IMAGE) {
+    if (native_image_status == 0 || native_overlay_redraw) {
+        datalab_draw_recent_input_root_header(renderer, app_state);
+        datalab_draw_session_controls(renderer, app_state);
+    }
+    if ((native_image_status == 0 || native_overlay_redraw) &&
+        frame->profile == DATALAB_PROFILE_IMAGE) {
         char inspection[256];
         const char *format = frame->image_metadata.format == DATALAB_IMAGE_FORMAT_PNG ? "PNG" : "BMP";
         const char *transfer = frame->image_metadata.transfer == DATALAB_IMAGE_TRANSFER_ICC_UNTRANSFORMED ? "ICC present; raw/untransformed" :
@@ -1004,8 +1029,10 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
             draw_text_5x7(renderer, 12, 24, inspection, 1, 255, 235, 150, 255);
         }
     }
-    datalab_draw_playback_hud(renderer, app_state);
-    datalab_draw_workspace_authoring_overlay(renderer, app_state);
+    if (native_image_status == 0 || native_overlay_redraw) {
+        datalab_draw_playback_hud(renderer, app_state);
+        datalab_draw_workspace_authoring_overlay(renderer, app_state);
+    }
     SDL_SetWindowTitle(window, derive->common.title);
     datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
                                        software_begin);

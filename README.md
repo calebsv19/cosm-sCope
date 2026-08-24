@@ -185,11 +185,14 @@ render or upload policy.
 The Vulkan image profile now keeps the decoded source image in a persistent
 native texture. Zoom and pan change only destination geometry; they do not
 re-upload the image. The SDL-rendered HUD/authoring layer is retained as a
-transparent overlay and uploaded only when its pixels change. Set
+transparent overlay with an explicit app-owned content identity. When that
+identity is unchanged, Scope skips the software clear/redraw, CPU byte
+comparison, and Vulkan overlay upload. Set
 `DATALAB_NATIVE_IMAGE_REUSE_PROOF=1` with the validation-required Vulkan
 environment to run a bounded two-frame proof: Scope injects one cursor-centered
-wheel event, requires zero image and compatibility-overlay uploads on the
-resulting frame, prints a `DATALAB_NATIVE_IMAGE_REUSE` receipt, and exits.
+wheel event, requires zero image uploads, overlay redraws, and compatibility-
+overlay uploads on the resulting frame, prints a
+`DATALAB_NATIVE_IMAGE_REUSE` receipt, and exits.
 Non-Vulkan backends and non-image profiles retain the compatibility path.
 
 `test-stable` also includes a loop-policy contract lane for broader visual runtime coordination:

@@ -3,6 +3,8 @@
 
 #include <SDL2/SDL.h>
 
+#include "render/datalab_image_overlay_identity.h"
+
 typedef enum DatalabRendererBackendKind {
     DATALAB_RENDERER_BACKEND_SDL = 0,
     DATALAB_RENDERER_BACKEND_VULKAN = 1
@@ -36,12 +38,16 @@ int datalab_renderer_backend_prepare_native_image(SDL_Renderer *renderer,
                                                   uint64_t resource_generation,
                                                   int sampling_mode,
                                                   const SDL_Rect *destination,
-                                                  int checkerboard_enabled);
+                                                  int checkerboard_enabled,
+                                                  const DatalabImageOverlayIdentity *overlay_identity,
+                                                  int *out_overlay_redraw_required);
 int datalab_renderer_backend_native_image_counters(SDL_Renderer *renderer,
                                                    uint64_t *image_upload_count,
                                                    uint64_t *image_reuse_count,
                                                    uint64_t *overlay_upload_count,
-                                                   uint64_t *overlay_reuse_count);
+                                                   uint64_t *overlay_reuse_count,
+                                                   uint64_t *overlay_redraw_count,
+                                                   uint64_t *overlay_redraw_reuse_count);
 int datalab_renderer_backend_request_capture(SDL_Renderer *renderer, const char *path);
 int datalab_renderer_backend_verify(SDL_Renderer *renderer,
                                     const char *stage,

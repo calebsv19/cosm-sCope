@@ -404,15 +404,22 @@ Last updated: 2026-08-21
   receipts, not portable performance claims.
 - The image session now owns a persistent native Vulkan source texture.
   Content-stable zoom and pan update destination geometry without recreating or
-  re-uploading that texture. The transparent SDL HUD/authoring overlay is
-  shadowed at drawable size and uploaded only when its pixels change; the SDL
-  and non-image-profile compatibility paths remain intact.
+  re-uploading that texture. The transparent SDL HUD/authoring overlay now has
+  an app-owned identity covering its visible state and drawable extent, but not
+  viewport zoom/pan geometry. An identity-stable frame skips the software
+  clear/redraw, the former full-drawable CPU byte comparison, and the Vulkan
+  overlay upload; SDL and non-image-profile compatibility paths remain intact.
 - The bounded validation proof loads a real image and injects one
   cursor-centered wheel event. Its second frame reports
   `image_upload_delta=0`, `compatibility_upload_delta=0`,
-  `image_reuse_delta=1`, and `overlay_reuse_delta=1`. The aggregate three-frame
+  `overlay_redraw_delta=0`, `image_reuse_delta=1`, `overlay_reuse_delta=1`, and
+  `overlay_redraw_reuse_delta=1`. The aggregate three-frame
   receipt reports one 17,356,864-byte source upload and one 17,280,000-byte
   overlay upload rather than one full drawable upload per frame.
+- Native sampling is normalized at the app/backend boundary: Scope's
+  `default/nearest/linear` state maps to the native renderer's canonical
+  `nearest/linear` identity, so selecting Linear cannot be rejected as an
+  invalid native-image request.
 - That proof exposed and then closed a shared renderer lifecycle defect:
   `vk_renderer 1.3.3` owns render-finished semaphores per swapchain image and
   recreates them with the swapchain. Its expanded eight-frame live test passes
