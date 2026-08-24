@@ -925,6 +925,12 @@ VkResult vk_renderer_recreate_swapchain(VkRenderer* renderer, SDL_Window* window
         vk_renderer_context_recreate_swapchain(&renderer->context, window, &renderer->config);
     if (result != VK_SUCCESS) return result;
 
+    result = vk_renderer_commands_recreate_present_semaphores(
+        renderer,
+        &renderer->command_pool,
+        renderer->context.swapchain.image_count);
+    if (result != VK_SUCCESS) return result;
+
     result = vk_renderer_pipeline_create_all(&renderer->context, renderer->render_pass,
                                              renderer->sampler_set_layout,
                                              renderer->context.device->pipeline_cache,

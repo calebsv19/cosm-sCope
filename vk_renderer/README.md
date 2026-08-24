@@ -22,7 +22,7 @@ lifecycle management.
 ## Versioning
 
 - Module version source of truth: `shared/vk_renderer/VERSION`
-- Current version: `1.3.1`
+- Current version: `1.3.3`
 - `1.0.0` behavior note: debug capture is opt-in only and runs only when `vk_renderer_request_capture(...)` is called.
 - `1.1.0` behavior note: long-lived textures can now be updated in place through `vk_renderer_texture_update_rgba_subrect(...)` for bounded dirty-rect preview workflows without recreating whole textures every frame.
 - `1.1.1` behavior note: debug frame capture now normalizes SDL surface creation and channel ordering for both RGBA and BGRA source paths so saved captures are consistent across swapchain formats.
@@ -40,6 +40,13 @@ lifecycle management.
 - `1.3.1` compatibility note: restores the public
   `vk_renderer_draw_line_mesh_affine_tinted(...)` wrapper lost during the
   lifecycle rebase while preserving the untinted affine entry point.
+- `1.3.2` shader-discovery note: the renderer checks the runtime environment
+  root before its build-time source root when resolving packaged shaders.
+- `1.3.3` presentation-lifetime note: render-finished semaphores are owned per
+  swapchain image and recreated with the swapchain. Reacquiring that image is
+  now the proof that presentation has finished consuming its semaphore, so
+  multi-frame rendering no longer re-signals a semaphore still held by the
+  presentation engine.
 
 ## Layout
 

@@ -95,6 +95,12 @@ This is not an implementation guide.
 **Responsibilities:**
 - Compile `scene_authoring_v1` payloads into `scene_runtime_v1`
 - Emit deterministic runtime envelope order and compile metadata
+- Bind compiler/normalization versions and SHA-256 authoring/dependency inputs
+- Publish create-only authoring/runtime/receipt bundles, including an optional
+  app-owned package entrypoint, through one atomic directory rename
+- Derive and materialize content-addressed dependency payload paths inside the
+  atomic publication transaction
+- Verify package-entrypoint and dependency-payload bytes, digests, and no-follow containment
 - Validate canonical primitive payloads for known primitive object kinds
 - Preserve unknown extension namespaces while stripping authoring-only lanes from runtime contract
 
@@ -102,6 +108,8 @@ This is not an implementation guide.
 - No app UI/editor behavior
 - No renderer/solver policy ownership
 - No app-specific override semantics
+- No dependency discovery, dependency-kind interpretation, or
+  simulation/render promotion policy
 
 ---
 
