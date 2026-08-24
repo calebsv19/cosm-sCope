@@ -2,31 +2,10 @@
 
 #include <math.h>
 
+#include "render/datalab_renderer_backend.h"
+
 static int datalab_zoom_modifier_active(SDL_Keymod mods) {
     return ((mods & KMOD_CTRL) != 0) || ((mods & KMOD_GUI) != 0);
-}
-
-static int datalab_map_window_to_renderer_point(SDL_Window *window,
-                                                SDL_Renderer *renderer,
-                                                int window_x,
-                                                int window_y,
-                                                int *out_render_x,
-                                                int *out_render_y) {
-    int window_w = 0;
-    int window_h = 0;
-    int render_w = 0;
-    int render_h = 0;
-    if (!window || !renderer || !out_render_x || !out_render_y) {
-        return 0;
-    }
-    SDL_GetWindowSize(window, &window_w, &window_h);
-    SDL_GetRendererOutputSize(renderer, &render_w, &render_h);
-    if (window_w <= 0 || window_h <= 0 || render_w <= 0 || render_h <= 0) {
-        return 0;
-    }
-    *out_render_x = (int)lroundf(((float)window_x / (float)window_w) * (float)render_w);
-    *out_render_y = (int)lroundf(((float)window_y / (float)window_h) * (float)render_h);
-    return 1;
 }
 
 int datalab_handle_mouse_event(SDL_Window *window,
@@ -53,7 +32,12 @@ int datalab_handle_mouse_event(SDL_Window *window,
                 return 0;
             }
             SDL_GetMouseState(&mouse_x, &mouse_y);
-            if (!datalab_map_window_to_renderer_point(window, renderer, mouse_x, mouse_y, &render_x, &render_y)) {
+            if (!datalab_renderer_backend_map_window_to_drawable_point(window,
+                                                                       renderer,
+                                                                       mouse_x,
+                                                                       mouse_y,
+                                                                       &render_x,
+                                                                       &render_y)) {
                 return 0;
             }
             zoom_factor = powf(1.15f, (float)event->wheel.y);
@@ -72,12 +56,12 @@ int datalab_handle_mouse_event(SDL_Window *window,
             if (event->button.button != SDL_BUTTON_LEFT || !viewport_state->valid) {
                 return 0;
             }
-            if (!datalab_map_window_to_renderer_point(window,
-                                                      renderer,
-                                                      event->button.x,
-                                                      event->button.y,
-                                                      &render_x,
-                                                      &render_y)) {
+            if (!datalab_renderer_backend_map_window_to_drawable_point(window,
+                                                                       renderer,
+                                                                       event->button.x,
+                                                                       event->button.y,
+                                                                       &render_x,
+                                                                       &render_y)) {
                 return 0;
             }
             datalab_raster_probe_at_screen(state, render_x, render_y);
@@ -92,12 +76,12 @@ int datalab_handle_mouse_event(SDL_Window *window,
             if (!viewport_state->drag_active || (event->motion.state & SDL_BUTTON_LMASK) == 0 || !viewport_state->valid) {
                 return 0;
             }
-            if (!datalab_map_window_to_renderer_point(window,
-                                                      renderer,
-                                                      event->motion.x,
-                                                      event->motion.y,
-                                                      &render_x,
-                                                      &render_y)) {
+            if (!datalab_renderer_backend_map_window_to_drawable_point(window,
+                                                                       renderer,
+                                                                       event->motion.x,
+                                                                       event->motion.y,
+                                                                       &render_x,
+                                                                       &render_y)) {
                 return 0;
             }
             return datalab_raster_viewport_drag_to(viewport_state, render_x, render_y);

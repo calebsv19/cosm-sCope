@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #include "render/datalab_renderer_backend.h"
+#include "render/datalab_render_perf_diag.h"
 
 static const char *datalab_rollout_path(const char *name, const char *fallback) {
     const char *value = getenv(name);
@@ -30,14 +31,23 @@ static int datalab_rollout_draw(SDL_Renderer *renderer, const char *capture_path
     SDL_Rect list;
     SDL_Rect graph;
     SDL_Rect inspector;
+    uint64_t software_begin = 0u;
 
     if (!renderer ||
         datalab_renderer_backend_output_size(renderer, &width, &height) != 0 ||
         width < 1 || height < 1) {
         return 0;
     }
+    datalab_render_perf_diag_begin_frame(-1, 1u, 0u, 0u);
+    software_begin = datalab_render_perf_diag_stage_begin(
+        DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT);
     SDL_SetRenderDrawColor(renderer, 10u, 13u, 20u, 255u);
     if (SDL_RenderClear(renderer) != 0) {
+        datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                           software_begin);
+        datalab_render_perf_diag_finish(0,
+                                        DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                        -1);
         return 0;
     }
     header = (SDL_Rect){width / 24, height / 24, width * 11 / 12, height / 10};
@@ -65,8 +75,15 @@ static int datalab_rollout_draw(SDL_Renderer *renderer, const char *capture_path
                        graph.y + graph.h / 2);
     if (capture_path &&
         !datalab_renderer_backend_request_capture(renderer, capture_path)) {
+        datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                           software_begin);
+        datalab_render_perf_diag_finish(0,
+                                        DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                        -2);
         return 0;
     }
+    datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                       software_begin);
     return datalab_renderer_backend_present(renderer);
 }
 

@@ -139,6 +139,10 @@ Last updated: 2026-08-21
   - DataLab keeps its existing SDL draw API through an app-local compatibility
     backend, uploads the stable software canvas without filtering, and presents
     at the physical high-DPI drawable size;
+  - the renderer backend is the single owner of window-to-drawable pointer
+    conversion, so viewport zoom/drag/probe and UI hit testing use the same
+    physical drawable coordinates as raster layout instead of the fixed
+    compatibility-canvas extent;
   - both the startup picker and active visualizer session attach through the
     same backend boundary;
   - `DATALAB_RENDER_BACKEND=sdl` retains the direct SDL fallback and the
@@ -385,9 +389,37 @@ Last updated: 2026-08-21
   fixed 4096-by-4096 software backing canvas, profile draw semantics, input,
   data ingest, and CPU-side visualization remain DataLab-owned. Any runtime
   compute use requires a separately profiled lane with a CPU oracle/fallback.
-- The source and build-local package proofs are green; no release version bump,
-  installed-app refresh, publication, or Linux-PC rollout was performed by this
-  adoption lane.
+- The compatibility boundary is now explicitly measurable through opt-in
+  `DATALAB_RENDER_PERF_DIAG=1` aggregate JSON receipts. The receipt separates
+  source-raster uploads/reuse from the full drawable upload performed by the
+  Vulkan compatibility canvas and times software submission, compatibility
+  upload, Vulkan begin/draw/end, and total presentation. It records no source
+  paths and does not alter default behavior.
+- The 2026-08-24 baseline proof showed one full RGBA drawable upload per
+  presented compatibility frame even with zero source-raster uploads. Across
+  the startup/resize pair this was `10,355,200` bytes; the restart frame added
+  `4,032,000` bytes. Under four temporary CPU workers, compatibility-upload
+  average time rose from `2.985 ms` to `11.548 ms` and maximum total present
+  time rose from `84.535 ms` to `98.764 ms`. These are local diagnostic
+  receipts, not portable performance claims.
+- The image session now owns a persistent native Vulkan source texture.
+  Content-stable zoom and pan update destination geometry without recreating or
+  re-uploading that texture. The transparent SDL HUD/authoring overlay is
+  shadowed at drawable size and uploaded only when its pixels change; the SDL
+  and non-image-profile compatibility paths remain intact.
+- The bounded validation proof loads a real image and injects one
+  cursor-centered wheel event. Its second frame reports
+  `image_upload_delta=0`, `compatibility_upload_delta=0`,
+  `image_reuse_delta=1`, and `overlay_reuse_delta=1`. The aggregate three-frame
+  receipt reports one 17,356,864-byte source upload and one 17,280,000-byte
+  overlay upload rather than one full drawable upload per frame.
+- That proof exposed and then closed a shared renderer lifecycle defect:
+  `vk_renderer 1.3.3` owns render-finished semaphores per swapchain image and
+  recreates them with the swapchain. Its expanded eight-frame live test passes
+  with Vulkan validation enabled, including resize and capture.
+- Final stable/headless/package verification for this native-image slice is
+  recorded after the targeted `vk_renderer 1.3.3` adoption. No DataLab release
+  version bump, publication, or Linux-PC rollout is part of this lane.
 - Current library boundary: VF3H is renderable only as its declared central
   XY slice. GrowthSim and LineDrawing are still inspection-only families;
   their future adapters must not be described as current visualization support.

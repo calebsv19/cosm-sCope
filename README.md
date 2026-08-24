@@ -164,6 +164,33 @@ launcher/runtime boundaries.
 - invalid viewport bootstrap must re-enter fit mode deterministically
 - content-size changes must recompute fit and clear drag state
 - manual free-view resize must preserve zoom/pan state without forced reset
+- window-space pointer coordinates must map through the renderer backend to the
+  physical drawable rather than the Vulkan compatibility canvas
+- cursor-anchor zoom must preserve the content point under center, offset, and
+  near-corner pointer positions
+
+`test-stable` also includes a render-performance diagnostics contract lane:
+- source-raster uploads and full-window Vulkan compatibility uploads remain
+  separate counters
+- content-stable zoom is required to reuse the source raster generation
+- drawable RGBA byte accounting is overflow-safe
+- failed presents retain a bounded stage/result diagnostic
+- summary output is bounded JSON and contains no input paths
+
+Set `DATALAB_RENDER_PERF_DIAG=1` to emit one-second aggregate renderer receipts
+to stdout. `DATALAB_RENDER_PERF_DIAG_PERIOD_MS` may select a bounded
+`100..60000` ms period. Diagnostics are disabled by default and do not change
+render or upload policy.
+
+The Vulkan image profile now keeps the decoded source image in a persistent
+native texture. Zoom and pan change only destination geometry; they do not
+re-upload the image. The SDL-rendered HUD/authoring layer is retained as a
+transparent overlay and uploaded only when its pixels change. Set
+`DATALAB_NATIVE_IMAGE_REUSE_PROOF=1` with the validation-required Vulkan
+environment to run a bounded two-frame proof: Scope injects one cursor-centered
+wheel event, requires zero image and compatibility-overlay uploads on the
+resulting frame, prints a `DATALAB_NATIVE_IMAGE_REUSE` receipt, and exits.
+Non-Vulkan backends and non-image profiles retain the compatibility path.
 
 `test-stable` also includes a loop-policy contract lane for broader visual runtime coordination:
 - idle vs busy wait-timeout policy must stay deterministic

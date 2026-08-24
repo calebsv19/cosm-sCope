@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "app/app_state.h"
+#include "render/datalab_renderer_backend.h"
 #include "render/render_view_internal.h"
 
 static int datalab_test_assert(int condition, const char *message) {
@@ -190,6 +191,99 @@ static int test_manual_zoom_and_drag_helpers_switch_to_free_view(void) {
     return 1;
 }
 
+static int test_window_points_map_to_drawable_not_backing_canvas(void) {
+    int drawable_x = 0;
+    int drawable_y = 0;
+    if (!datalab_test_assert(datalab_renderer_backend_map_point_between_extents(800,
+                                                                                600,
+                                                                                1600,
+                                                                                1200,
+                                                                                400,
+                                                                                300,
+                                                                                &drawable_x,
+                                                                                &drawable_y),
+                             "valid Retina extents should map a window point")) {
+        return 0;
+    }
+    if (!datalab_test_assert(drawable_x == 800 && drawable_y == 600,
+                             "window center must map to drawable center instead of the fixed backing canvas")) {
+        return 0;
+    }
+    if (!datalab_test_assert(datalab_renderer_backend_map_point_between_extents(1000,
+                                                                                800,
+                                                                                2000,
+                                                                                1600,
+                                                                                250,
+                                                                                600,
+                                                                                &drawable_x,
+                                                                                &drawable_y),
+                             "off-center Retina point should map")) {
+        return 0;
+    }
+    if (!datalab_test_assert(drawable_x == 500 && drawable_y == 1200,
+                             "off-center window point must preserve its normalized drawable position")) {
+        return 0;
+    }
+    return datalab_test_assert(!datalab_renderer_backend_map_point_between_extents(0,
+                                                                                   800,
+                                                                                   2000,
+                                                                                   1600,
+                                                                                   250,
+                                                                                   600,
+                                                                                   &drawable_x,
+                                                                                   &drawable_y),
+                               "invalid extents must fail closed");
+}
+
+static int test_zoom_preserves_content_under_multiple_cursor_anchors(void) {
+    static const float anchors[][2] = {
+        {800.0f, 600.0f},
+        {240.0f, 600.0f},
+        {1360.0f, 600.0f},
+        {80.0f, 1120.0f}
+    };
+    size_t i = 0u;
+    for (i = 0u; i < sizeof(anchors) / sizeof(anchors[0]); ++i) {
+        DatalabRasterViewportState state;
+        float content_x = 0.0f;
+        float content_y = 0.0f;
+        float screen_x = 0.0f;
+        float screen_y = 0.0f;
+        datalab_raster_viewport_state_init(&state);
+        datalab_raster_viewport_sync_state(&state, 1600, 1200, 800u, 400u);
+        if (!datalab_test_assert(core_viewport2d_screen_to_content(&state.viewport,
+                                                                   anchors[i][0],
+                                                                   anchors[i][1],
+                                                                   &content_x,
+                                                                   &content_y).code == CORE_OK,
+                                 "cursor anchor should map to content before zoom")) {
+            return 0;
+        }
+        if (!datalab_test_assert(datalab_raster_viewport_zoom_at_screen_anchor(&state,
+                                                                               (int)anchors[i][0],
+                                                                               (int)anchors[i][1],
+                                                                               1.5f),
+                                 "anchored viewport zoom should succeed")) {
+            return 0;
+        }
+        if (!datalab_test_assert(core_viewport2d_content_to_screen(&state.viewport,
+                                                                   content_x,
+                                                                   content_y,
+                                                                   &screen_x,
+                                                                   &screen_y).code == CORE_OK,
+                                 "anchored content should map back to screen after zoom")) {
+            return 0;
+        }
+        if (!datalab_test_float_eq(screen_x, anchors[i][0], 0.001f,
+                                   "zoom must preserve the cursor anchor x position") ||
+            !datalab_test_float_eq(screen_y, anchors[i][1], 0.001f,
+                                   "zoom must preserve the cursor anchor y position")) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int test_actual_pixel_and_probe_coordinate_contract(void) {
     DatalabAppState state;
     datalab_app_state_init(&state, "fixture.bmp", DATALAB_PROFILE_IMAGE);
@@ -236,6 +330,12 @@ int main(void) {
         return 1;
     }
     if (!test_manual_zoom_and_drag_helpers_switch_to_free_view()) {
+        return 1;
+    }
+    if (!test_window_points_map_to_drawable_not_backing_canvas()) {
+        return 1;
+    }
+    if (!test_zoom_preserves_content_under_multiple_cursor_anchors()) {
         return 1;
     }
     if (!test_actual_pixel_and_probe_coordinate_contract()) {

@@ -1,4 +1,6 @@
 #include "render/datalab_renderer_backend.h"
+#include "render/datalab_native_image_present.h"
+#include "render/datalab_render_perf_diag.h"
 
 #include <SDL2/SDL_vulkan.h>
 
@@ -21,6 +23,7 @@ typedef struct DatalabRendererBackend {
     SDL_Surface *surface;
     VkRenderer vk;
     VkRendererTexture texture;
+    DatalabNativeImagePresent native_image;
     DatalabRendererBackendKind kind;
     int vk_initialized;
     int texture_initialized;
@@ -83,6 +86,7 @@ static int datalab_backend_recreate_presentation(DatalabRendererBackend *backend
         memset(&backend->texture, 0, sizeof(backend->texture));
         backend->texture_initialized = 0;
     }
+    datalab_native_image_present_invalidate_overlay(&backend->native_image);
     if (vk_renderer_recreate_swapchain(&backend->vk, backend->window) != VK_SUCCESS) {
         return 0;
     }
@@ -202,6 +206,7 @@ void datalab_renderer_backend_destroy(SDL_Renderer *renderer) {
     }
     if (backend->vk_initialized) {
         vk_renderer_wait_idle(&backend->vk);
+        datalab_native_image_present_destroy(&backend->native_image, &backend->vk);
         if (backend->texture_initialized) {
             vk_renderer_texture_destroy(&backend->vk, &backend->texture);
         }
@@ -215,6 +220,7 @@ void datalab_renderer_backend_destroy(SDL_Renderer *renderer) {
             "DATALAB_RENDERER_SHUTDOWN schema=1 backend=%s frames=%lu status=pass\n",
             backend->kind == DATALAB_RENDERER_BACKEND_VULKAN ? "vulkan" : "sdl",
             backend->frame_count);
+    datalab_render_perf_diag_flush();
     memset(backend, 0, sizeof(*backend));
 }
 
@@ -238,6 +244,53 @@ int datalab_renderer_backend_output_size(SDL_Renderer *renderer, int *width, int
     return 0;
 }
 
+int datalab_renderer_backend_map_point_between_extents(int source_width,
+                                                       int source_height,
+                                                       int destination_width,
+                                                       int destination_height,
+                                                       int source_x,
+                                                       int source_y,
+                                                       int *out_destination_x,
+                                                       int *out_destination_y) {
+    if (source_width <= 0 || source_height <= 0 ||
+        destination_width <= 0 || destination_height <= 0 ||
+        !out_destination_x || !out_destination_y) {
+        return 0;
+    }
+    *out_destination_x = (int)lround(((double)source_x / (double)source_width) *
+                                    (double)destination_width);
+    *out_destination_y = (int)lround(((double)source_y / (double)source_height) *
+                                    (double)destination_height);
+    return 1;
+}
+
+int datalab_renderer_backend_map_window_to_drawable_point(SDL_Window *window,
+                                                          SDL_Renderer *renderer,
+                                                          int window_x,
+                                                          int window_y,
+                                                          int *out_drawable_x,
+                                                          int *out_drawable_y) {
+    int window_width = 0;
+    int window_height = 0;
+    int drawable_width = 0;
+    int drawable_height = 0;
+    if (!window || !renderer || !out_drawable_x || !out_drawable_y) {
+        return 0;
+    }
+    SDL_GetWindowSize(window, &window_width, &window_height);
+    if (datalab_renderer_backend_output_size(renderer, &drawable_width, &drawable_height) != 0) {
+        return 0;
+    }
+    return datalab_renderer_backend_map_point_between_extents(window_width,
+                                                              window_height,
+                                                              drawable_width,
+                                                              drawable_height,
+                                                              window_x,
+                                                              window_y,
+                                                              out_drawable_x,
+                                                              out_drawable_y);
+}
+
 int datalab_renderer_backend_present(SDL_Renderer *renderer) {
     DatalabRendererBackend *backend = &g_datalab_backend;
     VkCommandBuffer command = VK_NULL_HANDLE;
@@ -246,58 +299,190 @@ int datalab_renderer_backend_present(SDL_Renderer *renderer) {
     SDL_Rect source;
     SDL_Rect destination;
     VkResult result;
+    uint64_t compatibility_bytes = 0u;
+    uint64_t stage_begin = 0u;
+    int compatibility_uploaded = 0;
+    const int native_image_active = backend->native_image.frame_active;
 
     if (!renderer || renderer != backend->canvas) {
         return 0;
     }
     if (backend->kind == DATALAB_RENDERER_BACKEND_SDL) {
+        datalab_render_perf_diag_note_backend((int)backend->kind, 0u, 0u, 0u, 0u);
+        stage_begin = datalab_render_perf_diag_stage_begin(DATALAB_RENDER_PERF_STAGE_VULKAN_END);
         SDL_RenderPresent(renderer);
+        datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_VULKAN_END, stage_begin);
         backend->frame_count += 1u;
+        datalab_render_perf_diag_finish(1, DATALAB_RENDER_PERF_STAGE_NONE, 0);
         return 1;
     }
     if (!datalab_backend_sync_size(backend)) {
+        datalab_native_image_present_finish_frame(&backend->native_image);
+        datalab_render_perf_diag_finish(0, DATALAB_RENDER_PERF_STAGE_PRESENT_SYNC, -1);
         return 0;
     }
+    datalab_render_perf_diag_note_backend((int)backend->kind,
+                                          (uint32_t)backend->drawable_width,
+                                          (uint32_t)backend->drawable_height,
+                                          DATALAB_CANVAS_WIDTH,
+                                          DATALAB_CANVAS_HEIGHT);
     if (backend->frame_count == datalab_backend_capture_frame()) {
         const char *automatic_capture = getenv("DATALAB_VULKAN_CAPTURE");
         if (automatic_capture && automatic_capture[0] &&
             vk_renderer_request_capture(&backend->vk, automatic_capture) != VK_SUCCESS) {
+            datalab_native_image_present_finish_frame(&backend->native_image);
+            datalab_render_perf_diag_finish(0, DATALAB_RENDER_PERF_STAGE_PRESENT_SYNC, -2);
             return 0;
         }
     }
-    if (vk_renderer_texture_update_rgba_subrect(&backend->vk,
-                                                &backend->texture,
-                                                backend->surface->pixels,
-                                                (size_t)backend->surface->pitch,
-                                                0u,
-                                                0u,
-                                                (uint32_t)backend->drawable_width,
-                                                (uint32_t)backend->drawable_height) != VK_SUCCESS) {
+    stage_begin = datalab_render_perf_diag_stage_begin(
+        DATALAB_RENDER_PERF_STAGE_COMPATIBILITY_UPLOAD);
+    if (native_image_active) {
+        result = datalab_native_image_present_sync_overlay(
+            &backend->native_image,
+            &backend->vk,
+            &backend->texture,
+            backend->surface,
+            (uint32_t)backend->drawable_width,
+            (uint32_t)backend->drawable_height,
+            &compatibility_uploaded,
+            &compatibility_bytes);
+    } else {
+        (void)datalab_render_perf_rgba_bytes((uint32_t)backend->drawable_width,
+                                             (uint32_t)backend->drawable_height,
+                                             &compatibility_bytes);
+        result = vk_renderer_texture_update_rgba_subrect(&backend->vk,
+                                                         &backend->texture,
+                                                         backend->surface->pixels,
+                                                         (size_t)backend->surface->pitch,
+                                                         0u,
+                                                         0u,
+                                                         (uint32_t)backend->drawable_width,
+                                                         (uint32_t)backend->drawable_height);
+        compatibility_uploaded = 1;
+    }
+    datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_COMPATIBILITY_UPLOAD,
+                                       stage_begin);
+    if (compatibility_uploaded || result != VK_SUCCESS) {
+        datalab_render_perf_diag_note_compatibility_upload(compatibility_bytes, (int)result);
+    }
+    if (result != VK_SUCCESS) {
+        datalab_native_image_present_finish_frame(&backend->native_image);
+        datalab_render_perf_diag_finish(0,
+                                        DATALAB_RENDER_PERF_STAGE_COMPATIBILITY_UPLOAD,
+                                        (int)result);
         return 0;
     }
+    stage_begin = datalab_render_perf_diag_stage_begin(DATALAB_RENDER_PERF_STAGE_VULKAN_BEGIN);
     result = vk_renderer_begin_frame(&backend->vk, &command, &framebuffer, &extent);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         if (!datalab_backend_recreate_presentation(backend,
                                                    backend->drawable_width,
                                                    backend->drawable_height)) {
+            datalab_native_image_present_finish_frame(&backend->native_image);
             return 0;
         }
         result = vk_renderer_begin_frame(&backend->vk, &command, &framebuffer, &extent);
     }
+    datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_VULKAN_BEGIN, stage_begin);
     if (result != VK_SUCCESS || command == VK_NULL_HANDLE ||
         framebuffer == VK_NULL_HANDLE || extent.width == 0u || extent.height == 0u) {
+        datalab_native_image_present_finish_frame(&backend->native_image);
+        datalab_render_perf_diag_finish(0,
+                                        DATALAB_RENDER_PERF_STAGE_VULKAN_BEGIN,
+                                        (int)result);
         return 0;
     }
-    source = (SDL_Rect){0, 0, backend->drawable_width, backend->drawable_height};
-    destination = (SDL_Rect){0, 0, (int)extent.width, (int)extent.height};
     vk_renderer_set_logical_size(&backend->vk, (float)extent.width, (float)extent.height);
-    vk_renderer_set_draw_color(&backend->vk, 1.0f, 1.0f, 1.0f, 1.0f);
-    vk_renderer_draw_texture(&backend->vk, &backend->texture, &source, &destination);
+    stage_begin = datalab_render_perf_diag_stage_begin(DATALAB_RENDER_PERF_STAGE_VULKAN_DRAW);
+    if (native_image_active) {
+        datalab_native_image_present_draw(&backend->native_image,
+                                          &backend->vk,
+                                          &backend->texture,
+                                          extent.width,
+                                          extent.height);
+    } else {
+        source = (SDL_Rect){0, 0, backend->drawable_width, backend->drawable_height};
+        destination = (SDL_Rect){0, 0, (int)extent.width, (int)extent.height};
+        vk_renderer_set_draw_color(&backend->vk, 1.0f, 1.0f, 1.0f, 1.0f);
+        vk_renderer_draw_texture(&backend->vk, &backend->texture, &source, &destination);
+    }
+    datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_VULKAN_DRAW, stage_begin);
+    stage_begin = datalab_render_perf_diag_stage_begin(DATALAB_RENDER_PERF_STAGE_VULKAN_END);
     result = vk_renderer_end_frame(&backend->vk, command);
+    datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_VULKAN_END, stage_begin);
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        datalab_native_image_present_finish_frame(&backend->native_image);
+        datalab_render_perf_diag_finish(0,
+                                        DATALAB_RENDER_PERF_STAGE_VULKAN_END,
+                                        (int)result);
         return 0;
     }
     backend->frame_count += 1u;
+    datalab_native_image_present_finish_frame(&backend->native_image);
+    datalab_render_perf_diag_finish(1, DATALAB_RENDER_PERF_STAGE_NONE, (int)result);
+    return 1;
+}
+
+int datalab_renderer_backend_prepare_native_image(SDL_Renderer *renderer,
+                                                  const void *pixels,
+                                                  uint32_t width,
+                                                  uint32_t height,
+                                                  uint64_t content_generation,
+                                                  uint64_t resource_generation,
+                                                  int sampling_mode,
+                                                  const SDL_Rect *destination,
+                                                  int checkerboard_enabled) {
+    DatalabRendererBackend *backend = &g_datalab_backend;
+    const DatalabNativeImagePresentStats *stats;
+    VkResult result;
+    if (!renderer || renderer != backend->canvas ||
+        backend->kind != DATALAB_RENDERER_BACKEND_VULKAN) {
+        return 0;
+    }
+    result = datalab_native_image_present_prepare(&backend->native_image,
+                                                  &backend->vk,
+                                                  pixels,
+                                                  width,
+                                                  height,
+                                                  content_generation,
+                                                  sampling_mode,
+                                                  destination,
+                                                  checkerboard_enabled);
+    if (result != VK_SUCCESS) {
+        return -1;
+    }
+    stats = datalab_native_image_present_stats(&backend->native_image);
+    if (stats) {
+        datalab_render_perf_diag_note_raster(content_generation,
+                                             resource_generation,
+                                             stats->image_upload_count,
+                                             stats->image_upload_bytes,
+                                             stats->image_reuse_count);
+    }
+    return 1;
+}
+
+int datalab_renderer_backend_native_image_counters(SDL_Renderer *renderer,
+                                                   uint64_t *image_upload_count,
+                                                   uint64_t *image_reuse_count,
+                                                   uint64_t *overlay_upload_count,
+                                                   uint64_t *overlay_reuse_count) {
+    DatalabRendererBackend *backend = &g_datalab_backend;
+    const DatalabNativeImagePresentStats *stats;
+    if (!renderer || renderer != backend->canvas ||
+        backend->kind != DATALAB_RENDERER_BACKEND_VULKAN || !image_upload_count ||
+        !image_reuse_count || !overlay_upload_count || !overlay_reuse_count) {
+        return 0;
+    }
+    stats = datalab_native_image_present_stats(&backend->native_image);
+    if (!stats) {
+        return 0;
+    }
+    *image_upload_count = stats->image_upload_count;
+    *image_reuse_count = stats->image_reuse_count;
+    *overlay_upload_count = stats->overlay_upload_count;
+    *overlay_reuse_count = stats->overlay_reuse_count;
     return 1;
 }
 

@@ -1,4 +1,5 @@
 #include "render/render_view_internal.h"
+#include "render/datalab_render_perf_diag.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -890,6 +891,8 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
                                         const DatalabAppState *app_state,
                                         const DatalabSketchRenderDeriveFrame *derive,
                                         DatalabRenderSubmitOutcome *outcome) {
+    uint64_t software_begin = 0u;
+    int native_image_status = 0;
     if (!outcome) {
         return;
     }
@@ -908,21 +911,75 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
                                                     outcome);
         return;
     }
-    SDL_SetRenderDrawColor(renderer, 12, 12, 16, 255);
-    SDL_RenderClear(renderer);
-    if (app_state->raster_alpha_checkerboard) {
-        const int edge = 16;
-        for (int y = derive->dst.y; y < derive->dst.y + derive->dst.h; y += edge) {
-            for (int x = derive->dst.x; x < derive->dst.x + derive->dst.w; x += edge) {
-                SDL_Rect cell = { x, y, edge, edge };
-                const int dark = ((x - derive->dst.x) / edge + (y - derive->dst.y) / edge) & 1;
-                SDL_SetRenderDrawColor(renderer, dark ? 72 : 128, dark ? 72 : 128, dark ? 78 : 134, 255);
-                SDL_RenderFillRect(renderer, &cell);
-            }
+    software_begin = datalab_render_perf_diag_stage_begin(
+        DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT);
+    if (frame->profile == DATALAB_PROFILE_IMAGE) {
+        datalab_raster_texture_state_note_content_generation(
+            texture_state, frame->raster_content_generation);
+        native_image_status = datalab_renderer_backend_prepare_native_image(
+            renderer,
+            frame->drawing_rgba,
+            frame->width,
+            frame->height,
+            texture_state->content_generation,
+            texture_state->resource_generation,
+            (int)app_state->sampling_mode,
+            &derive->dst,
+            app_state->raster_alpha_checkerboard);
+        if (native_image_status < 0) {
+            datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                               software_begin);
+            outcome->result = (CoreResult){CORE_ERR_IO,
+                                           "native Vulkan image texture preparation failed"};
+            return;
         }
     }
-    outcome->result = datalab_raster_render_frame(renderer, frame, derive, texture_state, app_state->sampling_mode);
+    if (native_image_status > 0) {
+        int output_width = 0;
+        int output_height = 0;
+        SDL_Rect drawable = {0};
+        datalab_renderer_backend_output_size(renderer, &output_width, &output_height);
+        drawable.w = output_width;
+        drawable.h = output_height;
+        if (SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE) != 0 ||
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0) != 0 ||
+            SDL_RenderFillRect(renderer, &drawable) != 0 ||
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND) != 0) {
+            datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                               software_begin);
+            outcome->result = (CoreResult){CORE_ERR_IO,
+                                           "native Vulkan overlay preparation failed"};
+            return;
+        }
+        outcome->result = core_result_ok();
+    } else {
+        SDL_SetRenderDrawColor(renderer, 12, 12, 16, 255);
+        SDL_RenderClear(renderer);
+        if (app_state->raster_alpha_checkerboard) {
+            const int edge = 16;
+            for (int y = derive->dst.y; y < derive->dst.y + derive->dst.h; y += edge) {
+                for (int x = derive->dst.x; x < derive->dst.x + derive->dst.w; x += edge) {
+                    SDL_Rect cell = { x, y, edge, edge };
+                    const int dark = ((x - derive->dst.x) / edge + (y - derive->dst.y) / edge) & 1;
+                    SDL_SetRenderDrawColor(renderer, dark ? 72 : 128, dark ? 72 : 128, dark ? 78 : 134, 255);
+                    SDL_RenderFillRect(renderer, &cell);
+                }
+            }
+        }
+        outcome->result = datalab_raster_render_frame(renderer,
+                                                      frame,
+                                                      derive,
+                                                      texture_state,
+                                                      app_state->sampling_mode);
+        datalab_render_perf_diag_note_raster(texture_state->content_generation,
+                                             texture_state->resource_generation,
+                                             texture_state->upload_count,
+                                             texture_state->upload_byte_count,
+                                             texture_state->upload_reuse_count);
+    }
     if (outcome->result.code != CORE_OK) {
+        datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                           software_begin);
         return;
     }
     datalab_draw_recent_input_root_header(renderer, app_state);
@@ -950,7 +1007,12 @@ void datalab_sketch_render_submit_frame(SDL_Window *window,
     datalab_draw_playback_hud(renderer, app_state);
     datalab_draw_workspace_authoring_overlay(renderer, app_state);
     SDL_SetWindowTitle(window, derive->common.title);
-    (void)datalab_renderer_backend_present(renderer);
+    datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                       software_begin);
+    if (!datalab_renderer_backend_present(renderer)) {
+        outcome->result = (CoreResult){CORE_ERR_IO, "renderer backend present failed"};
+        return;
+    }
     outcome->presented = 1u;
     outcome->result = core_result_ok();
 }

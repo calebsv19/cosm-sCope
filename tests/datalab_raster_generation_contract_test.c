@@ -22,6 +22,10 @@ int main(void) {
     datalab_raster_texture_state_note_upload(&state, 64u);
     if (!require(!datalab_raster_texture_state_upload_required(&state),
                  "heartbeat, pan, HUD, and invalidation presentation reuse must not upload")) return 1;
+    datalab_raster_texture_state_note_content_generation(&state, 41u);
+    if (!require(state.content_generation == 41u &&
+                     !datalab_raster_texture_state_upload_required(&state),
+                 "content-stable zoom must preserve generation and require no source upload")) return 1;
 
     datalab_raster_texture_state_note_content_generation(&state, 42u);
     if (!require(datalab_raster_texture_state_upload_required(&state),

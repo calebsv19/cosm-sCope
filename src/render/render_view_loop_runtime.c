@@ -1,8 +1,10 @@
 #include "render/render_view_internal.h"
+#include "render/datalab_render_perf_diag.h"
 #include "app/datalab_async_decode.h"
 #include "app/datalab_runtime_pack.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "ui/input.h"
@@ -221,6 +223,13 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
                                     DatalabAppState *app_state,
                                     const DatalabLoopProfileOps *ops) {
     DatalabLoopRunState run_state = {0};
+    const int native_reuse_proof = frame && frame->profile == DATALAB_PROFILE_IMAGE &&
+                                   getenv("DATALAB_NATIVE_IMAGE_REUSE_PROOF") != NULL;
+    uint32_t native_reuse_proof_present_count = 0u;
+    uint64_t proof_image_upload_baseline = 0u;
+    uint64_t proof_image_reuse_baseline = 0u;
+    uint64_t proof_overlay_upload_baseline = 0u;
+    uint64_t proof_overlay_reuse_baseline = 0u;
     if (!window || !renderer || !frame || !app_state || !ops || !ops->render_step) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid datalab loop profile request" };
     }
@@ -240,6 +249,10 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
         phase.render_reason_bits = datalab_loop_frame_phase_render_decision(&phase, run_state.last_present_ticks);
         phase.should_render = phase.render_reason_bits ? 1u : 0u;
         if (phase.should_render) {
+            datalab_render_perf_diag_begin_frame((int)frame->profile,
+                                                 phase.render_reason_bits,
+                                                 frame->width,
+                                                 frame->height);
             render_result = ops->render_step(window,
                                              renderer,
                                              frame,
@@ -251,10 +264,77 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
             }
             datalab_rs1_diag_note(ops->lane_tag, &run_state.rs1_diag_totals, &render_submit);
             if (render_submit.result.code != CORE_OK) {
+                datalab_render_perf_diag_finish(0,
+                                                DATALAB_RENDER_PERF_STAGE_SOFTWARE_SUBMIT,
+                                                (int)render_submit.result.code);
                 return render_submit.result;
             }
             if (render_submit.presented) {
                 run_state.last_present_ticks = SDL_GetTicks();
+                if (native_reuse_proof) {
+                    uint64_t image_upload_count = 0u;
+                    uint64_t image_reuse_count = 0u;
+                    uint64_t overlay_upload_count = 0u;
+                    uint64_t overlay_reuse_count = 0u;
+                    if (!datalab_renderer_backend_native_image_counters(
+                            renderer,
+                            &image_upload_count,
+                            &image_reuse_count,
+                            &overlay_upload_count,
+                            &overlay_reuse_count)) {
+                        return (CoreResult){CORE_ERR_IO,
+                                           "native image reuse proof requires Vulkan image counters"};
+                    }
+                    native_reuse_proof_present_count += 1u;
+                    if (native_reuse_proof_present_count == 1u) {
+                        SDL_Event zoom_event = {0};
+                        int window_width = 0;
+                        int window_height = 0;
+                        proof_image_upload_baseline = image_upload_count;
+                        proof_image_reuse_baseline = image_reuse_count;
+                        proof_overlay_upload_baseline = overlay_upload_count;
+                        proof_overlay_reuse_baseline = overlay_reuse_count;
+                        SDL_GetWindowSize(window, &window_width, &window_height);
+                        SDL_WarpMouseInWindow(window, window_width / 2, window_height / 2);
+                        zoom_event.type = SDL_MOUSEWHEEL;
+                        zoom_event.wheel.y = 1;
+                        zoom_event.wheel.direction = SDL_MOUSEWHEEL_NORMAL;
+                        if (SDL_PushEvent(&zoom_event) < 0) {
+                            return (CoreResult){CORE_ERR_IO,
+                                               "native image reuse proof could not queue zoom"};
+                        }
+                    } else if (native_reuse_proof_present_count == 2u) {
+                        SDL_Event quit_event = {0};
+                        const uint64_t image_upload_delta =
+                            image_upload_count - proof_image_upload_baseline;
+                        const uint64_t image_reuse_delta =
+                            image_reuse_count - proof_image_reuse_baseline;
+                        const uint64_t overlay_upload_delta =
+                            overlay_upload_count - proof_overlay_upload_baseline;
+                        const uint64_t overlay_reuse_delta =
+                            overlay_reuse_count - proof_overlay_reuse_baseline;
+                        const int passed = image_upload_delta == 0u &&
+                                           overlay_upload_delta == 0u &&
+                                           image_reuse_delta >= 1u &&
+                                           overlay_reuse_delta >= 1u;
+                        fprintf(stdout,
+                                "DATALAB_NATIVE_IMAGE_REUSE schema=1 status=%s image_upload_delta=%llu image_reuse_delta=%llu compatibility_upload_delta=%llu overlay_reuse_delta=%llu\n",
+                                passed ? "pass" : "fail",
+                                (unsigned long long)image_upload_delta,
+                                (unsigned long long)image_reuse_delta,
+                                (unsigned long long)overlay_upload_delta,
+                                (unsigned long long)overlay_reuse_delta);
+                        if (!passed) {
+                            return (CoreResult){CORE_ERR_IO,
+                                               "native image stable zoom performed an upload"};
+                        }
+                        quit_event.type = SDL_QUIT;
+                        if (SDL_PushEvent(&quit_event) < 0) {
+                            return (CoreResult){CORE_ERR_IO,
+                                               "native image reuse proof could not queue quit"};
+                        }
+                    }
+                }
             }
         }
 
