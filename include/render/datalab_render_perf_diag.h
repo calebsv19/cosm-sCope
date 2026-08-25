@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 enum {
-    DATALAB_RENDER_PERF_SCHEMA_VERSION = 1u
+    DATALAB_RENDER_PERF_SCHEMA_VERSION = 2u
 };
 
 typedef enum DatalabRenderPerfStage {
@@ -46,6 +46,7 @@ typedef struct DatalabRenderPerfFrame {
     double vulkan_begin_ms;
     double vulkan_draw_ms;
     double vulkan_end_ms;
+    double present_sync_ms;
     double total_present_ms;
     int present_succeeded;
     DatalabRenderPerfStage failure_stage;
@@ -72,6 +73,8 @@ typedef struct DatalabRenderPerfAccumulator {
     double vulkan_draw_ms_max;
     double vulkan_end_ms_total;
     double vulkan_end_ms_max;
+    double present_sync_ms_total;
+    double present_sync_ms_max;
     double total_present_ms_total;
     double total_present_ms_max;
     int backend_kind;
@@ -111,6 +114,7 @@ void datalab_render_perf_diag_note_compatibility_upload(uint64_t bytes, int resu
 void datalab_render_perf_diag_finish(int present_succeeded,
                                      DatalabRenderPerfStage failure_stage,
                                      int failure_result);
+int datalab_render_perf_diag_last_frame(DatalabRenderPerfFrame *out_frame);
 void datalab_render_perf_diag_flush(void);
 
 #ifdef __cplusplus

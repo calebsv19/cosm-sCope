@@ -1,6 +1,6 @@
 # DataLab Current Truth
 
-Last updated: 2026-08-21
+Last updated: 2026-08-24
 
 ## Program Identity
 - Repository directory: `datalab/`
@@ -393,8 +393,22 @@ Last updated: 2026-08-21
   `DATALAB_RENDER_PERF_DIAG=1` aggregate JSON receipts. The receipt separates
   source-raster uploads/reuse from the full drawable upload performed by the
   Vulkan compatibility canvas and times software submission, compatibility
-  upload, Vulkan begin/draw/end, and total presentation. It records no source
-  paths and does not alter default behavior.
+  upload, presentation sync, Vulkan begin/draw/end, and total presentation. It
+  records no source paths and does not alter default behavior.
+- `DATALAB_NATIVE_IMAGE_PROFILE_WAVE=1` runs a deterministic five-stage image
+  sequence: zoom burst, pan, HUD mutation, resize, and synthetic content-
+  generation replacement. Each stage reports source/overlay upload and reuse,
+  presentation recreation and seed bytes, and the relevant frame timings.
+  The 2026-08-24 Apple M2 receipt passed all five invariants with validation
+  enabled and zero validation warnings/errors. Zoom and pan performed no
+  source or overlay uploads; HUD mutation performed one overlay redraw/upload;
+  content replacement performed one source upload.
+- That receipt isolates resize as the next optimization boundary: the
+  2208-by-1672 resize took `38.022 ms`, including `30.586 ms` in presentation
+  sync, and seeded the fixed 4096-by-4096 compatibility surface
+  (`67,108,864` bytes). These are local diagnostic values, not portable
+  benchmark claims. Reducing or eliminating that oversized seed is not part
+  of this profiling slice.
 - The 2026-08-24 baseline proof showed one full RGBA drawable upload per
   presented compatibility frame even with zero source-raster uploads. Across
   the startup/resize pair this was `10,355,200` bytes; the restart frame added

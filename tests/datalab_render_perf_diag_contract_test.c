@@ -43,6 +43,7 @@ int main(void) {
     initial.compatibility_upload_bytes = 17280000u;
     initial.software_submit_ms = 8.0;
     initial.compatibility_upload_ms = 5.0;
+    initial.present_sync_ms = 2.0;
     initial.total_present_ms = 14.0;
 
     zoom = initial;
@@ -52,6 +53,7 @@ int main(void) {
     zoom.raster_reuse_count = 1u;
     zoom.software_submit_ms = 10.0;
     zoom.compatibility_upload_ms = 7.0;
+    zoom.present_sync_ms = 3.0;
     zoom.total_present_ms = 18.0;
 
     failure = zoom;
@@ -78,6 +80,7 @@ int main(void) {
                  "full-window compatibility uploads must remain separately visible") ||
         !require(accumulator.software_submit_ms_max == 10.0 &&
                      accumulator.compatibility_upload_ms_max == 7.0 &&
+                     accumulator.present_sync_ms_max == 3.0 &&
                      accumulator.total_present_ms_max == 20.0,
                  "maximum timings must be retained") ||
         !require(accumulator.last_failure_stage == DATALAB_RENDER_PERF_STAGE_VULKAN_END &&
@@ -90,9 +93,10 @@ int main(void) {
                                                          json,
                                                          sizeof(json)),
                  "summary JSON must fit the bounded output") ||
-        !require(strstr(json, "\"schema\":1") &&
+        !require(strstr(json, "\"schema\":2") &&
                      strstr(json, "\"uploads\":2") &&
                      strstr(json, "\"bytes\":34560000") &&
+                     strstr(json, "\"present_sync_max\":3.000") &&
                      strstr(json, "\"stage\":\"vulkan_end\"") &&
                      !strchr(json, '/'),
                  "summary must expose bounded counters without filesystem paths") ||

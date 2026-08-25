@@ -2,6 +2,7 @@
 #define DATALAB_RENDERER_BACKEND_H
 
 #include <SDL2/SDL.h>
+#include <stdint.h>
 
 #include "render/datalab_image_overlay_identity.h"
 
@@ -9,6 +10,18 @@ typedef enum DatalabRendererBackendKind {
     DATALAB_RENDERER_BACKEND_SDL = 0,
     DATALAB_RENDERER_BACKEND_VULKAN = 1
 } DatalabRendererBackendKind;
+
+typedef struct DatalabNativeImageCounters {
+    uint64_t image_upload_count;
+    uint64_t image_reuse_count;
+    uint64_t overlay_upload_count;
+    uint64_t overlay_reuse_count;
+    uint64_t overlay_redraw_count;
+    uint64_t overlay_redraw_reuse_count;
+    uint64_t presentation_recreate_count;
+    uint64_t presentation_seed_upload_count;
+    uint64_t presentation_seed_upload_bytes;
+} DatalabNativeImageCounters;
 
 uint32_t datalab_renderer_backend_window_flags(void);
 SDL_Renderer *datalab_renderer_backend_create(SDL_Window *window);
@@ -48,6 +61,9 @@ int datalab_renderer_backend_native_image_counters(SDL_Renderer *renderer,
                                                    uint64_t *overlay_reuse_count,
                                                    uint64_t *overlay_redraw_count,
                                                    uint64_t *overlay_redraw_reuse_count);
+int datalab_renderer_backend_native_image_counters_snapshot(
+    SDL_Renderer *renderer,
+    DatalabNativeImageCounters *out_counters);
 int datalab_renderer_backend_request_capture(SDL_Renderer *renderer, const char *path);
 int datalab_renderer_backend_verify(SDL_Renderer *renderer,
                                     const char *stage,

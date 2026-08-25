@@ -1,5 +1,6 @@
 #include "render/render_view_internal.h"
 #include "render/datalab_render_perf_diag.h"
+#include "render/datalab_native_image_profile_wave.h"
 #include "app/datalab_async_decode.h"
 #include "app/datalab_runtime_pack.h"
 
@@ -232,15 +233,19 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
     uint64_t proof_overlay_reuse_baseline = 0u;
     uint64_t proof_overlay_redraw_baseline = 0u;
     uint64_t proof_overlay_redraw_reuse_baseline = 0u;
+    DatalabNativeImageProfileWave profile_wave;
     if (!window || !renderer || !frame || !app_state || !ops || !ops->render_step) {
         return (CoreResult){ CORE_ERR_INVALID_ARG, "invalid datalab loop profile request" };
     }
     run_state.perf_freq = SDL_GetPerformanceFrequency();
     run_state.wait_policy_input.interaction_active = 1u;
+    datalab_native_image_profile_wave_init(&profile_wave, frame);
     while (!run_state.quit) {
         DatalabLoopFramePhases phase;
         DatalabRenderSubmitOutcome render_submit = {0};
         CoreResult render_result = core_result_ok();
+        const DatalabFrame *active_frame =
+            datalab_native_image_profile_wave_frame(&profile_wave, frame);
 
         datalab_loop_frame_phase_wait_and_input(window, renderer, &phase, &run_state, app_state);
         if (datalab_loop_frame_phase_runtime_tick(&phase, app_state)) {
@@ -251,13 +256,13 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
         phase.render_reason_bits = datalab_loop_frame_phase_render_decision(&phase, run_state.last_present_ticks);
         phase.should_render = phase.render_reason_bits ? 1u : 0u;
         if (phase.should_render) {
-            datalab_render_perf_diag_begin_frame((int)frame->profile,
+            datalab_render_perf_diag_begin_frame((int)active_frame->profile,
                                                  phase.render_reason_bits,
-                                                 frame->width,
-                                                 frame->height);
+                                                 active_frame->width,
+                                                 active_frame->height);
             render_result = ops->render_step(window,
                                              renderer,
-                                             frame,
+                                             active_frame,
                                              app_state,
                                              ops->lane_ctx,
                                              &render_submit);
@@ -273,6 +278,13 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
             }
             if (render_submit.presented) {
                 run_state.last_present_ticks = SDL_GetTicks();
+                if (!datalab_native_image_profile_wave_on_present(&profile_wave,
+                                                                  window,
+                                                                  renderer,
+                                                                  app_state)) {
+                    return (CoreResult){CORE_ERR_IO,
+                                        "native image profiling wave invariant failed"};
+                }
                 if (native_reuse_proof) {
                     uint64_t image_upload_count = 0u;
                     uint64_t image_reuse_count = 0u;

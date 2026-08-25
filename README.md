@@ -195,6 +195,15 @@ overlay uploads on the resulting frame, prints a
 `DATALAB_NATIVE_IMAGE_REUSE` receipt, and exits.
 Non-Vulkan backends and non-image profiles retain the compatibility path.
 
+Set `DATALAB_NATIVE_IMAGE_PROFILE_WAVE=1` to run the validation-oriented,
+five-stage image profiling sequence. It exercises a five-event zoom burst,
+pan, HUD mutation, resize, and a synthetic content-generation replacement,
+then exits with one bounded receipt per stage. Receipts separate source-image
+and overlay reuse/uploads from presentation recreation and its seed upload,
+and include software-submit, compatibility-upload, presentation-sync, and
+total-present timings. This option also enables render performance diagnostics;
+it is off by default and never records the input path.
+
 `test-stable` also includes a loop-policy contract lane for broader visual runtime coordination:
 - idle vs busy wait-timeout policy must stay deterministic
 - interaction, resize, and panel-rescan state must propagate into wait-policy inputs

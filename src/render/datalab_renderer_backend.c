@@ -30,6 +30,9 @@ typedef struct DatalabRendererBackend {
     int drawable_width;
     int drawable_height;
     unsigned long frame_count;
+    uint64_t presentation_recreate_count;
+    uint64_t presentation_seed_upload_count;
+    uint64_t presentation_seed_upload_bytes;
 } DatalabRendererBackend;
 
 static DatalabRendererBackend g_datalab_backend;
@@ -96,6 +99,10 @@ static int datalab_backend_recreate_presentation(DatalabRendererBackend *backend
                                                    VK_FILTER_NEAREST) != VK_SUCCESS) {
         return 0;
     }
+    backend->presentation_recreate_count += 1u;
+    backend->presentation_seed_upload_count += 1u;
+    backend->presentation_seed_upload_bytes +=
+        (uint64_t)backend->surface->w * (uint64_t)backend->surface->h * 4u;
     backend->texture_initialized = 1;
     backend->drawable_width = width;
     backend->drawable_height = height;
@@ -316,11 +323,14 @@ int datalab_renderer_backend_present(SDL_Renderer *renderer) {
         datalab_render_perf_diag_finish(1, DATALAB_RENDER_PERF_STAGE_NONE, 0);
         return 1;
     }
+    stage_begin = datalab_render_perf_diag_stage_begin(DATALAB_RENDER_PERF_STAGE_PRESENT_SYNC);
     if (!datalab_backend_sync_size(backend)) {
+        datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_PRESENT_SYNC, stage_begin);
         datalab_native_image_present_finish_frame(&backend->native_image);
         datalab_render_perf_diag_finish(0, DATALAB_RENDER_PERF_STAGE_PRESENT_SYNC, -1);
         return 0;
     }
+    datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_PRESENT_SYNC, stage_begin);
     datalab_render_perf_diag_note_backend((int)backend->kind,
                                           (uint32_t)backend->drawable_width,
                                           (uint32_t)backend->drawable_height,
@@ -492,6 +502,32 @@ int datalab_renderer_backend_native_image_counters(SDL_Renderer *renderer,
     *overlay_reuse_count = stats->overlay_reuse_count;
     *overlay_redraw_count = stats->overlay_redraw_count;
     *overlay_redraw_reuse_count = stats->overlay_redraw_reuse_count;
+    return 1;
+}
+
+int datalab_renderer_backend_native_image_counters_snapshot(
+    SDL_Renderer *renderer,
+    DatalabNativeImageCounters *out_counters) {
+    DatalabRendererBackend *backend = &g_datalab_backend;
+    const DatalabNativeImagePresentStats *stats;
+    if (!renderer || renderer != backend->canvas || !out_counters ||
+        backend->kind != DATALAB_RENDERER_BACKEND_VULKAN) {
+        return 0;
+    }
+    stats = datalab_native_image_present_stats(&backend->native_image);
+    if (!stats) {
+        return 0;
+    }
+    memset(out_counters, 0, sizeof(*out_counters));
+    out_counters->image_upload_count = stats->image_upload_count;
+    out_counters->image_reuse_count = stats->image_reuse_count;
+    out_counters->overlay_upload_count = stats->overlay_upload_count;
+    out_counters->overlay_reuse_count = stats->overlay_reuse_count;
+    out_counters->overlay_redraw_count = stats->overlay_redraw_count;
+    out_counters->overlay_redraw_reuse_count = stats->overlay_redraw_reuse_count;
+    out_counters->presentation_recreate_count = backend->presentation_recreate_count;
+    out_counters->presentation_seed_upload_count = backend->presentation_seed_upload_count;
+    out_counters->presentation_seed_upload_bytes = backend->presentation_seed_upload_bytes;
     return 1;
 }
 

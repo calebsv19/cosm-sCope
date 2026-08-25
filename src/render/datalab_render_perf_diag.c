@@ -12,6 +12,7 @@ typedef struct DatalabRenderPerfRuntime {
     int initialized;
     int enabled;
     int frame_active;
+    int last_frame_valid;
     uint32_t period_ms;
     uint32_t period_begin_ticks;
     uint64_t frame_begin_counter;
@@ -115,6 +116,9 @@ void datalab_render_perf_accumulator_note(DatalabRenderPerfAccumulator *accumula
     datalab_render_perf_accumulate_timing(frame->vulkan_end_ms,
                                           &accumulator->vulkan_end_ms_total,
                                           &accumulator->vulkan_end_ms_max);
+    datalab_render_perf_accumulate_timing(frame->present_sync_ms,
+                                          &accumulator->present_sync_ms_total,
+                                          &accumulator->present_sync_ms_max);
     datalab_render_perf_accumulate_timing(frame->total_present_ms,
                                           &accumulator->total_present_ms_total,
                                           &accumulator->total_present_ms_max);
@@ -136,7 +140,7 @@ int datalab_render_perf_format_summary_json(const DatalabRenderPerfAccumulator *
     written = snprintf(
         output,
         output_capacity,
-        "{\"tag\":\"DatalabRenderPerf\",\"schema\":1,\"type\":\"summary\","
+        "{\"tag\":\"DatalabRenderPerf\",\"schema\":2,\"type\":\"summary\","
         "\"frames\":%llu,\"successes\":%llu,\"failures\":%llu,"
         "\"reason_bits\":%llu,\"backend\":%d,\"profile\":%d,"
         "\"drawable\":{\"width\":%u,\"height\":%u},"
@@ -148,6 +152,7 @@ int datalab_render_perf_format_summary_json(const DatalabRenderPerfAccumulator *
         "\"vk_begin_avg\":%.3f,\"vk_begin_max\":%.3f,"
         "\"vk_draw_avg\":%.3f,\"vk_draw_max\":%.3f,"
         "\"vk_end_avg\":%.3f,\"vk_end_max\":%.3f,"
+        "\"present_sync_avg\":%.3f,\"present_sync_max\":%.3f,"
         "\"present_avg\":%.3f,\"present_max\":%.3f},"
         "\"last_failure\":{\"stage\":\"%s\",\"result\":%d}}",
         (unsigned long long)accumulator->frame_count,
@@ -173,6 +178,8 @@ int datalab_render_perf_format_summary_json(const DatalabRenderPerfAccumulator *
         accumulator->vulkan_draw_ms_max,
         accumulator->vulkan_end_ms_total / divisor,
         accumulator->vulkan_end_ms_max,
+        accumulator->present_sync_ms_total / divisor,
+        accumulator->present_sync_ms_max,
         accumulator->total_present_ms_total / divisor,
         accumulator->total_present_ms_max,
         datalab_render_perf_stage_name(accumulator->last_failure_stage),
@@ -204,8 +211,9 @@ static void datalab_render_perf_diag_init(void) {
     if (g_datalab_render_perf.initialized) {
         return;
     }
-    g_datalab_render_perf.enabled = datalab_render_perf_env_truthy(
-        getenv("DATALAB_RENDER_PERF_DIAG"));
+    g_datalab_render_perf.enabled =
+        datalab_render_perf_env_truthy(getenv("DATALAB_RENDER_PERF_DIAG")) ||
+        datalab_render_perf_env_truthy(getenv("DATALAB_NATIVE_IMAGE_PROFILE_WAVE"));
     g_datalab_render_perf.period_ms = datalab_render_perf_period_ms();
     g_datalab_render_perf.period_begin_ticks = SDL_GetTicks();
     g_datalab_render_perf.initialized = 1;
@@ -284,6 +292,8 @@ void datalab_render_perf_diag_stage_end(DatalabRenderPerfStage stage, uint64_t b
             g_datalab_render_perf.frame.vulkan_end_ms += elapsed;
             break;
         case DATALAB_RENDER_PERF_STAGE_PRESENT_SYNC:
+            g_datalab_render_perf.frame.present_sync_ms += elapsed;
+            break;
         case DATALAB_RENDER_PERF_STAGE_NONE:
         default:
             break;
@@ -362,6 +372,7 @@ void datalab_render_perf_diag_finish(int present_succeeded,
         g_datalab_render_perf.frame_begin_counter);
     datalab_render_perf_accumulator_note(&g_datalab_render_perf.accumulator,
                                          &g_datalab_render_perf.frame);
+    g_datalab_render_perf.last_frame_valid = 1;
     g_datalab_render_perf.frame_active = 0;
     now_ticks = SDL_GetTicks();
     if (!present_succeeded ||
@@ -370,6 +381,14 @@ void datalab_render_perf_diag_finish(int present_succeeded,
         datalab_render_perf_diag_flush();
         g_datalab_render_perf.period_begin_ticks = now_ticks;
     }
+}
+
+int datalab_render_perf_diag_last_frame(DatalabRenderPerfFrame *out_frame) {
+    if (!out_frame || !g_datalab_render_perf.last_frame_valid) {
+        return 0;
+    }
+    *out_frame = g_datalab_render_perf.frame;
+    return 1;
 }
 
 void datalab_render_perf_diag_flush(void) {

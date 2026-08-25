@@ -24,6 +24,8 @@ NATIVE_IMAGE_POLICY_TEST_BIN := $(TEST_BUILD_DIR)/datalab_native_image_policy_co
 NATIVE_IMAGE_POLICY_TEST_OBJ := $(TEST_BUILD_DIR)/datalab_native_image_policy_contract_test.o
 IMAGE_OVERLAY_IDENTITY_TEST_BIN := $(TEST_BUILD_DIR)/datalab_image_overlay_identity_contract_test
 IMAGE_OVERLAY_IDENTITY_TEST_OBJ := $(TEST_BUILD_DIR)/datalab_image_overlay_identity_contract_test.o
+NATIVE_IMAGE_PROFILE_WAVE_TEST_BIN := $(TEST_BUILD_DIR)/datalab_native_image_profile_wave_contract_test
+NATIVE_IMAGE_PROFILE_WAVE_TEST_OBJ := $(TEST_BUILD_DIR)/datalab_native_image_profile_wave_contract_test.o
 VIEWER_SESSION_TEST_BIN := $(TEST_BUILD_DIR)/datalab_viewer_session_prefs_contract_test
 VIEWER_SESSION_TEST_OBJ := $(TEST_BUILD_DIR)/datalab_viewer_session_prefs_contract_test.o
 ASYNC_DECODE_TEST_BIN := $(TEST_BUILD_DIR)/datalab_async_decode_contract_test
@@ -37,7 +39,7 @@ FOCUS_WINDOW_TEST_OBJ := $(TEST_BUILD_DIR)/datalab_focus_window_contract_test.o
 TEST_DEPS := $(APP_CONTRACT_TEST_OBJ:.o=.d) $(AUTHORING_INPUT_TEST_OBJ:.o=.d) \
 	$(RASTER_VIEWPORT_TEST_OBJ:.o=.d) $(LOOP_POLICY_TEST_OBJ:.o=.d) \
 	$(PANEL_POLICY_TEST_OBJ:.o=.d) $(PROFILE_INTERACTION_TEST_OBJ:.o=.d) $(IMAGE_RESIDENCY_TEST_OBJ:.o=.d) $(VIEWER_SESSION_TEST_OBJ:.o=.d) \
-	$(RENDER_PERF_DIAG_TEST_OBJ:.o=.d) $(NATIVE_IMAGE_POLICY_TEST_OBJ:.o=.d) $(IMAGE_OVERLAY_IDENTITY_TEST_OBJ:.o=.d) $(ASYNC_DECODE_TEST_OBJ:.o=.d) $(THUMBNAIL_DECODE_TEST_OBJ:.o=.d) $(INPUT_CATALOG_TEST_OBJ:.o=.d) $(FOCUS_WINDOW_TEST_OBJ:.o=.d)
+	$(RENDER_PERF_DIAG_TEST_OBJ:.o=.d) $(NATIVE_IMAGE_POLICY_TEST_OBJ:.o=.d) $(IMAGE_OVERLAY_IDENTITY_TEST_OBJ:.o=.d) $(NATIVE_IMAGE_PROFILE_WAVE_TEST_OBJ:.o=.d) $(ASYNC_DECODE_TEST_OBJ:.o=.d) $(THUMBNAIL_DECODE_TEST_OBJ:.o=.d) $(INPUT_CATALOG_TEST_OBJ:.o=.d) $(FOCUS_WINDOW_TEST_OBJ:.o=.d)
 DEPS += $(TEST_DEPS)
 -include $(TEST_DEPS)
 DEFAULT_PACK_SRC := $(SHARED_ROOT)/core/core_pack/tests/fixtures/physics_v1_sample.pack
@@ -145,6 +147,14 @@ $(IMAGE_OVERLAY_IDENTITY_TEST_BIN): $(IMAGE_OVERLAY_IDENTITY_TEST_OBJ) $(PROGRAM
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $(IMAGE_OVERLAY_IDENTITY_TEST_OBJ) $(PROGRAM_OBJ_DIR)/render/datalab_image_overlay_identity.o
 
+$(NATIVE_IMAGE_PROFILE_WAVE_TEST_OBJ): tests/datalab_native_image_profile_wave_contract_test.c
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
+
+$(NATIVE_IMAGE_PROFILE_WAVE_TEST_BIN): $(NATIVE_IMAGE_PROFILE_WAVE_TEST_OBJ) $(filter-out $(PROGRAM_OBJ_DIR)/main.o,$(OBJS)) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB)
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $(NATIVE_IMAGE_PROFILE_WAVE_TEST_OBJ) $(filter-out $(PROGRAM_OBJ_DIR)/main.o,$(OBJS)) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB) $(LIBS)
+
 $(VIEWER_SESSION_TEST_OBJ): tests/datalab_viewer_session_prefs_contract_test.c
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
@@ -251,6 +261,9 @@ test-native-image-policy-contract: $(NATIVE_IMAGE_POLICY_TEST_BIN)
 test-image-overlay-identity-contract: $(IMAGE_OVERLAY_IDENTITY_TEST_BIN)
 	env -u TARGET_CONTRACT_HELPER ./$(IMAGE_OVERLAY_IDENTITY_TEST_BIN)
 
+test-native-image-profile-wave-contract: $(NATIVE_IMAGE_PROFILE_WAVE_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER ./$(NATIVE_IMAGE_PROFILE_WAVE_TEST_BIN)
+
 test-viewer-session-prefs-contract: $(VIEWER_SESSION_TEST_BIN)
 	env -u TARGET_CONTRACT_HELPER ./$(VIEWER_SESSION_TEST_BIN)
 
@@ -278,7 +291,7 @@ test-w5-acceptance: $(TARGET)
 test-linux-launcher-contract:
 	env -u TARGET_CONTRACT_HELPER sh tests/datalab_linux_launcher_contract_test.sh
 
-test-contract: test-app-contract test-authoring-input-contract test-raster-viewport-contract test-loop-policy-contract test-panel-policy-contract test-profile-interaction-contract test-viewer-session-prefs-contract test-render-perf-diag-contract test-native-image-policy-contract test-image-overlay-identity-contract test-async-decode-contract test-thumbnail-decode-contract test-input-catalog-contract test-focus-window-contract
+test-contract: test-app-contract test-authoring-input-contract test-raster-viewport-contract test-loop-policy-contract test-panel-policy-contract test-profile-interaction-contract test-viewer-session-prefs-contract test-render-perf-diag-contract test-native-image-policy-contract test-image-overlay-identity-contract test-native-image-profile-wave-contract test-async-decode-contract test-thumbnail-decode-contract test-input-catalog-contract test-focus-window-contract
 
 test-package-boundary: test-package-desktop-path-guard test-package-runtime-boundary
 
