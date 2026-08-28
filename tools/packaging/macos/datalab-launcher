@@ -4,7 +4,11 @@ set -eu
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 APP_CONTENTS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 RES_DIR="$APP_CONTENTS_DIR/Resources"
-RUNTIME_DIR_DEFAULT="${HOME}/Library/Application Support/DataLab/runtime"
+PACKAGE_PROFILE="@PACKAGE_PROFILE@"
+RUNTIME_NAMESPACE="@RUNTIME_NAMESPACE@"
+LOG_NAMESPACE="@LOG_NAMESPACE@"
+BUILD_LABEL="@BUILD_LABEL@"
+RUNTIME_DIR_DEFAULT="${HOME}/Library/Application Support/${RUNTIME_NAMESPACE}/runtime"
 RUNTIME_DIR="${DATALAB_RUNTIME_DIR:-$RUNTIME_DIR_DEFAULT}"
 case "$RUNTIME_DIR" in
     "$APP_CONTENTS_DIR"|"$APP_CONTENTS_DIR"/*|"$RES_DIR"|"$RES_DIR"/*)
@@ -12,12 +16,12 @@ case "$RUNTIME_DIR" in
         ;;
 esac
 if ! mkdir -p "$RUNTIME_DIR" 2>/dev/null; then
-    RUNTIME_DIR="${TMPDIR:-/tmp}/DataLab/runtime"
+    RUNTIME_DIR="${TMPDIR:-/tmp}/${RUNTIME_NAMESPACE}/runtime"
     mkdir -p "$RUNTIME_DIR" 2>/dev/null || true
 fi
 mkdir -p "$RUNTIME_DIR/vk" "$RUNTIME_DIR/config/shared/shaders" "$RUNTIME_DIR/data/runtime" 2>/dev/null || true
 APP_DATA_HOME="$RUNTIME_DIR"
-LOG_DIR="${HOME}/Library/Logs/DataLab"
+LOG_DIR="${HOME}/Library/Logs/${LOG_NAMESPACE}"
 LOG_FILE="$LOG_DIR/launcher.log"
 
 mkdir -p "$LOG_DIR" 2>/dev/null || true
@@ -93,6 +97,10 @@ assert_not_app_resource_root() {
 }
 
 if [ "${1:-}" = "--print-config" ]; then
+    echo "PACKAGE_PROFILE=$PACKAGE_PROFILE"
+    echo "RUNTIME_NAMESPACE=$RUNTIME_NAMESPACE"
+    echo "LOG_NAMESPACE=$LOG_NAMESPACE"
+    echo "BUILD_LABEL=$BUILD_LABEL"
     echo "APP_CONTENTS_DIR=$APP_CONTENTS_DIR"
     echo "RES_DIR=$RES_DIR"
     echo "LOG_FILE=$LOG_FILE"
@@ -120,6 +128,10 @@ if [ "${1:-}" = "--self-test" ]; then
     [ -f "$MOLTENVK_DYLIB" ] || { echo "missing: bundled MoltenVK dylib" >&2; exit 1; }
     [ -f "$ICD_FILE" ] || { echo "missing: runtime MoltenVK ICD file" >&2; exit 1; }
     echo "self-test: ok"
+    echo "PACKAGE_PROFILE=$PACKAGE_PROFILE"
+    echo "RUNTIME_NAMESPACE=$RUNTIME_NAMESPACE"
+    echo "LOG_NAMESPACE=$LOG_NAMESPACE"
+    echo "BUILD_LABEL=$BUILD_LABEL"
     echo "LOG_FILE_SCOPE=$(path_scope "$LOG_FILE")"
     echo "DATALAB_RUNTIME_DIR_SCOPE=$(path_scope "$DATALAB_RUNTIME_DIR")"
     echo "APP_DATA_HOME_SCOPE=$(path_scope "$APP_DATA_HOME")"

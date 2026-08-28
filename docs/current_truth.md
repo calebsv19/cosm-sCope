@@ -1,5 +1,29 @@
 # DataLab Current Truth
 
+## Persistent Main Edit Development Lane
+
+DataLab implements the MEW1 persistent development topology:
+
+- canonical branch/check-out convention: `main` / `<workspace>/datalab`
+- Main Edit branch/worktree convention: `codex/datalab-main-edit` /
+  `<workspace>/_worktrees/datalab_main_edit`
+- isolated app: `sCope Main Edit.app`
+- bundle ID: `com.cosm.scope.main-edit`
+- runtime/log namespace: `DataLab-Main-Edit`
+- identity schema: `codework_local_development_build_identity_v1`
+- required package targets: `package-desktop-main-edit`,
+  `package-desktop-main-edit-self-test`, and
+  `package-desktop-main-edit-refresh`
+- focused gate: `main-edit-package-contract-checks`
+- operator runbook: `docs/main_edit_worktree.md`
+
+The development package embeds exact source branch, commit, dirty flag,
+fingerprint, binary digest, target/toolchain, and build label. Its guarded
+refresh refuses the canonical Desktop destination and a running Main Edit app.
+The image-pipeline specialist worktree, private Linux candidate, program
+`VERSION`, release artifacts, Registry state, publication, and deployment are
+separate ownership and authority boundaries.
+
 Last updated: 2026-08-24
 
 ## Program Identity

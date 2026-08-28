@@ -1,6 +1,8 @@
 SRC_DIR := src
 INC_DIR := include
 BUILD_DIR := build
+CODEWORK_WORKSPACE_ROOT := $(abspath $(shell git rev-parse --path-format=absolute --git-common-dir)/../..)
+MEW1_TOOL ?= $(CODEWORK_WORKSPACE_ROOT)/shared/scripts/mew1/mew1.py
 TARGET_BUILD_DIR := $(BUILD_DIR)/targets/$(TARGET_TRIPLE)
 HOST_BUILD_DIR := $(TARGET_BUILD_DIR)/host
 PROGRAM_BUILD_DIR := $(TARGET_BUILD_DIR)/toolchains/$(BUILD_TOOLCHAIN)
@@ -48,6 +50,18 @@ PACKAGE_SELF_TEST_TMP := $(PACKAGE_SELF_TEST_ROOT)/tmp
 PACKAGE_SELF_TEST_OUTPUT := $(PACKAGE_SELF_TEST_ROOT)/launcher_self_test.txt
 DESKTOP_APP_DIR ?= $(HOME)/Desktop/$(PACKAGE_APP_NAME)
 PACKAGE_ADHOC_SIGN_IDENTITY ?= -
+MAIN_EDIT_DIST_DIR := $(TARGET_BUILD_DIR)/dist/dev/main-edit
+MAIN_EDIT_APP_NAME := sCope Main Edit.app
+MAIN_EDIT_DISPLAY_NAME := sCope Main Edit
+MAIN_EDIT_BUNDLE_ID := com.cosm.scope.main-edit
+MAIN_EDIT_RUNTIME_NAMESPACE := DataLab-Main-Edit
+MAIN_EDIT_LOG_NAMESPACE := DataLab-Main-Edit
+MAIN_EDIT_PROFILE := main-edit
+MAIN_EDIT_BUILD_LABEL = sCope-main-edit-$(RELEASE_VERSION)
+MAIN_EDIT_APP_DIR := $(MAIN_EDIT_DIST_DIR)/$(MAIN_EDIT_APP_NAME)
+MAIN_EDIT_DESKTOP_APP_DIR ?= $(HOME)/Desktop/$(MAIN_EDIT_APP_NAME)
+MAIN_EDIT_PROCESS_RECEIPT := $(TARGET_BUILD_DIR)/receipts/mew1/process-audit.json
+MAIN_EDIT_SELF_TEST_DIR := $(TARGET_BUILD_DIR)/package-main-edit-self-test
 
 RELEASE_VERSION ?= $(strip $(shell cat "$(VERSION_FILE)" 2>/dev/null))
 ifeq ($(RELEASE_VERSION),)

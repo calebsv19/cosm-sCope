@@ -1,5 +1,16 @@
 # DataLab Desktop Packaging
 
+Persistent Main Edit development package:
+
+- `make -C <workspace>/_worktrees/datalab_main_edit package-desktop-main-edit`
+- `make -C <workspace>/_worktrees/datalab_main_edit package-desktop-main-edit-self-test`
+- `make -C <workspace>/_worktrees/datalab_main_edit package-desktop-main-edit-refresh`
+
+The isolated app is `sCope Main Edit.app`, bundle ID
+`com.cosm.scope.main-edit`, with `DataLab-Main-Edit` runtime/log namespaces and
+embedded exact source/binary identity. It is a local development package, not
+a release or Registry artifact. See `docs/main_edit_worktree.md`.
+
 Last updated: 2026-08-04
 
 ## Bundle Contract

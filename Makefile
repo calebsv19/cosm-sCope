@@ -17,6 +17,7 @@ include make/sources.mk
 	vulkan-rollout-contract vulkan-rollout-self-test package-desktop-vulkan-self-test \
 	memory-check-build memory-check-run memory-check-audit \
 	package-desktop package-desktop-smoke package-desktop-self-test package-desktop-copy-desktop \
+	package-desktop-main-edit package-desktop-main-edit-self-test package-desktop-main-edit-refresh main-edit-package-contract-checks \
 	package-desktop-sync package-desktop-open package-desktop-remove package-desktop-refresh \
 	test-package-desktop-path-guard test-package-runtime-boundary \
 	package-linux-desktop package-linux-desktop-clean package-linux-desktop-host-check \

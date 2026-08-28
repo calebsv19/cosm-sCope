@@ -8,11 +8,11 @@
     <key>CFBundleExecutable</key>
     <string>datalab-launcher</string>
     <key>CFBundleIdentifier</key>
-    <string>com.cosm.scope</string>
+    <string>@PACKAGE_BUNDLE_ID@</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>sCope</string>
+    <string>@PACKAGE_DISPLAY_NAME@</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>
@@ -25,5 +25,13 @@
     <string>12.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>DataLabPackageProfile</key>
+    <string>@PACKAGE_PROFILE@</string>
+    <key>DataLabRuntimeNamespace</key>
+    <string>@RUNTIME_NAMESPACE@</string>
+    <key>DataLabLogNamespace</key>
+    <string>@LOG_NAMESPACE@</string>
+    <key>DataLabBuildLabel</key>
+    <string>@BUILD_LABEL@</string>
 </dict>
 </plist>

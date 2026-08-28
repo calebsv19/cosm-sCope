@@ -18,6 +18,8 @@ DataLab is a C-based data visualizer and technical artifact library for `.pack`,
 - Workspace-authoring host pilot for pane + font/theme overlay validation.
 - Multi-arch macOS package targets for Apple Silicon and Intel builds.
 - Headless validation mode for deterministic CLI checks.
+- Persistent Main Edit integration through isolated `sCope Main Edit.app`
+  packaging; see `docs/main_edit_worktree.md`.
 
 ## Implemented Today
 
