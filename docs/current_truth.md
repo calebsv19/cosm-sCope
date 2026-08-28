@@ -4,6 +4,11 @@
 
 DataLab implements the MEW1 persistent development topology:
 
+- implementation checkpoint: `a5d41766caf689f268c30ec77a339756b1e6884b`
+- lifecycle state: `adopted_retained`; canonical and the clean persistent
+  Main Edit lane are aligned, and the named worktree remains the ongoing
+  single-writer integration lane
+
 - canonical branch/check-out convention: `main` / `<workspace>/datalab`
 - Main Edit branch/worktree convention: `codex/datalab-main-edit` /
   `<workspace>/_worktrees/datalab_main_edit`
