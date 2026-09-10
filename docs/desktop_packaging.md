@@ -145,3 +145,7 @@ scope; later publication remains outside that grant and requires Decision 2.
   `build/targets/macOS-x86_64/`.
 - real Intel Mac GUI launch is a separate machine validation step after local
   x86 package/audit success.
+
+### Decision 1 artifact-root layout
+
+`release-output-root-conformance` keeps only the ZIP, checksum and manifest in its absent job-specific `RELEASE_ROOT`. Bundle audit diagnostics and launcher runtime output are retained separately in the sibling `<RELEASE_ROOT>.diagnostics` directory, which must also be absent before packaging. Ordinary release targets retain their existing audit location by default through `RELEASE_AUDIT_DIR`. This separation allows the Registry exact artifact-set validator to reject unexpected publication files without discarding diagnostic evidence.

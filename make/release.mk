@@ -1,3 +1,5 @@
+RELEASE_AUDIT_DIR ?= $(RELEASE_DIR)
+
 release-contract:
 	@echo "PROGRAM_KEY=$(PROGRAM_KEY)"
 	@echo "HOST_ARCH=$(HOST_ARCH)"
@@ -23,30 +25,31 @@ release-build:
 	@echo "Release build prepared at $(PACKAGE_APP_DIR)"
 
 release-bundle-audit: release-build
-	@/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_DIR)/bundle_id.txt"
-	@test "$$(cat "$(RELEASE_DIR)/bundle_id.txt")" = "$(RELEASE_BUNDLE_ID)" || (echo "Bundle identifier mismatch"; exit 1)
-	@/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_DIR)/bundle_short_version.txt"
-	@test "$$(cat "$(RELEASE_DIR)/bundle_short_version.txt")" = "$(RELEASE_VERSION)" || (echo "Bundle short version mismatch"; exit 1)
-	@/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_DIR)/bundle_version.txt"
-	@test "$$(cat "$(RELEASE_DIR)/bundle_version.txt")" = "$(RELEASE_VERSION)" || (echo "Bundle version mismatch"; exit 1)
-	@otool -L "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" > "$(RELEASE_DIR)/otool_datalab_bin.txt"
+	@mkdir -p "$(RELEASE_AUDIT_DIR)"
+	@/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_AUDIT_DIR)/bundle_id.txt"
+	@test "$$(cat "$(RELEASE_AUDIT_DIR)/bundle_id.txt")" = "$(RELEASE_BUNDLE_ID)" || (echo "Bundle identifier mismatch"; exit 1)
+	@/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_AUDIT_DIR)/bundle_short_version.txt"
+	@test "$$(cat "$(RELEASE_AUDIT_DIR)/bundle_short_version.txt")" = "$(RELEASE_VERSION)" || (echo "Bundle short version mismatch"; exit 1)
+	@/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_AUDIT_DIR)/bundle_version.txt"
+	@test "$$(cat "$(RELEASE_AUDIT_DIR)/bundle_version.txt")" = "$(RELEASE_VERSION)" || (echo "Bundle version mismatch"; exit 1)
+	@otool -L "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" > "$(RELEASE_AUDIT_DIR)/otool_datalab_bin.txt"
 	@for dylib in "$(PACKAGE_FRAMEWORKS_DIR)"/*.dylib; do \
 		[ -f "$$dylib" ] || continue; \
-		out="$(RELEASE_DIR)/otool_$$(basename "$$dylib").txt"; \
+		out="$(RELEASE_AUDIT_DIR)/otool_$$(basename "$$dylib").txt"; \
 		otool -L "$$dylib" > "$$out"; \
 	done
-	@! rg -q '/opt/homebrew|/usr/local|/Users/' "$(RELEASE_DIR)"/otool_*.txt || (echo "Found non-portable dylib linkage"; exit 1)
-	@! rg -q '@rpath/' "$(RELEASE_DIR)"/otool_*.txt || (echo "Found unresolved @rpath dylib linkage"; exit 1)
-	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --print-config > "$(RELEASE_DIR)/print_config.txt"
-	@rg -q '^DATALAB_RUNTIME_DIR=' "$(RELEASE_DIR)/print_config.txt" || (echo "Missing DATALAB_RUNTIME_DIR in launcher config"; exit 1)
-	@rg -q '^VK_ICD_FILENAMES=' "$(RELEASE_DIR)/print_config.txt" || (echo "Missing VK_ICD_FILENAMES in launcher config"; exit 1)
-	@runtime_dir="$$(/usr/bin/grep '^DATALAB_RUNTIME_DIR=' "$(RELEASE_DIR)/print_config.txt" | /usr/bin/cut -d= -f2-)"; \
+	@! rg -q '/opt/homebrew|/usr/local|/Users/' "$(RELEASE_AUDIT_DIR)"/otool_*.txt || (echo "Found non-portable dylib linkage"; exit 1)
+	@! rg -q '@rpath/' "$(RELEASE_AUDIT_DIR)"/otool_*.txt || (echo "Found unresolved @rpath dylib linkage"; exit 1)
+	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --print-config > "$(RELEASE_AUDIT_DIR)/print_config.txt"
+	@rg -q '^DATALAB_RUNTIME_DIR=' "$(RELEASE_AUDIT_DIR)/print_config.txt" || (echo "Missing DATALAB_RUNTIME_DIR in launcher config"; exit 1)
+	@rg -q '^VK_ICD_FILENAMES=' "$(RELEASE_AUDIT_DIR)/print_config.txt" || (echo "Missing VK_ICD_FILENAMES in launcher config"; exit 1)
+	@runtime_dir="$$(/usr/bin/grep '^DATALAB_RUNTIME_DIR=' "$(RELEASE_AUDIT_DIR)/print_config.txt" | /usr/bin/cut -d= -f2-)"; \
 	case "$$runtime_dir" in *"/Contents/Resources"*) echo "runtime dir incorrectly points into app bundle: $$runtime_dir"; exit 1;; esac
-	@input_root="$$(/usr/bin/grep '^DATALAB_INPUT_ROOT=' "$(RELEASE_DIR)/print_config.txt" | /usr/bin/cut -d= -f2-)"; \
+	@input_root="$$(/usr/bin/grep '^DATALAB_INPUT_ROOT=' "$(RELEASE_AUDIT_DIR)/print_config.txt" | /usr/bin/cut -d= -f2-)"; \
 	case "$$input_root" in *"/Contents/Resources"*) echo "input root incorrectly points into app bundle: $$input_root"; exit 1;; esac
 	@! find "$(PACKAGE_RESOURCES_DIR)/data/runtime" -type f -print -quit | /usr/bin/grep -q . || (echo "Packaged runtime defaults contain repo-local files"; exit 1)
-	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --self-test > "$(RELEASE_DIR)/launcher_self_test.txt"
-	@! rg -q '/Contents/Resources|args=' "$(RELEASE_DIR)/launcher_self_test.txt" || (echo "Launcher self-test leaked packaged-resource paths or arguments"; exit 1)
+	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --self-test > "$(RELEASE_AUDIT_DIR)/launcher_self_test.txt"
+	@! rg -q '/Contents/Resources|args=' "$(RELEASE_AUDIT_DIR)/launcher_self_test.txt" || (echo "Launcher self-test leaked packaged-resource paths or arguments"; exit 1)
 	@echo "release-bundle-audit passed."
 
 release-sign: release-bundle-audit
@@ -190,7 +193,8 @@ release-output-root-contract:
 
 release-output-root-conformance: release-output-root-contract
 	@test ! -e "$(RELEASE_ROOT)" || (echo "RELEASE_ROOT must be absent before package"; exit 1)
-	@DATALAB_RUNTIME_DIR="$(abspath $(RELEASE_DIR)/runtime)" DATALAB_INPUT_ROOT="$(abspath $(RELEASE_DIR)/runtime)" $(MAKE) RELEASE_ROOT="$(RELEASE_ROOT)" release-artifact
+	@test ! -e "$(RELEASE_ROOT).diagnostics" && test ! -L "$(RELEASE_ROOT).diagnostics" || (echo "Release diagnostics root must be absent before package"; exit 1)
+	@DATALAB_RUNTIME_DIR="$(abspath $(RELEASE_ROOT).diagnostics/runtime)" DATALAB_INPUT_ROOT="$(abspath $(RELEASE_ROOT).diagnostics/runtime)" $(MAKE) RELEASE_ROOT="$(RELEASE_ROOT)" RELEASE_AUDIT_DIR="$(RELEASE_ROOT).diagnostics" release-artifact
 	@test -f "$(RELEASE_APP_ZIP)" || (echo "Missing release artifact at selected root"; exit 1)
 	@test -f "$(RELEASE_APP_ZIP_SHA256)" || (echo "Missing release checksum at selected root"; exit 1)
 	@test -f "$(RELEASE_MANIFEST)" || (echo "Missing release manifest at selected root"; exit 1)
