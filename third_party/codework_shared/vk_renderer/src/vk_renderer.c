@@ -6,6 +6,7 @@
  */
 
 #include "vk_renderer.h"
+#include "vk_renderer_draw_internal.h"
 
 #include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_vulkan.h>
@@ -226,11 +227,16 @@ static VkResult ensure_frame_vertex_buffer(VkRenderer* renderer,
     }
     s_logged_vertex_buffer_failure = 0;
 
-    if (frame->vertex_buffer.buffer != VK_NULL_HANDLE && frame->vertex_offset > 0) {
-        if (new_buffer.mapped && frame->vertex_buffer.mapped) {
+    if (frame->vertex_buffer.buffer != VK_NULL_HANDLE) {
+        if (frame->vertex_offset > 0 && new_buffer.mapped && frame->vertex_buffer.mapped) {
             memcpy(new_buffer.mapped, frame->vertex_buffer.mapped, (size_t)frame->vertex_offset);
         }
-        vk_renderer_memory_destroy_buffer(&renderer->context, &frame->vertex_buffer);
+        /* Recorded draws still refer to this allocation until the frame completes. */
+        result = vk_renderer_retire_frame_buffer(frame, &frame->vertex_buffer);
+        if (result != VK_SUCCESS) {
+            vk_renderer_memory_destroy_buffer(&renderer->context, &new_buffer);
+            return result;
+        }
     }
 
     frame->vertex_buffer = new_buffer;
@@ -735,6 +741,7 @@ VkResult vk_renderer_begin_frame(VkRenderer* renderer,
     VkRendererFrameState* frame = active_frame(renderer);
     if (!frame) return VK_ERROR_INITIALIZATION_FAILED;
     flush_transient_textures(renderer, frame);
+    vk_renderer_release_frame_buffers(renderer, frame, 0);
     frame->vertex_offset = 0;
     renderer->draw_state.draw_call_count = 0;
 
@@ -1588,6 +1595,14 @@ static void emit_filled_quad(VkRenderer* renderer,
     }
 }
 
+void vk_renderer_emit_solid_vertices(VkRenderer* renderer,
+                                      const float (*vertices)[6],
+                                      uint32_t vertex_count) {
+    VkRendererFrameState* frame = active_frame(renderer);
+    if (!frame || !vertices || vertex_count == 0) return;
+    emit_filled_quad(renderer, frame, vertices, VK_RENDERER_PIPELINE_SOLID, vertex_count);
+}
+
 void vk_renderer_draw_rect(VkRenderer* renderer, const SDL_Rect* rect) {
     if (!rect) return;
     float x = (float)rect->x;
@@ -1855,6 +1870,7 @@ void vk_renderer_shutdown_surface(VkRenderer* renderer) {
             frame->transient_textures = NULL;
             frame->transient_texture_capacity = 0;
             frame->transient_texture_count = 0;
+            vk_renderer_release_frame_buffers(renderer, frame, 1);
             vk_renderer_memory_destroy_buffer(&renderer->context, &frame->vertex_buffer);
         }
     }
@@ -1902,6 +1918,7 @@ void vk_renderer_shutdown(VkRenderer* renderer) {
             frame->transient_textures = NULL;
             frame->transient_texture_capacity = 0;
             frame->transient_texture_count = 0;
+            vk_renderer_release_frame_buffers(renderer, frame, 1);
             vk_renderer_memory_destroy_buffer(&renderer->context, &frame->vertex_buffer);
         }
     }

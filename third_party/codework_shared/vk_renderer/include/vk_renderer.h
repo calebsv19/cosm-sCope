@@ -26,6 +26,9 @@ typedef struct VkRendererFrameState {
     VkRendererTexture* transient_textures;
     uint32_t transient_texture_count;
     uint32_t transient_texture_capacity;
+    VkAllocatedBuffer* retired_vertex_buffers;
+    uint32_t retired_vertex_buffer_count;
+    uint32_t retired_vertex_buffer_capacity;
 } VkRendererFrameState;
 
 typedef struct VkRendererDrawState {
@@ -121,6 +124,11 @@ void vk_renderer_draw_line_thick(VkRenderer* renderer,
 void vk_renderer_draw_line_strip(VkRenderer* renderer, const SDL_FPoint* points, uint32_t count);
 void vk_renderer_draw_rect(VkRenderer* renderer, const SDL_Rect* rect);
 void vk_renderer_fill_rect(VkRenderer* renderer, const SDL_Rect* rect);
+/* Native rounded fill; radius is clamped to half the smaller logical extent.
+ * Nonpositive radii remain square. Edge coverage uses drawable-pixel scale. */
+void vk_renderer_fill_rounded_rect(VkRenderer* renderer,
+                                    const SDL_FRect* rect,
+                                    float corner_radius);
 void vk_renderer_draw_texture(VkRenderer* renderer,
                               const VkRendererTexture* texture,
                               const SDL_Rect* src,

@@ -6,6 +6,7 @@ CORE_BASE_DIR ?= ../../core/core_base
 CORE_THEME_DIR ?= ../../core/core_theme
 CORE_FONT_DIR ?= ../../core/core_font
 VK_RENDERER_DIR ?= ../../vk_renderer
+VK_RUNTIME_DIR ?= ../../vk_runtime
 KIT_RENDER_ENABLE_VK ?= 0
 
 INC = -Iinclude -I$(CORE_BASE_DIR)/include -I$(CORE_THEME_DIR)/include -I$(CORE_FONT_DIR)/include
@@ -24,7 +25,7 @@ endif
 ifeq ($(strip $(SDL_TTF_CFLAGS)),)
   SDL_TTF_CFLAGS := -I/opt/homebrew/include/SDL2
 endif
-INC += -I$(VK_RENDERER_DIR)/include $(VULKAN_CFLAGS) $(SDL_CFLAGS) $(SDL_TTF_CFLAGS)
+INC += -I$(VK_RENDERER_DIR)/include -I$(VK_RUNTIME_DIR)/include $(VULKAN_CFLAGS) $(SDL_CFLAGS) $(SDL_TTF_CFLAGS)
 endif
 OBJ_DIR = build/default
 ifeq ($(KIT_RENDER_ENABLE_VK),1)
@@ -100,7 +101,7 @@ test: $(TEST_BIN)
 
 $(VALIDATION_BIN): examples/kit_render_vk_validation.c $(LIB) vk-renderer-lib $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a | $(OBJ_DIR)
 ifeq ($(KIT_RENDER_ENABLE_VK),1)
-	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) $< $(LIB) $(VK_RENDERER_DIR)/build/lib/libvkrenderer.a $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a $(VULKAN_LIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(APPLE_FW) -o $@
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) $< $(LIB) $(VK_RENDERER_DIR)/build/lib/libvkrenderer.a $(VK_RUNTIME_DIR)/build/lib/libvkruntime.a $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a $(VULKAN_LIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(APPLE_FW) -o $@
 else
 	@echo "validation-harness requires KIT_RENDER_ENABLE_VK=1"
 	@false

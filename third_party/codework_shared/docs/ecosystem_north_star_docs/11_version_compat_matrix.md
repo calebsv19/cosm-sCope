@@ -181,3 +181,25 @@ residency, or timing workload APIs.
 - Update minimum versions whenever an app relies on newly added module behavior.
 - Keep `N/A` for modules not yet linked by that app.
 - For shared patch bumps in active deps (for example `core_wake` `1.0.1`), update dependent app minimums only when they require that patch behavior.
+
+### GrowthSim Main Edit installed MCP helper minimums (2026-10-04)
+
+Installed headless and explicit desktop control directly use selected vendored
+`core_jobs 1.0.1`, `core_time 1.0.1` and `core_headless_job 0.2.0` for cooperative
+bounded runs, monotonic deadlines and envelope/report validation. Source, package,
+installed desktop and actual Codex acceptance pass. This Main Edit delivery does
+not change the canonical app matrix or shared API/version contracts.
+
+## Rounded UI Main Edit Minimums (2026-10-04)
+
+These development-lane minimums supplement the canonical app matrix above.
+They do not imply canonical source adoption or a released app version.
+
+| Development host | kit_ui | kit_render | vk_renderer | vk_runtime | Migrated surface |
+| --- | --- | --- | --- | --- | --- |
+| WorkspaceSandbox Main Edit | 0.11.3 | 0.14.5 | 1.4.0 | 0.6.0 | Font/Theme, floating HUD and top-level buttons; kit_workspace_authoring >= 0.5.2; UI-only kit dependency |
+| MemConsole Main Edit | 0.11.3 | 0.14.5 | 1.4.0 | 0.6.0 | Common browser/DB/graph inspector buttons |
+
+MemConsole imports committed shared source `e588734`; WorkspaceSandbox adds
+HUD follow-up `51b331a` through the same managed subtree workflow. Rebuild static renderer consumers after upgrading its public frame
+storage structure. Existing SDL adapters and display-free tests remain valid.

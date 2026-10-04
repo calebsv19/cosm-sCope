@@ -210,6 +210,9 @@ and runtime preference persistence.
 Press `Esc` or close the window to exit.
 
 Recent update notes:
+- `0.14.5`: Vulkan rectangle submission now honors positive corner radii through
+  `vk_renderer` 1.4.0 solid rounded geometry, preserving float bounds, clipping,
+  and alpha. Live harness builds include and link sibling `vk_runtime`.
 - `0.14.4`: the Vulkan bridge now honors recorded line and polyline thickness
   through the additive `vk_renderer_draw_line_thick(...)` filled-stroke path.
 - `0.14.3`: added `kit_render_external_text_reset_font_system(...)` so bridge hosts can clear shared external-text font caches before SDL_ttf shutdown/restart and avoid stale derived font handles in later text measurement.

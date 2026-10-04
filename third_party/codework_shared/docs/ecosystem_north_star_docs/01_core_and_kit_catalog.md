@@ -465,9 +465,9 @@ worker-capability semantic contract for cross-program compute.
 
 ---
 
-### core_memdb (BOOTSTRAP)
+### core_memdb (ACTIVE)
 **Role:** Shared durable memory database contract.
-**Responsibilities (initial target):**
+**Responsibilities:**
 - SQLite-backed connection lifecycle
 - Query/statement execution helpers
 - Schema version tracking and migration entrypoints
@@ -479,9 +479,9 @@ worker-capability semantic contract for cross-program compute.
 - Higher-level console behavior stays in kits/apps layered above this core
 
 **Current status note:**
-- The scaffolded module now exists at `shared/core/core_memdb/`
-- The design and rollout docs live under `shared/docs/memory_db_system/`
-- The current implementation is intentionally a placeholder until the SQLite backend is wired
+- The active SQLite/event implementation lives at `shared/core/core_memdb/`; current module version is `0.31.1`. Budget-rejected link mutations preserve readable source-item audit metadata without emitting mutation events or changing the link projection.
+- The CLI and agent wrapper provide bounded scoped retrieval, event-first mutation/replay, graph links, stable-id-only maintained projections, and atomic Lane Head V1 handoffs.
+- Design, operating, and rollout docs live under `shared/docs/memory_db_system/`.
 
 ---
 
@@ -846,3 +846,23 @@ worker-capability semantic contract for cross-program compute.
 - LineDrawing
 - MapForge
 - fisiCs
+
+## Rounded UI Rendering First Slice (2026-10-04)
+
+`vk_renderer 1.4.0` adds `vk_renderer_fill_rounded_rect(...)`, drawable-scale
+coverage geometry, and frame-fence retirement of replaced vertex storage.
+`kit_render 0.14.5` honors recorded positive corner radii through that primitive.
+`kit_ui 0.11.3` fixes sibling runtime linkage in live harnesses and adds the
+bounded `test-rounded-vk` real-image gate; its existing button API is unchanged.
+Widget appearance remains kit-owned, renderer resources stay renderer-owned,
+and actions/layout/persistence remain app-owned. No UI dependency was added to
+core modules. WorkspaceSandbox and MemConsole Main Edit are the first contained
+adopters; their canonical/release identities are unchanged.
+
+HUD follow-up shared source `51b331a` supplies `kit_workspace_authoring 0.5.2`.
+Its top-level HUD draw helper consumes the existing `kit_ui` compact rounded
+appearance/state resolver and measures centered captions with the renderer's
+vertical midpoint. Hosts calling this UI helper link `kit_ui` before `kit_render`;
+input/runtime-only authoring helpers remain usable without a UI runtime.
+WorkspaceSandbox Main Edit adopts it for top-level controls and unifies its
+floating HUD and Font/Theme adapter. Other hosts retain their pinned snapshots.

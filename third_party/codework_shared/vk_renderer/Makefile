@@ -72,7 +72,9 @@ $(LIB): $(OBJ)
 # Compile .c -> .o
 build/obj/%.o: src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+-include $(OBJ:.o=.d)
 
 # Example (optional)
 .PHONY: example
