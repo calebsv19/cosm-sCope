@@ -392,10 +392,17 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
 
     datalab_overlay_draw_button(renderer,
                                 &button,
-                                "RECENT DIRECTORIES",
+                                "",
                                 app_state->recent_input_root_dropdown_open,
                                 app_state->recent_input_root_dropdown_open,
                                 &palette);
+    /* This is a two-line control. Center the caption in its first line so it
+     * does not share the full button midpoint with the directory readout. */
+    datalab_overlay_draw_centered_text(renderer, &button,
+                                        button.y + datalab_scaled_px(2.0f),
+                                        "RECENT DIRECTORIES",
+                                        palette.text_primary_r, palette.text_primary_g,
+                                        palette.text_primary_b, 255);
     clip_rect = (SDL_Rect){
         button.x + pad,
         button.y + line_h + datalab_scaled_px(2.0f),

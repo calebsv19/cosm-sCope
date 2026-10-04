@@ -12,41 +12,6 @@
  * multiplier. */
 enum { DATALAB_AUTHORING_TEXT_SCALE = 1 };
 
-static int datalab_authoring_text_measure(void *user,
-                                          const char *text,
-                                          int scale,
-                                          int *out_width,
-                                          int *out_height) {
-    (void)user;
-    return datalab_measure_text(scale, text, out_width, out_height);
-}
-
-static int datalab_authoring_text_line_height(void *user, int scale) {
-    (void)user;
-    return datalab_text_line_height(scale);
-}
-
-static void datalab_authoring_draw_text_clipped(void *user,
-                                                SDL_Renderer *renderer,
-                                                const SDL_Rect *clip_rect,
-                                                int x,
-                                                int y,
-                                                const char *text,
-                                                int scale,
-                                                KitRenderColor color) {
-    (void)user;
-    draw_text_5x7_clipped(renderer,
-                          clip_rect,
-                          x,
-                          y,
-                          text,
-                          scale,
-                          color.r,
-                          color.g,
-                          color.b,
-                          color.a);
-}
-
 static CoreThemePresetId datalab_authoring_core_theme_preset(
     DatalabWorkspaceAuthoringThemePreset preset) {
     switch (preset) {
@@ -169,37 +134,6 @@ void datalab_overlay_draw_centered_text(SDL_Renderer *renderer,
     }
     draw_text_5x7(renderer, x, y, text, DATALAB_AUTHORING_TEXT_SCALE, r, g, b, a);
 }
-
-void datalab_overlay_draw_button(SDL_Renderer *renderer,
-                                        const SDL_Rect *rect,
-                                        const char *label,
-                                        int hover,
-                                        int active,
-                                        const DatalabAuthoringThemePalette *palette) {
-    KitUiHudStyle style;
-    KitUiButtonState state;
-    KitUiSdlTextApi text_api;
-
-    if (!renderer || !rect || !label || !palette) {
-        return;
-    }
-
-    datalab_overlay_hud_style_from_palette(palette, &style);
-    style.button_corner_radius = (float)datalab_scaled_px(style.button_corner_radius);
-    kit_ui_button_state_init(&state);
-    state.hovered = hover != 0;
-    state.selected = active != 0;
-    text_api = (KitUiSdlTextApi){
-        0,
-        DATALAB_AUTHORING_TEXT_SCALE,
-        datalab_scaled_px(8.0f),
-        datalab_authoring_text_measure,
-        datalab_authoring_text_line_height,
-        datalab_authoring_draw_text_clipped
-    };
-    kit_ui_sdl_draw_button(renderer, rect, label, &state, &style, &text_api);
-}
-
 
 void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                                                      const DatalabAppState *app_state,

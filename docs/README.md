@@ -8,6 +8,7 @@ Start here for public repository documentation.
 - `docs/future_intent.md`: near-term direction and constraints.
 - `docs/KEYBINDS.md`: runtime and authoring-entry input contract.
 - `docs/memory_check_audit.md`: default-off fisiCs memory-check audit lane.
+- `docs/ui_button_adoption.md`: shared appearance adapter, SDL/Vulkan boundary, and verification.
 - `docs/main_edit_worktree.md`: persistent development-lane identity, gates,
   specialist-worktree boundary, integration, and retention contract.
 - current public docs include the startup-picker, active-runtime

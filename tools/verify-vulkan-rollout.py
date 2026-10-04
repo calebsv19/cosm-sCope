@@ -7,7 +7,7 @@ import struct
 import subprocess
 from pathlib import Path
 
-EXPECTED_SHARED_COMMIT = "ddc0c2b1420d95132ef089e68e2ce7728fbc53a4"
+EXPECTED_SHARED_COMMIT = "5b017d4c2a418b7d1648d0e2075af65a123d9ee1"
 
 
 def output(command: list[str], cwd: Path) -> str:
@@ -28,21 +28,25 @@ def version(path: Path) -> tuple[int, int, int]:
 
 def verify_source(adopted: Path, canonical: Path) -> str:
     commit = output(["git", "rev-parse", "HEAD"], canonical)
-    if commit != EXPECTED_SHARED_COMMIT:
-        raise SystemExit(f"canonical shared commit mismatch: {commit}")
+    if subprocess.run(["git", "merge-base", "--is-ancestor", EXPECTED_SHARED_COMMIT, commit],
+                      cwd=canonical, check=False).returncode:
+        raise SystemExit(f"canonical shared history does not contain {EXPECTED_SHARED_COMMIT}")
     status = output(["git", "status", "--porcelain", "--untracked-files=all", "--",
                      "vk_runtime", "vk_renderer"], canonical)
     if status:
         raise SystemExit("canonical Vulkan source is dirty:\n" + status)
-    tracked = output(["git", "ls-files", "--", "vk_runtime", "vk_renderer"],
+    tracked = output(["git", "ls-tree", "-r", "--name-only", EXPECTED_SHARED_COMMIT,
+                      "--", "vk_runtime", "vk_renderer"],
                      canonical).splitlines()
     manifest = hashlib.sha256()
     mismatches = []
     for relative in tracked:
         source = canonical / relative
         target = adopted / relative
-        source_digest = digest(source)
-        if not target.is_file() or digest(target) != source_digest:
+        source_digest = hashlib.sha256(subprocess.check_output(
+            ["git", "show", f"{EXPECTED_SHARED_COMMIT}:{relative}"], cwd=canonical)).hexdigest()
+        if not source.is_file() or digest(source) != source_digest or \
+                not target.is_file() or digest(target) != source_digest:
             mismatches.append(relative)
             continue
         manifest.update(relative.encode())
@@ -219,7 +223,7 @@ def main() -> int:
     verify_adoption(args.repo_root.resolve())
     runtime = version(args.shared_root / "vk_runtime/VERSION")
     renderer = version(args.shared_root / "vk_renderer/VERSION")
-    if runtime != (0, 6, 0) or renderer != (1, 3, 2):
+    if runtime != (0, 6, 0) or renderer != (1, 4, 0):
         raise SystemExit(f"unexpected Vulkan versions: runtime={runtime} renderer={renderer}")
     if args.app:
         if not args.initial_capture or not args.resized_capture or not args.log:
@@ -237,7 +241,7 @@ def main() -> int:
         run_actual_hosts(args.app, args.default_pack, args.log.parent, args.shader_root)
     print("DataLab Vulkan rollout contract: "
           f"canonical_commit={EXPECTED_SHARED_COMMIT} "
-          f"source_manifest_sha256={manifest} vk_runtime=0.6.0 vk_renderer=1.3.2")
+          f"source_manifest_sha256={manifest} vk_runtime=0.6.0 vk_renderer=1.4.0")
     return 0
 
 

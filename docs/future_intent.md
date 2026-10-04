@@ -1,6 +1,6 @@
 # DataLab Future Intent
 
-Last updated: 2026-08-21
+Last updated: 2026-10-04
 
 ## Direction
 
@@ -48,6 +48,15 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
   proof
 - keep `visual-harness`, `run-headless-smoke`, `package-desktop-self-test`,
   and `visual-artifact` distinct in docs and verification reports
+
+## Shared UI Follow-On Boundary
+
+Main Edit has completed the bounded shared compact button appearance adoption.
+Keep new control drawing on `render_view_ui_buttons.c`. Renderer transform and
+texture UV/tint conformance, retained focus/pointer capture, generalized pane
+composition, and native Linux presentation qualification remain separate slices.
+Preserve the SDL compatibility canvas and existing native image-session policy
+until a measured migration demonstrates correctness and benefit.
 
 ## Structural Intent
 

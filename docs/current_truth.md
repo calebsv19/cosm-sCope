@@ -6,8 +6,8 @@ DataLab implements the MEW1 persistent development topology:
 
 - implementation checkpoint: `a5d41766caf689f268c30ec77a339756b1e6884b`
 - lifecycle state: `adopted_retained`; canonical and the clean persistent
-  Main Edit lane are aligned, and the named worktree remains the ongoing
-  single-writer integration lane
+  Main Edit lane share the accepted baseline; bounded functional checkpoints
+  advance Main Edit independently as the ongoing single-writer integration lane
 
 - canonical branch/check-out convention: `main` / `<workspace>/datalab`
 - Main Edit branch/worktree convention: `codex/datalab-main-edit` /
@@ -29,7 +29,37 @@ The image-pipeline specialist worktree, private Linux candidate, program
 `VERSION`, release artifacts, Registry state, publication, and deployment are
 separate ownership and authority boundaries.
 
-Last updated: 2026-08-24
+Last updated: 2026-10-04
+
+## Main Edit Shared Button Adoption — 2026-10-04
+
+The retained Main Edit lane imports committed shared `5b017d4` with
+`kit_ui 0.12.0`, `kit_render 0.14.5`, `kit_workspace_authoring 0.5.2`,
+`vk_renderer 1.4.0`, and `vk_runtime 0.6.0`. Canonical source and the installed
+stable app retain their accepted snapshots.
+
+`src/render/render_view_ui_buttons.c` is the common presentation adapter for
+playback, top-level workspace-authoring, Font/Theme/custom-theme, and recent
+input-directory buttons. It maps the existing preset/custom palette into
+`KitUiButtonTheme`, uses the shared compact rounded appearance and state
+resolver, and centers captions using the same host font measurement as drawing.
+Radius and border scale once; the font callback already applies text zoom.
+The two-line Recent Directories control keeps its caption above the clipped
+path readout. Hit rectangles, actions, authoring mutation, persistence, and
+profile/session meaning remain in their existing owners.
+
+This is appearance convergence. The UI still rasterizes into the SDL
+compatibility canvas before Vulkan presentation; native image-session drawing
+retains its existing path. It does not establish native GPU rendering for every
+UI control, retained focus/capture, generalized pane editing, Linux qualification,
+or a public program release.
+
+Verification uses the shared optional `test-sdl-appearance` 1x/2x pixel/state/text
+checks, DataLab's clean build and targeted input/panel/profile checks,
+`test-stable`, `run-headless-smoke`, and the exact-source Vulkan host gate.
+The Vulkan verifier binds the accepted committed module bytes, so later shared
+documentation-only commits do not invalidate an unchanged renderer snapshot.
+The isolated package targets and runtime/log namespace remain those above.
 
 ## Program Identity
 - Repository directory: `datalab/`

@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "kit_ui_sdl.h"
-#include "render/render_view_authoring_overlay_shared.h"
+#include "render/render_view_ui_buttons.h"
 
 typedef enum DatalabPlaybackHudAction {
     DATALAB_PLAYBACK_HUD_ACTION_NONE = 0,
@@ -85,41 +85,6 @@ static void datalab_hud_apply_action(DatalabAppState *app_state,
         default:
             break;
     }
-}
-
-static int datalab_hud_text_measure(void *user,
-                                    const char *text,
-                                    int scale,
-                                    int *out_width,
-                                    int *out_height) {
-    (void)user;
-    return datalab_measure_text(scale, text, out_width, out_height);
-}
-
-static int datalab_hud_text_line_height(void *user, int scale) {
-    (void)user;
-    return datalab_text_line_height(scale);
-}
-
-static void datalab_hud_draw_text_clipped(void *user,
-                                          SDL_Renderer *renderer,
-                                          const SDL_Rect *clip_rect,
-                                          int x,
-                                          int y,
-                                          const char *text,
-                                          int scale,
-                                          KitRenderColor color) {
-    (void)user;
-    draw_text_5x7_clipped(renderer,
-                          clip_rect,
-                          x,
-                          y,
-                          text,
-                          scale,
-                          color.r,
-                          color.g,
-                          color.b,
-                          color.a);
 }
 
 int datalab_playback_hud_route_mouse_event(SDL_Window *window,
@@ -289,7 +254,6 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
     datalab_overlay_theme_palette(preset, &app_state->workspace_authoring_custom_theme, &palette);
     datalab_overlay_hud_style_from_palette(&palette, &style);
     style.panel_corner_radius = (float)datalab_scaled_px(style.panel_corner_radius);
-    style.button_corner_radius = kit_ui_hud_button_row_control_corner_radius(&style, &row_config);
 
     if (!kit_ui_hud_button_row_layout(&row_config, &row_layout)) {
         memset(&g_playback_hud_ui, 0, sizeof(g_playback_hud_ui));
@@ -299,14 +263,7 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
     panel = kit_ui_sdl_rect_from_render(row_layout.panel_rect);
     g_playback_hud_ui.panel_rect = panel;
 
-    text_api = (KitUiSdlTextApi){
-        0,
-        1,
-        datalab_scaled_px(4.0f),
-        datalab_hud_text_measure,
-        datalab_hud_text_line_height,
-        datalab_hud_draw_text_clipped
-    };
+    text_api = datalab_ui_text_api(datalab_scaled_px(4.0f));
     kit_ui_sdl_fill_rounded_rect(renderer,
                                  &panel,
                                  (int)style.panel_corner_radius,
@@ -318,7 +275,18 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
         button_state.selected = selected[i];
         button_state.disabled = !enabled[i];
         button = kit_ui_sdl_rect_from_render(row_layout.button_rects[i]);
-        kit_ui_sdl_draw_button(renderer, &button, labels[i], &button_state, &style, &text_api);
+        SDL_Window *mouse_window = SDL_GetMouseFocus();
+        int pointer_x = 0;
+        int pointer_y = 0;
+        int mouse_x = 0;
+        int mouse_y = 0;
+        Uint32 mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
+        if (mouse_window && datalab_render_map_window_to_renderer_point(
+                mouse_window, renderer, mouse_x, mouse_y, &pointer_x, &pointer_y)) {
+            button_state.hovered = datalab_render_point_in_rect(&button, pointer_x, pointer_y);
+            button_state.pressed = button_state.hovered && (mouse_buttons & SDL_BUTTON_LMASK) != 0;
+        }
+        datalab_ui_draw_button(renderer, &button, labels[i], &button_state, &palette);
         datalab_hud_add_button(button, actions[i], enabled[i]);
     }
 

@@ -20,7 +20,7 @@ PACKAGE_VULKAN_ROLLOUT_DIR := $(abspath $(BUILD_DIR)/package-vulkan-rollout)
 PACKAGE_VULKAN_INITIAL_CAPTURE := $(PACKAGE_VULKAN_ROLLOUT_DIR)/datalab-package-initial.bmp
 PACKAGE_VULKAN_RESIZED_CAPTURE := $(PACKAGE_VULKAN_ROLLOUT_DIR)/datalab-package-resized.bmp
 PACKAGE_VULKAN_LOG := $(PACKAGE_VULKAN_ROLLOUT_DIR)/datalab-package-vulkan.log
-CANONICAL_SHARED_ROOT ?= ../shared
+CANONICAL_SHARED_ROOT ?= $(CODEWORK_WORKSPACE_ROOT)/shared
 
 SHARED_ROOT ?= third_party/codework_shared
 SHARED_BUILD_DIR := $(TARGET_BUILD_DIR)/shared
