@@ -12,6 +12,7 @@ ifeq ($(KIT_RENDER_ENABLE_VK),1)
 KIT_RENDER_BUILD_DIR = $(KIT_RENDER_DIR)/build/vk
 endif
 VK_RENDERER_DIR ?= ../../vk_renderer
+VK_RUNTIME_DIR ?= ../../vk_runtime
 INC = -Iinclude -I$(KIT_RENDER_DIR)/include -I$(CORE_BASE_DIR)/include -I$(CORE_THEME_DIR)/include -I$(CORE_FONT_DIR)/include
 ifeq ($(KIT_RENDER_ENABLE_VK),1)
 VULKAN_CFLAGS := $(shell $(PKG_CONFIG) --cflags vulkan 2>/dev/null)
@@ -26,7 +27,7 @@ endif
 ifeq ($(strip $(SDL_TTF_CFLAGS)),)
   SDL_TTF_CFLAGS := -I/opt/homebrew/include/SDL2
 endif
-INC += -I$(VK_RENDERER_DIR)/include $(VULKAN_CFLAGS) $(SDL_CFLAGS) $(SDL_TTF_CFLAGS)
+INC += -I$(VK_RENDERER_DIR)/include -I$(VK_RUNTIME_DIR)/include $(VULKAN_CFLAGS) $(SDL_CFLAGS) $(SDL_TTF_CFLAGS)
 VULKAN_LIBS := $(shell $(PKG_CONFIG) --libs vulkan 2>/dev/null)
 SDL_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 2>/dev/null)
 SDL_TTF_LIBS := $(shell $(PKG_CONFIG) --libs sdl2_ttf 2>/dev/null)
@@ -88,9 +89,15 @@ $(TEST_BIN): tests/kit_ui_test.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a 
 test: $(TEST_BIN)
 	./$(TEST_BIN)
 
+# SDL stays optional: the generic archive/test do not link SDL or this adapter.
+.PHONY: test-sdl-appearance
+test-sdl-appearance: $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a
+	$(CC) $(CFLAGS) $(INC) $(shell $(PKG_CONFIG) --cflags sdl2) tests/kit_ui_sdl_appearance_test.c src/kit_ui_sdl.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a $(shell $(PKG_CONFIG) --libs sdl2) -lm -o $(OBJ_DIR)/kit_ui_sdl_appearance_test
+	./$(OBJ_DIR)/kit_ui_sdl_appearance_test
+
 $(VALIDATION_BIN): examples/kit_ui_vk_validation.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a vk-renderer-lib ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a | $(OBJ_DIR)
 ifeq ($(KIT_RENDER_ENABLE_VK),1)
-	$(CC) $(CFLAGS) $(INC) $< $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a $(VK_RENDERER_DIR)/build/lib/libvkrenderer.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a $(VULKAN_LIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(APPLE_FW) -o $@
+	$(CC) $(CFLAGS) $(INC) $< $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a $(VK_RENDERER_DIR)/build/lib/libvkrenderer.a $(VK_RUNTIME_DIR)/build/lib/libvkruntime.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a $(VULKAN_LIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(APPLE_FW) -o $@
 else
 	@echo "validation-harness requires KIT_RENDER_ENABLE_VK=1"
 	@false
@@ -98,6 +105,13 @@ endif
 
 validation-harness: $(VALIDATION_BIN)
 	@echo "Built $(VALIDATION_BIN)"
+
+# Bounded real-pixel proof; unlike validation-harness, this executes and checks captures.
+.PHONY: test-rounded-vk
+test-rounded-vk: $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a vk-renderer-lib ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a
+	@test "$(KIT_RENDER_ENABLE_VK)" = 1 || { echo "test-rounded-vk requires KIT_RENDER_ENABLE_VK=1"; exit 1; }
+	$(CC) $(CFLAGS) $(INC) tests/kit_ui_rounded_vk_test.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a $(VK_RENDERER_DIR)/build/lib/libvkrenderer.a $(VK_RUNTIME_DIR)/build/lib/libvkruntime.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a $(VULKAN_LIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(APPLE_FW) -lm -o $(OBJ_DIR)/kit_ui_rounded_vk_test
+	$(if $(filter Darwin,$(shell uname -s)),DYLD_LIBRARY_PATH=/opt/homebrew/lib,) ./$(OBJ_DIR)/kit_ui_rounded_vk_test
 
 clean:
 	rm -rf $(OBJ_DIR)

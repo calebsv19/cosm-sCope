@@ -7,7 +7,7 @@ This document defines what each shared library owns so behavior does not overlap
 - `core_base`: error/result types, common primitives, shared low-level utilities.
 - `core_io`: filesystem/text/binary IO helpers and load/save boundaries.
 - `core_data`: structured in-memory data containers and typed table/object model.
-- `core_memdb`: durable memory database connection, query, and migration boundary (scaffolded).
+- `core_memdb`: active durable SQLite connection, query, migration, event/replay, and graph-storage boundary; CLI and agent workflows remain higher tooling layers in the same shared subtree.
 - `core_math`: generic numeric primitives and math helpers.
 - `core_collision2d`: UI-free 2D collision shape, geometry, AABB, manifold, bounded compound-descriptor and compound mass-property helpers, and primitive contact-generation semantics.
 - `core_rigid2d`: UI-free 2D rigid-body descriptors, mass/inertia helpers, integration helpers, and deterministic contact-solver primitives over `core_collision2d`.
@@ -130,7 +130,7 @@ This document defines what each shared library owns so behavior does not overlap
 - Data interchange:
   - Serialize durable interchange via `core_pack`.
   - Use `core_data` as shared in-memory schema source.
-  - Use `core_memdb` as the shared durable queryable memory state boundary as implementation fills in.
+  - Use `core_memdb` as the shared durable queryable memory state and event-replay boundary; keep agent curation policy in CLI/wrapper/skill layers.
   - Use `core_io` for physical IO path operations.
 
 - Execution orchestration:

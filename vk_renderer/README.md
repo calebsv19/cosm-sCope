@@ -22,7 +22,7 @@ lifecycle management.
 ## Versioning
 
 - Module version source of truth: `shared/vk_renderer/VERSION`
-- Current version: `1.3.3`
+- Current version: `1.4.0`
 - `1.0.0` behavior note: debug capture is opt-in only and runs only when `vk_renderer_request_capture(...)` is called.
 - `1.1.0` behavior note: long-lived textures can now be updated in place through `vk_renderer_texture_update_rgba_subrect(...)` for bounded dirty-rect preview workflows without recreating whole textures every frame.
 - `1.1.1` behavior note: debug frame capture now normalizes SDL surface creation and channel ordering for both RGBA and BGRA source paths so saved captures are consistent across swapchain formats.
@@ -47,6 +47,27 @@ lifecycle management.
   now the proof that presentation has finished consuming its semaphore, so
   multi-frame rendering no longer re-signals a semaphore still held by the
   presentation engine.
+
+## Rounded Geometry (1.4.0)
+
+`vk_renderer_fill_rounded_rect(renderer, &rect, radius)` accepts floating-point
+SDL bounds, clamps the radius to half the smaller extent, and emits solid
+triangle geometry with a one-drawable-pixel coverage fringe. It uses the existing
+solid pipeline and preserves the current color/alpha and scissor state. No
+per-shape texture upload is required. Nonpositive radius produces a square;
+nonfinite inputs and empty extents are ignored.
+
+Frame vertex-buffer growth retains allocations referenced by recorded draws
+until the owning frame fence has completed. This fixes invalid command buffers
+when a larger UI frame grows beyond its initial allocation. Generated header
+dependencies also make renderer header changes rebuild the affected objects.
+Rebuild static-library consumers after upgrading the renderer.
+
+The real-image gate lives above the backend:
+`make -C kit/kit_ui KIT_RENDER_ENABLE_VK=1 test-rounded-vk`. It captures and checks
+square, rounded, clamped/pill, clipped, translucent, nested-border, and shared
+button cases at 1x and 2x; forces vertex-buffer growth and fence reuse; and checks
+Vulkan validation. `make test-live` retains the renderer lifecycle/resize gate.
 
 ## Layout
 

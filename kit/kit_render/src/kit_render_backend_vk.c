@@ -809,8 +809,13 @@ static CoreResult vk_backend_submit_enabled(KitRenderContext *ctx, KitRenderFram
             case KIT_RENDER_CMD_RECT: {
                 SDL_Rect rect = vk_backend_rect_to_sdl(cmd->data.rect.rect);
                 vk_backend_apply_color(renderer, cmd->data.rect.color);
-                /* Rounded rects currently fall back to filled rects in the bridge. */
-                vk_renderer_fill_rect(renderer, &rect);
+                if (cmd->data.rect.corner_radius > 0.0f) {
+                    SDL_FRect rounded = {cmd->data.rect.rect.x, cmd->data.rect.rect.y,
+                                         cmd->data.rect.rect.width, cmd->data.rect.rect.height};
+                    vk_renderer_fill_rounded_rect(renderer, &rounded, cmd->data.rect.corner_radius);
+                } else {
+                    vk_renderer_fill_rect(renderer, &rect);
+                }
                 break;
             }
             case KIT_RENDER_CMD_LINE:

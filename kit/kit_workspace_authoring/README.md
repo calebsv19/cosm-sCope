@@ -55,6 +55,15 @@ Public cross-host adoption reference:
 
 ## Current Contract Notes
 
+Version `0.5.2` routes top-level HUD buttons through `kit_ui`'s compact rounded
+appearance and state resolver. Nested rounded borders replace four square edge
+strips. Captions use measured horizontal centering and the render command's
+vertical midpoint. Button layout, IDs, visibility, enabled state and hit testing
+retain their existing contracts. Hosts using the HUD draw helper must link
+`kit_ui >= 0.11.3` before `kit_render >= 0.14.5`; native rounded presentation
+requires `vk_renderer >= 1.4.0`. Input/runtime-only callers do not acquire a UI
+runtime dependency. Caller-owned labels still must outlive frame submission.
+
 1. Entry-chord semantics stay `Alt+C` then `Alt+V`, with `Shift`, `Ctrl`, and `GUI` excluded from the entry chord itself.
 2. Non-entry pane trigger mapping currently suppresses `Shift` and `Alt` for pane-action keys; `Ctrl` and `GUI` are currently passed through and are now truth-locked as the shared contract.
 3. Overlay hit tests, drop-intent hit tests, and font/theme button hit tests treat right and bottom rect boundaries as inclusive.
