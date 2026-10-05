@@ -535,3 +535,10 @@ remain the UI reference. See [Render command fidelity and SDL reference](render_
 Main Edit adopts optional shared focus/capture on the common Font/Theme buttons.
 See [Font/Theme interaction](ui_interaction.md) for exact scope, shortcuts and proof gates.
 The composite SDK pin advances; DataLab UI composition remains SDL and native image behavior is unchanged.
+
+
+## 2026-10-04 complete button surface adoption
+
+Main Edit now uses `kit_ui 0.14.1` surface snapshots across the inventoried button surfaces, with the shared `b1c67d7` source pin. Playback HUD; Recent directories header/dropdown; common Font/Theme, custom slots/rename and custom-theme popup token/channel/adjust/assist/Close controls; top authoring Mode/Apply/Cancel; picker Recent roots/artifacts. The custom popup and Recent dropdown each publish only their active scope. No Add button is painted by DataLab. File-browser selection, scrollbars, projection splitters and the native folder dialog retain their existing owners.
+
+See [the current interaction reference](ui_interaction.md) for exact scope, replay gates, capture proof and remaining text-edit/pane/native-Linux boundaries. This is local Development adoption; app VERSION and canonical/production release state are unchanged.

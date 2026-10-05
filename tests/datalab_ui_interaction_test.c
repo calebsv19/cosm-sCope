@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <stdlib.h>
 
 static KitUiInteractionControl control(uint32_t domain, uint64_t value) {
     for (uint32_t i=0;i<g_datalab_button_surface.count;++i)
@@ -128,6 +129,12 @@ int main(void) {
         Uint8 red,green,blue,alpha;
         Uint32 pixel=*((Uint32*)((char*)pixels->pixels+(int)marker.y*pixels->pitch)+(int)marker.x+1);
         SDL_GetRGBA(pixel,pixels->format,&red,&green,&blue,&alpha); assert(red==80 && green==180 && blue==255);
+        const char *capture_dir=getenv("DATALAB_UI_CAPTURE_DIR");
+        if(capture_dir) {
+            char path[1024]; snprintf(path,sizeof(path),"%s/focus-%dx.bmp",capture_dir,scale);
+            assert(SDL_SaveBMP(pixels,path)==0);
+            printf("SDL focus output scale=%d marker=%.1f,%.1f,%.1f,%.1f pass\n",scale,marker.x,marker.y,marker.width,marker.height);
+        }
         e.type=SDL_KEYDOWN; e.key.keysym.sym=SDLK_SPACE;
         datalab_workspace_authoring_route_interaction_event(w,r,&e,&s);
         s.workspace_authoring_custom_theme_popup_open=1;

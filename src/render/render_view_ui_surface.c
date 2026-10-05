@@ -48,13 +48,17 @@ CoreResult datalab_ui_surface_collect(const DatalabAppState *s, int w, int h) {
                         (SDL_Rect){roundf(r.x),roundf(r.y),roundf(r.width),roundf(r.height)},controls[i].enabled);
                 }
             }
+            if (datalab_ui_surface_viewport_matches(g_datalab_authoring_overlay_ui.viewport_w,
+                g_datalab_authoring_overlay_ui.viewport_h)) {
             for (int i=0;i<DATALAB_CUSTOM_THEME_SLOT_COUNT;++i)
                 datalab_ui_surface_add(DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_SLOT_0+i,
                     g_datalab_authoring_overlay_ui.custom_slot_buttons[i],1);
             datalab_ui_surface_add(DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_RENAME,
                 g_datalab_authoring_overlay_ui.custom_rename_button,1);
+            }
         }
-    } else {
+    } else if (datalab_ui_surface_viewport_matches(g_datalab_authoring_overlay_ui.viewport_w,
+        g_datalab_authoring_overlay_ui.viewport_h)) {
         DatalabAuthoringOverlayUiState *u=&g_datalab_authoring_overlay_ui;
         datalab_ui_surface_add(DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_POPUP_CLOSE,u->custom_popup_close_button,1);
         for (int i=0;i<DATALAB_CUSTOM_THEME_TOKEN_COUNT;++i)

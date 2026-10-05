@@ -215,6 +215,8 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
         (int)app_state->workspace_authoring_custom_theme_selected_token);
     popup_selected_channel = datalab_overlay_custom_theme_channel_clamp(
         (int)app_state->workspace_authoring_custom_theme_selected_channel);
+    g_datalab_authoring_overlay_ui.viewport_w=ww;
+    g_datalab_authoring_overlay_ui.viewport_h=wh;
     memset(g_datalab_authoring_overlay_ui.custom_popup_token_rows,
            0,
            sizeof(g_datalab_authoring_overlay_ui.custom_popup_token_rows));

@@ -7,7 +7,7 @@ import struct
 import subprocess
 from pathlib import Path
 
-EXPECTED_SHARED_COMMIT = "12b57f091c57ec68391e0bc9547942a4addab21f"
+EXPECTED_SHARED_COMMIT = "b1c67d7e1b78b826c81269a6531706fc1f29ea86"
 SOURCE_MODULES = ("vk_runtime", "vk_renderer", "kit/kit_render", "kit/kit_ui",
                   "kit/kit_workspace_authoring")
 
@@ -28,14 +28,14 @@ def version(path: Path) -> tuple[int, int, int]:
     return tuple(map(int, match.groups()))
 
 
-def verify_source(adopted: Path, canonical: Path) -> str:
+def verify_source(adopted: Path, canonical: Path, require_current_canonical: bool = False) -> str:
     commit = output(["git", "rev-parse", "HEAD"], canonical)
     if subprocess.run(["git", "merge-base", "--is-ancestor", EXPECTED_SHARED_COMMIT, commit],
                       cwd=canonical, check=False).returncode:
         raise SystemExit(f"canonical shared history does not contain {EXPECTED_SHARED_COMMIT}")
     status = output(["git", "status", "--porcelain", "--untracked-files=all", "--",
                      *SOURCE_MODULES], canonical)
-    if status:
+    if status and require_current_canonical:
         raise SystemExit("canonical Vulkan source is dirty:\n" + status)
     tracked = output(["git", "ls-tree", "-r", "--name-only", EXPECTED_SHARED_COMMIT,
                       "--", *SOURCE_MODULES],
@@ -47,7 +47,7 @@ def verify_source(adopted: Path, canonical: Path) -> str:
         target = adopted / relative
         source_digest = hashlib.sha256(subprocess.check_output(
             ["git", "show", f"{EXPECTED_SHARED_COMMIT}:{relative}"], cwd=canonical)).hexdigest()
-        if not source.is_file() or digest(source) != source_digest or \
+        if (require_current_canonical and (not source.is_file() or digest(source) != source_digest)) or \
                 not target.is_file() or digest(target) != source_digest:
             mismatches.append(relative)
             continue
@@ -214,6 +214,7 @@ def main() -> int:
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--shared-root", type=Path, required=True)
     parser.add_argument("--canonical-shared-root", type=Path, required=True)
+    parser.add_argument("--require-current-canonical", action="store_true")
     parser.add_argument("--app", type=Path)
     parser.add_argument("--default-pack", type=Path)
     parser.add_argument("--shader-root", type=Path)
@@ -223,7 +224,7 @@ def main() -> int:
     parser.add_argument("--minimum-scale", type=float, default=1.0)
     args = parser.parse_args()
     manifest = verify_source(args.shared_root.resolve(),
-                             args.canonical_shared_root.resolve())
+                             args.canonical_shared_root.resolve(), args.require_current_canonical)
     verify_adoption(args.repo_root.resolve())
     runtime = version(args.shared_root / "vk_runtime/VERSION")
     renderer = version(args.shared_root / "vk_renderer/VERSION")

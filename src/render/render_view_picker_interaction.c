@@ -64,7 +64,9 @@ void datalab_picker_collect_buttons(KitUiSurface *s, int w, int h,
         size_t index=recent->first_index+i;
         if (index>=root_count) break;
         SDL_Rect r=recent->item_rects[i];
-        KitRenderRect clip={recent->list_rect.x,recent->list_rect.y,recent->list_rect.w,recent->list_rect.h};
+        SDL_Rect clipped, output={0,0,w,h};
+        if (!SDL_IntersectRect(&recent->list_rect,&output,&clipped)) continue;
+        KitRenderRect clip={clipped.x,clipped.y,clipped.w,clipped.h};
         (void)kit_ui_surface_register(s,(KitUiSurfaceKey){DATALAB_PICKER_ROOT,datalab_ui_path_key(roots[index])},
             (KitRenderRect){r.x,r.y,r.w,r.h},&clip,1,&control);
     }
