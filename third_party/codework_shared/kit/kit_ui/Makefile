@@ -45,7 +45,7 @@ endif
 OBJ_DIR = build
 
 LIB = $(OBJ_DIR)/libkit_ui.a
-LIB_OBJ = $(OBJ_DIR)/kit_ui.o $(OBJ_DIR)/kit_ui_button.o $(OBJ_DIR)/kit_ui_hud.o $(OBJ_DIR)/kit_ui_interaction.o
+LIB_OBJ = $(OBJ_DIR)/kit_ui.o $(OBJ_DIR)/kit_ui_button.o $(OBJ_DIR)/kit_ui_hud.o $(OBJ_DIR)/kit_ui_interaction.o $(OBJ_DIR)/kit_ui_surface.o
 TEST_BIN = $(OBJ_DIR)/kit_ui_test
 VALIDATION_BIN = $(OBJ_DIR)/kit_ui_vk_validation
 
@@ -86,10 +86,13 @@ $(OBJ_DIR)/kit_ui_interaction.o: src/kit_ui_interaction.c include/kit_ui_interac
 $(LIB): $(LIB_OBJ)
 	ar rcs $@ $^
 
+$(OBJ_DIR)/kit_ui_surface.o: src/kit_ui_surface.c include/kit_ui_surface.h include/kit_ui_interaction.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@
+
 $(TEST_BIN): tests/kit_ui_test.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(INC) $< $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a -o $@
 
-test: $(TEST_BIN) test-interaction
+test: $(TEST_BIN) test-interaction test-surface
 	./$(TEST_BIN)
 
 # SDL stays optional: the generic archive/test do not link SDL or this adapter.
@@ -118,6 +121,11 @@ test-rounded-vk: $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a vk-renderer-lib 
 
 clean:
 	rm -rf $(OBJ_DIR)
+
+.PHONY: test-surface
+test-surface: $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a
+	$(CC) $(CFLAGS) $(INC) tests/kit_ui_surface_test.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a -lm -o $(OBJ_DIR)/kit_ui_surface_test
+	./$(OBJ_DIR)/kit_ui_surface_test
 
 .PHONY: test-interaction test-interaction-sdl
 test-interaction: $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a

@@ -1133,3 +1133,44 @@ snapshot was migrated by this cohort.
 - Next shared contracts: focus/keyboard/pointer capture and pane/layout
   composition. Transform stacks, rotation/shear and performance optimization
   are not implied by this slice. [Full contract](../RENDER_COMMAND_FIDELITY.md).
+
+
+## Button interaction cohort (2026-10-04)
+
+Shared `ad3b83b` supplies `kit_ui 0.13.1` and
+`kit_workspace_authoring 0.6.1`. The optional caller-owned context standardizes
+press-origin capture, visual-order Tab/Shift-Tab focus and Enter/Space activation
+on release. Its generic archive remains independent of SDL; the optional SDL
+event/marker adapter and shared Font/Theme registration stay in the kits.
+Controls have half-open bounds and stable semantic IDs; repeat, cancellation,
+hidden/disabled owners, clipped controls and invalid registration are covered.
+The context retains no widget tree, actions, labels, layout or persistence.
+
+The retained Main Edit cohort uses separate managed imports and host integrations:
+- workspace_sandbox: `d9e07d9` — common Font/Theme authoring controls.
+- mem_console: `99f91dd` — common Font/Theme authoring controls.
+- datalab: `ea732ad` — common Font/Theme authoring controls.
+
+Each host routes normalized events to the kit and dispatches the returned action
+through its existing domain adapter. Apply/Cancel, custom-theme popup/rename,
+picker/text entry, coordinates, lifecycle and persistence stay host-owned.
+DataLab remains the SDL UI appearance reference; native image/Vulkan presentation
+retain their own paths. Normal-runtime HUD/inspector input and pane editing are
+not migrated by this slice. Shared and host replays, product/headless regression,
+native lifecycle and isolated Main Edit package gates pass on the local Mac.
+Native orChestra/eCho captured focus-marker pixels at 1x/2x and the SDL reference
+marker/coordinate checks pass. Human interactive acceptance and native Linux
+qualification remain distinct.
+
+See [the interaction contract](../UI_INTERACTION_CONTRACT.md). The next slice should
+extend this contract to ordinary HUD/inspector controls in the same trio, followed
+by bounded text-entry/modal and pane/layout composition. Canonical app source,
+app VERSION, stable Desktop bundles and release state remain outside this
+Development rollout.
+
+
+eCho Font/Theme follow-up `f919d51` separates the text-size chip from the
+increment control identity and clips its shorter readout before Reset. Full
+eCho regression and real panel native focus captures pass again. The shared
+module pin remains `ad3b83b`; this small host cleanup adds no shared API or
+program version change.
