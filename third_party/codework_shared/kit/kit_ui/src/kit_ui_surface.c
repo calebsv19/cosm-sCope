@@ -33,8 +33,10 @@ void kit_ui_surface_begin(KitUiSurface *s, uint32_t scope) {
 CoreResult kit_ui_surface_register(KitUiSurface *s, KitUiSurfaceKey key,
     KitRenderRect bounds, const KitRenderRect *clip, int enabled,
     KitUiInteractionControl *out) {
-    if (out) memset(out,0,sizeof(*out));
-    if (!s || !out || !s->collecting)
+    KitUiInteractionControl local;
+    if (!out) out=&local;
+    memset(out,0,sizeof(*out));
+    if (!s || !s->collecting)
         return (CoreResult){CORE_ERR_INVALID_ARG,"surface registration outside collection"};
     if (s->collection_result.code!=CORE_OK) return s->collection_result;
     if (!key.domain || !valid_rect(bounds) || (clip && !valid_rect(*clip))) {
