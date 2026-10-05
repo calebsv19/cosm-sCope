@@ -1,6 +1,7 @@
 CC ?= cc
 CFLAGS ?= -std=c11 -Wall -Wextra -Werror -O2
 PKG_CONFIG ?= pkg-config
+UNAME_S := $(shell uname -s)
 
 CORE_BASE_DIR ?= ../../core/core_base
 CORE_THEME_DIR ?= ../../core/core_theme
@@ -33,12 +34,15 @@ OBJ_DIR = build/vk
 endif
 
 LIB = $(OBJ_DIR)/libkit_render.a
-LIB_OBJ = $(OBJ_DIR)/kit_render.o $(OBJ_DIR)/kit_render_backend_null.o $(OBJ_DIR)/kit_render_backend_vk.o
+LIB_OBJ = $(OBJ_DIR)/kit_render.o $(OBJ_DIR)/kit_render_command_validation.o $(OBJ_DIR)/kit_render_backend_null.o $(OBJ_DIR)/kit_render_backend_vk.o
 ifeq ($(KIT_RENDER_ENABLE_VK),1)
-LIB_OBJ += $(OBJ_DIR)/kit_render_external_text.o
+LIB_OBJ += $(OBJ_DIR)/kit_render_external_text.o $(OBJ_DIR)/kit_render_backend_vk_commands.o
 endif
 TEST_BIN = $(OBJ_DIR)/kit_render_test
+CONTRACT_TEST_BIN = $(OBJ_DIR)/kit_render_command_contract_test
 VALIDATION_BIN = $(OBJ_DIR)/kit_render_vk_validation
+FIDELITY_BIN = $(OBJ_DIR)/kit_render_fidelity_vk_test
+FIDELITY_OUTPUT_DIR ?= $(OBJ_DIR)/fidelity
 
 VULKAN_LIBS :=
 SDL_LIBS :=
@@ -56,10 +60,13 @@ endif
 ifeq ($(strip $(SDL_TTF_LIBS)),)
   SDL_TTF_LIBS := -L/opt/homebrew/lib -lSDL2_ttf
 endif
+ifeq ($(UNAME_S),Darwin)
 APPLE_FW := -framework Metal -framework QuartzCore -framework Cocoa -framework IOKit -framework CoreVideo
+VALIDATION_ENV := DYLD_LIBRARY_PATH=/opt/homebrew/lib:/usr/local/lib
+endif
 endif
 
-.PHONY: all clean test validation-harness vk-renderer-lib
+.PHONY: all clean test validation-harness vk-renderer-lib fidelity-harness test-fidelity-vk
 
 all: $(LIB)
 
@@ -78,30 +85,42 @@ $(CORE_FONT_DIR)/build/libcore_font.a: $(CORE_BASE_DIR)/build/libcore_base.a
 vk-renderer-lib:
 	$(MAKE) -C $(VK_RENDERER_DIR)
 
+$(OBJ_DIR)/kit_render_command_validation.o: src/kit_render_command_validation.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -MMD -MP -c $< -o $@
+
+$(OBJ_DIR)/kit_render_backend_vk_commands.o: src/kit_render_backend_vk_commands.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -MMD -MP -c $< -o $@
+
+-include $(LIB_OBJ:.o=.d)
+
 $(OBJ_DIR)/kit_render.o: src/kit_render.c src/kit_render_backend.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -c $< -o $@
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 $(OBJ_DIR)/kit_render_backend_null.o: src/kit_render_backend_null.c src/kit_render_backend.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -c $< -o $@
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 $(OBJ_DIR)/kit_render_backend_vk.o: src/kit_render_backend_vk.c src/kit_render_backend.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -c $< -o $@
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 $(OBJ_DIR)/kit_render_external_text.o: src/kit_render_external_text.c include/kit_render_external_text.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -c $< -o $@
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) -MMD -MP -c $< -o $@
 
 $(LIB): $(LIB_OBJ)
 	ar rcs $@ $^
 
 $(TEST_BIN): tests/kit_render_test.c $(LIB) $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(INC) $< $(LIB) $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a -o $@
+	$(CC) $(CFLAGS) $(INC) $< $(LIB) $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a -lm -o $@
 
-test: $(TEST_BIN)
+$(CONTRACT_TEST_BIN): tests/kit_render_command_contract_test.c $(LIB) $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(INC) $< $(LIB) $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a -lm -o $@
+
+test: $(TEST_BIN) $(CONTRACT_TEST_BIN)
 	./$(TEST_BIN)
+	./$(CONTRACT_TEST_BIN)
 
 $(VALIDATION_BIN): examples/kit_render_vk_validation.c $(LIB) vk-renderer-lib $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a | $(OBJ_DIR)
 ifeq ($(KIT_RENDER_ENABLE_VK),1)
-	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) $< $(LIB) $(VK_RENDERER_DIR)/build/lib/libvkrenderer.a $(VK_RUNTIME_DIR)/build/lib/libvkruntime.a $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a $(VULKAN_LIBS) $(SDL_LIBS) $(SDL_TTF_LIBS) $(APPLE_FW) -o $@
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) $< $(LIB) $(VK_RENDERER_DIR)/build/lib/libvkrenderer.a $(VK_RUNTIME_DIR)/build/lib/libvkruntime.a $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a $(VULKAN_LIBS) $(SDL_LIBS) $(filter-out -lSDL2,$(SDL_TTF_LIBS)) $(APPLE_FW) -lm -o $@
 else
 	@echo "validation-harness requires KIT_RENDER_ENABLE_VK=1"
 	@false
@@ -109,6 +128,20 @@ endif
 
 validation-harness: $(VALIDATION_BIN)
 	@echo "Built $(VALIDATION_BIN)"
+
+$(FIDELITY_BIN): tests/kit_render_fidelity_vk_test.c tests/kit_render_fidelity_oracle.c tests/kit_render_fidelity_fixture.h $(LIB) vk-renderer-lib $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a | $(OBJ_DIR)
+ifeq ($(KIT_RENDER_ENABLE_VK),1)
+	$(CC) $(CFLAGS) $(VK_ENABLE_CFLAGS) $(INC) tests/kit_render_fidelity_vk_test.c tests/kit_render_fidelity_oracle.c $(LIB) $(VK_RENDERER_DIR)/build/lib/libvkrenderer.a $(VK_RUNTIME_DIR)/build/lib/libvkruntime.a $(CORE_THEME_DIR)/build/libcore_theme.a $(CORE_FONT_DIR)/build/libcore_font.a $(CORE_BASE_DIR)/build/libcore_base.a $(VULKAN_LIBS) $(SDL_LIBS) $(filter-out -lSDL2,$(SDL_TTF_LIBS)) $(APPLE_FW) -lm -o $@
+else
+	@echo "fidelity-harness requires KIT_RENDER_ENABLE_VK=1"
+	@false
+endif
+
+fidelity-harness: $(FIDELITY_BIN)
+
+test-fidelity-vk: fidelity-harness
+	mkdir -p "$(FIDELITY_OUTPUT_DIR)"
+	$(VALIDATION_ENV) ./$(FIDELITY_BIN) "$(FIDELITY_OUTPUT_DIR)"
 
 clean:
 	rm -rf $(OBJ_DIR)

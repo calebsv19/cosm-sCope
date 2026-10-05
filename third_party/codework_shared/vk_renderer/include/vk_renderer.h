@@ -37,6 +37,8 @@ typedef struct VkRendererDrawState {
     SDL_bool clip_enabled;
     SDL_Rect clip_rect;
     uint32_t draw_call_count;
+    SDL_bool transform_enabled;
+    float transform[4]; /* tx, ty, sx, sy; disabled means identity. */
 } VkRendererDrawState;
 
 typedef struct VkRendererDebugCapture {
@@ -110,6 +112,11 @@ VkResult vk_renderer_request_capture(VkRenderer* renderer, const char* output_pa
 
 void vk_renderer_set_draw_color(VkRenderer* renderer, float r, float g, float b, float a);
 void vk_renderer_set_logical_size(VkRenderer* renderer, float width, float height);
+/* Applies x*sx+tx, y*sy+ty to immediate primitives; clip stays in frame space.
+ * Signed scales mirror; zero scales collapse. Reset before unrelated host draws.
+ * Explicit mesh-affine calls continue using their own transform. */
+VkResult vk_renderer_set_draw_transform(VkRenderer *renderer, float tx, float ty, float sx, float sy);
+void vk_renderer_reset_draw_transform(VkRenderer *renderer);
 int vk_renderer_set_clip_rect(VkRenderer* renderer, const SDL_Rect* rect);
 void vk_renderer_get_clip_rect(VkRenderer* renderer, SDL_Rect* rect);
 SDL_bool vk_renderer_is_clip_enabled(VkRenderer* renderer);
@@ -133,6 +140,11 @@ void vk_renderer_draw_texture(VkRenderer* renderer,
                               const VkRendererTexture* texture,
                               const SDL_Rect* src,
                               const SDL_Rect* dst);
+/* Float bounds, normalized UV endpoints (reversal flips; sampler clamps at edges)
+ * and straight RGBA multipliers in [0,1]. Reports invalid inputs/resources. */
+VkResult vk_renderer_draw_textured_quad(VkRenderer *renderer, const VkRendererTexture *texture,
+                                         const SDL_FRect *dst, const float uv_min[2],
+                                         const float uv_max[2], const float tint[4]);
 
 VkResult vk_renderer_create_line_mesh(VkRenderer* renderer,
                                       const SDL_FPoint* points,

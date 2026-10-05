@@ -866,3 +866,14 @@ vertical midpoint. Hosts calling this UI helper link `kit_ui` before `kit_render
 input/runtime-only authoring helpers remain usable without a UI runtime.
 WorkspaceSandbox Main Edit adopts it for top-level controls and unifies its
 floating HUD and Font/Theme adapter. Other hosts retain their pinned snapshots.
+
+## 2026-10-04 Direct SDL Button Appearance
+
+`kit_ui 0.12.0` adds `kit_ui_sdl_draw_button_spec_appearance` as an optional
+SDL expression of the existing button spec/theme/appearance contracts. It
+reuses the shared state resolver, nested rounded outline/fill model, and
+measured caption callbacks. `test-sdl-appearance` covers 1x/2x pixels, state
+precedence, caption coordinates, clipping, narrow controls and invalid inputs.
+The generic archive/default tests retain no SDL dependency. DataLab Main Edit
+is the first host of this adapter; its product behavior, theme persistence,
+event routing, renderer resources and lifecycle stay app-owned.

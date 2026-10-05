@@ -1094,3 +1094,20 @@ adoption is unchanged; its authoring HUD has not yet imported this follow-up.
 Panel chrome, module-picker rows, retained focus/capture, full render-command
 fidelity and Linux presentation remain separate gaps. Canonical app rows remain
 on their existing snapshots; no app VERSION or publication changes.
+
+## DataLab Rounded Button Adoption — 2026-10-04 Main Edit
+
+The bounded appearance gap is closed in retained Main Edit `d640b7d` using
+managed shared `5b017d4`. `kit_ui 0.12.0`'s optional SDL adapter carries the
+existing shared state/appearance contract into playback, authoring top bar,
+Font/Theme/custom-theme, and Recent Directories buttons. Captions use common
+measurement; the two-line directory title/path no longer overlap. Shared pixel
+checks and host build/contract/stable/headless/native/package checks pass.
+
+Remaining gaps are narrower: retained focus/capture and keyboard navigation,
+transform and texture UV/tint command conformance, generalized pane editing,
+and native Linux presentation qualification still need independent slices.
+DataLab's UI remains CPU-composed in its SDL compatibility canvas; the existing
+native image-session path does not imply all-UI native GPU adoption. Broader
+picker/list/pane chrome stays app-specific. No other app or canonical/release
+snapshot was migrated by this cohort.

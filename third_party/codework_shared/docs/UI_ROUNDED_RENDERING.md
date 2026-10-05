@@ -75,3 +75,15 @@ state precedence, measured caption coordinates, clipping, radius clamping,
 borderless controls, and invalid inputs. This proof is independent of the
 existing native Vulkan geometry gate. Direct SDL drawing remains CPU rasterization
 even when the resulting canvas is presented through Vulkan.
+
+## DataLab Main Edit Host
+
+DataLab Main Edit imports the committed SDL appearance snapshot `5b017d4` and
+uses a single host adapter for playback, authoring top-level controls,
+Font/Theme/custom-theme buttons, and Recent Directories. The kit's 1x/2x SDL
+pixel/state/text checks and DataLab build, input/panel/profile contracts, full
+stable/headless smoke, exact-source native host checks, and isolated package
+checks pass. Native host capture verifies the UI compatibility canvas is still
+presented correctly through Vulkan at 2x scale. This is CPU-composed UI and
+remains distinct from DataLab's native image-session path. Other programs keep
+their previously imported snapshots until an explicit host migration.

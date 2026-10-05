@@ -33,11 +33,9 @@ void vk_renderer_fill_rounded_rect(VkRenderer *renderer,
             {rect->x, rect->y}, {rect->x + rect->w, rect->y},
             {rect->x + rect->w, rect->y + rect->h}, {rect->x, rect->y + rect->h}
         };
-        for (uint32_t i = 0; i < 4; ++i) {
-            vertex(vertices[emitted++], cx, cy, color, 1.0f);
-            vertex(vertices[emitted++], points[i][0], points[i][1], color, 1.0f);
-            vertex(vertices[emitted++], points[(i + 1) % 4][0], points[(i + 1) % 4][1], color, 1.0f);
-        }
+        const unsigned indices[6] = {0, 1, 2, 0, 2, 3};
+        for (uint32_t i = 0; i < 6; ++i)
+            vertex(vertices[emitted++], points[indices[i]][0], points[indices[i]][1], color, 1.0f);
         vk_renderer_emit_solid_vertices(renderer, (const float (*)[6])vertices, emitted);
         return;
     }
@@ -46,11 +44,16 @@ void vk_renderer_fill_rounded_rect(VkRenderer *renderer,
     float logical_h = renderer->draw_state.logical_size[1];
     float sx = logical_w > 0.0f ? renderer->context.swapchain.extent.width / logical_w : 1.0f;
     float sy = logical_h > 0.0f ? renderer->context.swapchain.extent.height / logical_h : 1.0f;
+    if (renderer->draw_state.transform_enabled) {
+        sx *= fabsf(renderer->draw_state.transform[2]);
+        sy *= fabsf(renderer->draw_state.transform[3]);
+    }
     if (sx <= 0.0f || sy <= 0.0f) return;
     /* A one-drawable-pixel coverage fringe, independent of logical UI scale. */
     float fx = fminf(0.5f / sx, radius);
     float fy = fminf(0.5f / sy, radius);
-    int segments = (int)ceilf(sqrtf(radius * fmaxf(sx, sy)) * 2.0f);
+    float requested_segments = ceilf(sqrtf(radius * fmaxf(sx, sy)) * 2.0f);
+    int segments = requested_segments >= MAX_ARC_SEGMENTS ? MAX_ARC_SEGMENTS : (int)requested_segments;
     if (segments < 4) segments = 4;
     if (segments > MAX_ARC_SEGMENTS) segments = MAX_ARC_SEGMENTS;
     const float centers[4][2] = {
