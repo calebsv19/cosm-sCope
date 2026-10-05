@@ -4,6 +4,7 @@
 #include "render/render_view_ui_surface.h"
 #include "render/render_view_picker_interaction.h"
 #include "kit_ui_interaction_sdl.h"
+#include "render/render_view_picker_composition.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -208,6 +209,24 @@ int main(void) {
     assert(datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path)).submit);
     text_event.key.repeat=1;assert(!datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path)).submit);
     puts("DataLab picker text adapter: UTF8, preedit isolation and nonrepeating host commit intent pass");
+    KitPaneComposition panes;
+    assert(datalab_picker_panes_build(&panes,(SDL_Rect){0,0,800,100},(SDL_Rect){0,100,200,500},(SDL_Rect){200,100,400,500},(SDL_Rect){600,100,200,500},800,600).code==CORE_OK);
+    SDL_Rect overflow={150,90,100,600};datalab_picker_pane_clip(&panes,DATALAB_PICKER_PANE_BROWSER,&overflow);
+    assert(overflow.x==150&&overflow.y==101&&overflow.w==49&&overflow.h==498);
+    assert(kit_pane_composition_hit(&panes,200,200).id==DATALAB_PICKER_PANE_PREVIEW);
+    puts("DataLab picker panes: stable identity, viewport clipping and shared paint/input bounds pass");
+    SDL_Surface *clip_surface=SDL_CreateRGBSurfaceWithFormat(0,120,60,32,SDL_PIXELFORMAT_RGBA32);
+    SDL_Renderer *clip_renderer=SDL_CreateSoftwareRenderer(clip_surface);assert(clip_surface&&clip_renderer);
+    SDL_SetRenderDrawColor(clip_renderer,0,0,0,255);SDL_RenderClear(clip_renderer);
+    SDL_Rect parent_clip={20,0,30,40},wide_clip={0,0,120,60};SDL_RenderSetClipRect(clip_renderer,&parent_clip);
+    draw_text_5x7_clipped(clip_renderer,&wide_clip,0,0,"WWWWWWWW",1,255,0,0,255);
+    SDL_Rect restored;SDL_RenderGetClipRect(clip_renderer,&restored);assert(!memcmp(&restored,&parent_clip,sizeof(restored)));
+    SDL_RenderPresent(clip_renderer);unsigned drawn=0;
+    for(int y=0;y<60;++y)for(int x=0;x<120;++x){Uint32 pixel;memcpy(&pixel,(char*)clip_surface->pixels+y*clip_surface->pitch+x*4,4);
+        Uint8 red,g,b,a;SDL_GetRGBA(pixel,clip_surface->format,&red,&g,&b,&a);
+        if(x<20||x>=50||y>=40)assert(red==0);else drawn+=red>0;}
+    assert(drawn);SDL_DestroyRenderer(clip_renderer);SDL_FreeSurface(clip_surface);
+    puts("DataLab legacy caption: enclosing pane clip is intersected, pixels contained and state restored");
     SDL_DestroyWindow(w); SDL_Quit();
     puts("DataLab surface replay: 1x/2x release, keyboard repeat, disabled controls, top HUD, custom popup, playback, Recent roots and picker IO pass");
 }

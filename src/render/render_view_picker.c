@@ -24,6 +24,7 @@
 #include "kit_ui_focus_scope.h"
 
 #include "core_pane.h"
+#include "render/render_view_picker_composition.h"
 
 #define DATALAB_PICKER_PAGE_WINDOW DATALAB_CATALOG_VIEW_PAGE_WINDOW
 
@@ -732,6 +733,10 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             (void)core_pane_collect_splitter_hits(picker_panes, 5u, 0u, picker_workspace_bounds,
                                                   (float)datalab_scaled_px(16.0f), picker_splitters, 2u,
                                                   &picker_splitter_count);
+            KitPaneComposition pane_view;KitPaneSdlClip pane_clip;
+            if(datalab_picker_panes_build(&pane_view,top,browser,preview,directories,ww,wh).code!=CORE_OK) {
+                canceled=1;exit_reason="pane-composition-error";done=1;continue;
+            }
             top_clip.x = top.x + pad;
             top_clip.y = top.y + datalab_scaled_px(6.0f);
             top_clip.w = top.w - (pad * 2);
@@ -740,6 +745,7 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             list_clip.y = browser.y + datalab_scaled_px(4.0f);
             list_clip.w = browser.w - datalab_scaled_px(8.0f);
             list_clip.h = browser.h - datalab_scaled_px(8.0f);
+            datalab_picker_pane_clip(&pane_view,DATALAB_PICKER_PANE_BROWSER,&list_clip);
             list_start_y = browser.y + list_gap;
 
             SDL_SetRenderDrawColor(renderer, palette.clear_r, palette.clear_g, palette.clear_b, 255);
@@ -817,6 +823,7 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             SDL_RenderFillRect(renderer, &directories);
             SDL_SetRenderDrawColor(renderer, palette.frame_r, palette.frame_g, palette.frame_b, 255);
             SDL_RenderDrawRect(renderer, &directories);
+            (void)kit_pane_content_begin_sdl(renderer,&pane_view.entries[3],&pane_clip);
             draw_text_5x7(renderer, directories.x + pad, directories.y + pad,
                           "RECENT DIRECTORIES", 1,
                           palette.text_primary_r, palette.text_primary_g, palette.text_primary_b, 255);
@@ -829,6 +836,7 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                 directories.w - (pad * 2),
                 directories.h - ((pad * 3) + (line_h1 * 2))
             };
+            datalab_picker_pane_clip(&pane_view,DATALAB_PICKER_PANE_DIRECTORIES,&directory_scroll.viewport);
             datalab_picker_scroll_configure(&directory_scroll,
                                             directory_scroll.viewport,
                                             recent_visible,
@@ -857,6 +865,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             }
             datalab_picker_scroll_draw(renderer, &directory_scroll, &palette);
 
+            (void)kit_pane_content_end_sdl(renderer,&pane_clip);
+            (void)kit_pane_content_begin_sdl(renderer,&pane_view.entries[0],&pane_clip);
             draw_text_5x7(renderer, top.x + pad, y_title,
                           "DATALAB LIBRARY", 2,
                           palette.text_primary_r, palette.text_primary_g, palette.text_primary_b, 255);
@@ -919,6 +929,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
 
             }
 
+            (void)kit_pane_content_end_sdl(renderer,&pane_clip);
+            (void)kit_pane_content_begin_sdl(renderer,&pane_view.entries[1],&pane_clip);
             recent_file_rows = (int)recent_input_file_count;
             if (recent_file_rows > 4) {
                 recent_file_rows = 4;
@@ -951,13 +963,15 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             }
             frame_scroll.viewport = (SDL_Rect){ list_clip.x, list_start_y, list_clip.w,
                                                 visible_lines * row_h };
+            datalab_picker_pane_clip(&pane_view,DATALAB_PICKER_PANE_BROWSER,&frame_scroll.viewport);
             datalab_picker_scroll_configure(&frame_scroll, frame_scroll.viewport, file_count,
                                             (uint64_t)visible_lines, row_h);
             if (frame_scroll_reveal_selection) {
                 if (selected < frame_scroll.offset_rows) frame_scroll.offset_rows = selected;
                 if (selected >= frame_scroll.offset_rows + (uint64_t)visible_lines) frame_scroll.offset_rows = selected - (uint64_t)visible_lines + 1u;
                 frame_scroll_reveal_selection = 0;
-                datalab_picker_scroll_configure(&frame_scroll, frame_scroll.viewport, file_count,
+                datalab_picker_pane_clip(&pane_view,DATALAB_PICKER_PANE_BROWSER,&frame_scroll.viewport);
+            datalab_picker_scroll_configure(&frame_scroll, frame_scroll.viewport, file_count,
                                                 (uint64_t)visible_lines, row_h);
             }
             frame_rows_clip = frame_scroll.viewport;
@@ -1019,6 +1033,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             }
             datalab_picker_scroll_draw(renderer, &frame_scroll, &palette);
             datalab_picker_scroll_draw_selection_marker(renderer, &frame_scroll, selected, &palette);
+            (void)kit_pane_content_end_sdl(renderer,&pane_clip);
+            (void)kit_pane_content_begin_sdl(renderer,&pane_view.entries[2],&pane_clip);
             if (datalab_input_file_is_pack(selected_path)) {
                 datalab_picker_draw_pack_inspection(renderer,
                                                     &preview,
@@ -1038,6 +1054,7 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                                              &preview_colors,
                                              preview_label);
             }
+            (void)kit_pane_content_end_sdl(renderer,&pane_clip);
             datalab_picker_collect_buttons(&picker_buttons,ww,wh,&recent_ui,recent_input_roots,
                 recent_input_root_count,&recent_file_ui,recent_input_files,recent_input_file_count);
             kit_ui_interaction_sdl_draw_focus(renderer,&picker_buttons.interaction,picker_buttons.controls,

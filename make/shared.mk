@@ -40,3 +40,5 @@ $(KIT_RENDER_LIB):
 	$(MAKE) -C $(KIT_RENDER_DIR) \
 		CC="$(HOST_CC) $(ARCH_FLAGS)" \
 		OBJ_DIR="$(abspath $(KIT_RENDER_BUILD_DIR))"
+
+KIT_PANE_DIR := $(SHARED_ROOT)/kit/kit_pane

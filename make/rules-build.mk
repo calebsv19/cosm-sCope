@@ -76,3 +76,7 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 -include $(DEPS)
+
+$(HOST_BUILD_DIR)/shared/kit/kit_pane/%.o: $(KIT_PANE_DIR)/src/%.c
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@

@@ -632,7 +632,13 @@ void draw_text_5x7_clipped(SDL_Renderer *renderer,
     if (had_clip == SDL_TRUE) {
         SDL_RenderGetClipRect(renderer, &prior_clip);
     }
-    SDL_RenderSetClipRect(renderer, clip_rect);
+    SDL_Rect resolved_clip=*clip_rect;
+    if (had_clip == SDL_TRUE) {
+        SDL_Rect intersection={0};
+        (void)SDL_IntersectRect(&prior_clip,clip_rect,&intersection);
+        resolved_clip=intersection;
+    }
+    SDL_RenderSetClipRect(renderer, &resolved_clip);
     draw_text_5x7(renderer, x, y, text, scale, r, g, b, a);
     if (had_clip == SDL_TRUE) {
         SDL_RenderSetClipRect(renderer, &prior_clip);

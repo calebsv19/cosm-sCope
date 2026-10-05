@@ -113,3 +113,12 @@ See [Text editing and modal focus](ui_text_focus.md) for exact ownership, tests 
 Picker input-root draft and filter now adopt `kit_ui 0.16.0` measured text presentation in Main Edit. Two caller-owned picker presentations use the actual SDL font painter. Editing draws the full draft with caret, selection and staged preedit; filter labels and field text have separate geometry. Window-to-renderer pointer mapping remains host-owned. Viewer/custom-theme modes and catalog commit policy remain unchanged.
 
 See [Shared text presentation](ui_text_presentation.md) for storage ownership, output gates and residual limits. The next behavioral slice is mixed field/button traversal; native IME/session/clipboard qualification and pane composition follow before wider adoption. Earlier dated milestones remain historical.
+
+## 2026-10-05 pane composition follow-on
+
+DataLab picker top/browser/preview/directories use shared composition geometry and nested SDL content scopes. Browser/directory list input rectangles intersect the same visible content. The existing scrollbar module is unchanged. Legacy text clip calls now intersect their enclosing pane clip and restore it. Existing product titles remain inside content; drawing is the SDL reference path even when presented through Vulkan.
+
+See [pane composition adoption](ui_pane_composition.md). Pane composition now has
+a shared foundation; the next boundary is pane-host lifecycle/dispatch and
+transactional splitter/focus takeover. Mixed traversal is kit-only preparation;
+native caret anchoring is integrated, with OS IME acceptance still pending.

@@ -7,9 +7,9 @@ import struct
 import subprocess
 from pathlib import Path
 
-EXPECTED_SHARED_COMMIT = "e46944504610bac0b2aac78de3235b713d0f311b"
+EXPECTED_SHARED_COMMIT = "86037d7cb82c8acb99bd30c9ddec458c7bda8223"
 SOURCE_MODULES = ("vk_runtime", "vk_renderer", "kit/kit_render", "kit/kit_ui",
-                  "kit/kit_workspace_authoring")
+                  "kit/kit_workspace_authoring", "kit/kit_pane", "core/core_pane")
 
 
 def output(command: list[str], cwd: Path) -> str:
