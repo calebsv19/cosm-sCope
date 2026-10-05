@@ -5,6 +5,7 @@
 
 #include "kit_ui_sdl.h"
 #include "render/render_view_ui_surface.h"
+#include "render/render_view_pane_host.h"
 
 typedef struct DatalabRecentInputRootUiState {
     int width,height;
@@ -349,16 +350,14 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
     }
 
     bar = (SDL_Rect){0, 0, ww, button_h + datalab_scaled_px(4.0f)};
-    button = (SDL_Rect){
-        ww - button_w - datalab_scaled_px(12.0f),
-        datalab_scaled_px(4.0f),
-        button_w,
-        button_h
-    };
-    if (button.x < datalab_scaled_px(120.0f)) {
-        button.x = datalab_scaled_px(120.0f);
-        button.w = ww - button.x - datalab_scaled_px(12.0f);
-    }
+    KitPaneHeaderLayout slots;
+    int fit_button_w=button_w < ww-144 ? button_w : ww-144;
+    if(fit_button_w<1)fit_button_w=1;
+    if(datalab_view_header_slots(ww,bar.h,fit_button_w,datalab_scaled_px(4),&slots).code!=CORE_OK)return;
+    button=(SDL_Rect){0};
+    if(slots.count){CorePaneRect r=slots.actions[0].bounds;button=(SDL_Rect){r.x,r.y,r.width,r.height};}
+    KitPaneSdlClip header_scope;
+    if(datalab_view_pane_begin(renderer,app_state,DATALAB_VIEW_PANE_HEADER,bar,&header_scope).code!=CORE_OK)return;
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, palette.shell_fill_r, palette.shell_fill_g, palette.shell_fill_b, 228);
@@ -376,6 +375,7 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
                   palette.text_primary_b,
                   255);
 
+    if(slots.count) {
     datalab_ui_surface_draw_button(renderer,&button,"",DATALAB_UI_RECENT_HEADER,1u,1,
         app_state->recent_input_root_dropdown_open,&palette);
     /* This is a two-line control. Center the caption in its first line so it
@@ -401,6 +401,8 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
                           palette.text_secondary_g,
                           palette.text_secondary_b,
                           255);
+    }
+    (void)kit_pane_content_end_sdl(renderer,&header_scope);
     g_recent_input_root_ui.button_rect = button;
     g_recent_input_root_ui.width=ww; g_recent_input_root_ui.height=wh;
 
@@ -542,6 +544,8 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
     hud_style.button_corner_radius = (float)list_radius;
     primary_text = datalab_session_hud_text_color(&hud_style, 0);
     muted_text = datalab_session_hud_text_color(&hud_style, 1);
+    KitPaneSdlClip source_scope;
+    if(datalab_view_pane_begin(renderer,app_state,DATALAB_VIEW_PANE_SOURCES,panel,&source_scope).code!=CORE_OK)return;
     kit_ui_sdl_fill_rounded_rect(renderer, &panel, panel_radius, hud_style.panel_fill);
     panel_clip.x = panel.x + pad;
     panel_clip.y = panel.y + pad;
@@ -733,4 +737,5 @@ void datalab_draw_session_controls(SDL_Renderer *renderer, const DatalabAppState
             }
         }
     }
+    (void)kit_pane_content_end_sdl(renderer,&source_scope);
 }

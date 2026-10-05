@@ -1,5 +1,6 @@
 #include "render/render_view_ui_surface.h"
 #include "kit_ui_interaction_sdl.h"
+#include "render/render_view_pane_host.h"
 #include <math.h>
 #include <stdio.h>
 KitUiSurface g_datalab_button_surface;
@@ -11,7 +12,7 @@ static uint32_t surface_scope(const DatalabAppState *s) {
     if (s->workspace_authoring_custom_theme_popup_open) return 5u;
     return s->workspace_authoring_overlay_mode==DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME ? 4u : 3u;
 }
-void datalab_ui_surface_reset(void) { kit_ui_focus_scope_cancel(&focus_scope,&g_datalab_button_surface);kit_ui_surface_reset(&g_datalab_button_surface); }
+void datalab_ui_surface_reset(void) { datalab_view_panes_reset(); kit_ui_focus_scope_cancel(&focus_scope,&g_datalab_button_surface);kit_ui_surface_reset(&g_datalab_button_surface); }
 uint64_t datalab_ui_path_key(const char *s) {
     uint64_t h=UINT64_C(14695981039346656037);
     for (;s && *s;++s) { h^=(unsigned char)*s; h*=UINT64_C(1099511628211); }

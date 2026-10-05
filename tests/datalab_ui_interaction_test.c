@@ -5,6 +5,7 @@
 #include "render/render_view_picker_interaction.h"
 #include "kit_ui_interaction_sdl.h"
 #include "render/render_view_picker_composition.h"
+#include "render/render_view_pane_host.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -227,6 +228,50 @@ int main(void) {
         if(x<20||x>=50||y>=40)assert(red==0);else drawn+=red>0;}
     assert(drawn);SDL_DestroyRenderer(clip_renderer);SDL_FreeSurface(clip_surface);
     puts("DataLab legacy caption: enclosing pane clip is intersected, pixels contained and state restored");
+    DatalabAppState pane_state;datalab_app_state_init(&pane_state,"",DATALAB_PROFILE_IMAGE);
+    datalab_workspace_authoring_begin_takeover(&pane_state);
+    float original_ratio=pane_state.workspace_authoring_projection.profile_surface_ratio;
+    assert(datalab_workspace_authoring_projection_drag_begin(&pane_state));
+    assert(datalab_workspace_authoring_projection_apply_drag(&pane_state,-40,1000));
+    datalab_workspace_authoring_projection_drag_finish(&pane_state,0);
+    assert(pane_state.workspace_authoring_projection.profile_surface_ratio==original_ratio&&!pane_state.workspace_authoring_pending_stub);
+    assert(datalab_workspace_authoring_projection_drag_begin(&pane_state));
+    assert(datalab_workspace_authoring_projection_apply_drag(&pane_state,-40,1000));
+    datalab_workspace_authoring_projection_drag_finish(&pane_state,1);
+    assert(pane_state.pane_layout_revision.active_revision==1&&pane_state.pane_layout_revision.has_pending_changes);
+    datalab_workspace_authoring_apply_takeover(&pane_state);
+    assert(pane_state.pane_layout_revision.active_revision==2);
+    KitPaneComposition viewer;assert(datalab_view_panes_build(&viewer,800,600,(SDL_Rect){10,70,250,400},(SDL_Rect){0,0,800,60},1).code==CORE_OK);
+    assert(kit_pane_composition_hit(&viewer,20,100).id==DATALAB_VIEW_PANE_SOURCES);
+    assert(kit_pane_composition_hit(&viewer,500,100).id==DATALAB_VIEW_PANE_CANVAS);
+    assert(kit_pane_composition_hit(&viewer,20,20).id==DATALAB_VIEW_PANE_HEADER);
+    assert(datalab_view_panes_build(&viewer,800,600,(SDL_Rect){10,70,250,400},(SDL_Rect){0,0,800,60},0).code==CORE_OK);
+    assert(kit_pane_composition_hit(&viewer,20,100).id==DATALAB_VIEW_PANE_CANVAS);
+    KitPaneHeaderLayout recent_slots;assert(datalab_view_header_slots(800,60,280,4,&recent_slots).code==CORE_OK&&recent_slots.count==1);
+
+    SDL_Surface *viewer_pixels=SDL_CreateRGBSurfaceWithFormat(0,800,600,32,SDL_PIXELFORMAT_RGBA32);
+    SDL_Renderer *viewer_renderer=SDL_CreateSoftwareRenderer(viewer_pixels);assert(viewer_pixels&&viewer_renderer);
+    datalab_workspace_authoring_cancel_and_exit(&pane_state);datalab_view_panes_reset();
+    SDL_Rect existing={0,0,700,550};assert(SDL_RenderSetClipRect(viewer_renderer,&existing)==0);
+    KitPaneSdlClip pane_scope;assert(datalab_view_pane_begin(viewer_renderer,&pane_state,3,(SDL_Rect){0,0,800,60},&pane_scope).code==CORE_OK);
+    assert(kit_pane_content_end_sdl(viewer_renderer,&pane_scope).code==CORE_OK);
+    assert(datalab_view_pane_begin(viewer_renderer,&pane_state,2,(SDL_Rect){10,70,250,400},&pane_scope).code==CORE_OK);
+    SDL_Rect actual_clip;SDL_RenderGetClipRect(viewer_renderer,&actual_clip);
+    assert(actual_clip.x==10&&actual_clip.y==70&&actual_clip.w==250&&actual_clip.h==400);
+    assert(kit_pane_content_end_sdl(viewer_renderer,&pane_scope).code==CORE_OK);
+    SDL_RenderGetClipRect(viewer_renderer,&actual_clip);assert(!memcmp(&actual_clip,&existing,sizeof(existing)));
+    SDL_Event pane_press={0};pane_press.type=SDL_MOUSEBUTTONDOWN;pane_press.button.button=SDL_BUTTON_LEFT;
+    pane_press.button.x=500*1440/800;pane_press.button.y=100*1000/600;
+    assert(datalab_view_pane_event(w,viewer_renderer,&pane_press,&pane_state)==1);
+    pane_press.type=SDL_MOUSEBUTTONUP;pane_press.button.x=20*1440/800;
+    assert(datalab_view_pane_event(w,viewer_renderer,&pane_press,&pane_state)==1);
+    pane_press.type=SDL_MOUSEBUTTONDOWN;assert(datalab_view_pane_event(w,viewer_renderer,&pane_press,&pane_state)==2);
+    pane_state.session_hud_collapsed=1;pane_press.type=SDL_MOUSEBUTTONUP;
+    assert(!datalab_view_pane_event(w,viewer_renderer,&pane_press,&pane_state));
+    SDL_DestroyRenderer(viewer_renderer);SDL_FreeSurface(viewer_pixels);
+    puts("DataLab actual viewer adapter: source clip restoration, render-coordinate capture crossing and hiding cancels release pass");
+    puts("DataLab viewer host: canvas/source/header ownership, hidden source invalidation, projection drag cancel/nested commit and accepted apply pass");
+
     SDL_DestroyWindow(w); SDL_Quit();
     puts("DataLab surface replay: 1x/2x release, keyboard repeat, disabled controls, top HUD, custom popup, playback, Recent roots and picker IO pass");
 }

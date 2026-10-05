@@ -6,6 +6,7 @@
 
 #include "core_viewport2d.h"
 #include "core_pane.h"
+#include "kit_pane_host.h"
 #include "core_workspace_authoring_session.h"
 #include "data/pack_loader.h"
 
@@ -162,6 +163,10 @@ typedef struct DatalabAppState {
     uint32_t workspace_authoring_cancel_count;
     DatalabWorkspaceAuthoringProjection workspace_authoring_projection;
     DatalabWorkspaceAuthoringProjection workspace_authoring_entry_projection;
+    DatalabWorkspaceAuthoringProjection pane_drag_before;
+    CoreLayoutState pane_layout_revision;
+    KitPaneLayoutEdit pane_layout_edit;
+    uint8_t pane_drag_pending_before;
     CoreWorkspaceAuthoringSession workspace_authoring_session;
 } DatalabAppState;
 
@@ -213,6 +218,8 @@ void datalab_workspace_authoring_capture_entry_snapshot(DatalabAppState *state);
 void datalab_workspace_authoring_projection_init(DatalabWorkspaceAuthoringProjection *projection);
 void datalab_workspace_authoring_projection_capture_entry(DatalabAppState *state);
 void datalab_workspace_authoring_projection_restore_entry(DatalabAppState *state);
+int datalab_workspace_authoring_projection_drag_begin(DatalabAppState *state);
+void datalab_workspace_authoring_projection_drag_finish(DatalabAppState *state, int commit);
 int datalab_workspace_authoring_projection_apply_drag(DatalabAppState *state, float delta_x, float viewport_width);
 int datalab_workspace_authoring_projection_set_profile_surface_ratio(DatalabAppState *state, float ratio);
 int datalab_workspace_authoring_projection_solve(const DatalabAppState *state,

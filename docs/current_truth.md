@@ -565,3 +565,9 @@ See [pane composition adoption](ui_pane_composition.md). Pane composition now ha
 a shared foundation; the next boundary is pane-host lifecycle/dispatch and
 transactional splitter/focus takeover. Mixed traversal is kit-only preparation;
 native caret anchoring is integrated, with OS IME acceptance still pending.
+
+## Pane host behavior
+
+DataLab keeps the actual viewer canvas and source/header overlays, with stable ownership, shared SDL clip scopes and the RECENT DIRECTORIES action slot. The fixed authoring projection drag uses a nested CoreLayoutState edit; it is not a generic movable viewer topology.
+
+See [pane host behavior](ui_pane_host.md). Shared source ddc9fee6e17482dcd64cf777d7a105b7ed9b157d. Next: fullscreen/window lifecycle qualification in the trio, then one-program-at-a-time migration. Product mixed traversal, human native IME acceptance and generic docking remain follow-on work.

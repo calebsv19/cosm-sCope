@@ -27,7 +27,11 @@ void datalab_workspace_authoring_projection_capture_entry(DatalabAppState *state
 }
 
 void datalab_workspace_authoring_projection_restore_entry(DatalabAppState *state) {
-    if (state) state->workspace_authoring_projection = state->workspace_authoring_entry_projection;
+    if (state) {
+        datalab_workspace_authoring_projection_drag_finish(state,0);
+        if(state->pane_layout_revision.mode==CORE_LAYOUT_MODE_AUTHORING)core_layout_cancel_authoring(&state->pane_layout_revision);
+        state->workspace_authoring_projection = state->workspace_authoring_entry_projection;
+    }
 }
 
 int datalab_workspace_authoring_projection_apply_drag(DatalabAppState *state, float delta_x, float viewport_width) {
@@ -45,6 +49,8 @@ int datalab_workspace_authoring_projection_apply_drag(DatalabAppState *state, fl
                                        DATALAB_WORKSPACE_PROJECTION_NODE_COUNT, &hit, delta_x, 0.0f)) return 0;
     state->workspace_authoring_projection.profile_surface_ratio =
         state->workspace_authoring_projection.nodes[DATALAB_WORKSPACE_PROJECTION_ROOT].ratio_01;
+    if(state->pane_layout_edit.active)(void)kit_pane_layout_edit_update(&state->pane_layout_edit,&state->pane_layout_revision,1);
+    else if(state->pane_layout_revision.mode==CORE_LAYOUT_MODE_AUTHORING)core_layout_mark_draft_changed(&state->pane_layout_revision);
     state->workspace_authoring_pending_stub = 1u;
     return 1;
 }
@@ -64,4 +70,20 @@ int datalab_workspace_authoring_projection_solve(const DatalabAppState *state, i
                            DATALAB_WORKSPACE_PROJECTION_NODE_COUNT, DATALAB_WORKSPACE_PROJECTION_ROOT,
                            (CorePaneRect){0.0f, 0.0f, (float)viewport_width, (float)viewport_height},
                            out_rects, 2u, &count) && count == 2u;
+}
+
+int datalab_workspace_authoring_projection_drag_begin(DatalabAppState *s) {
+    if(!s || !s->workspace_authoring_stub_active)return 0;
+    if(!s->pane_layout_revision.active_revision)core_layout_state_init(&s->pane_layout_revision);
+    if(s->pane_layout_revision.mode==CORE_LAYOUT_MODE_RUNTIME)core_layout_enter_authoring(&s->pane_layout_revision);
+    if(!kit_pane_layout_edit_begin(&s->pane_layout_edit,&s->pane_layout_revision))return 0;
+    s->pane_drag_before=s->workspace_authoring_projection;s->pane_drag_pending_before=s->workspace_authoring_pending_stub;return 1;
+}
+void datalab_workspace_authoring_projection_drag_finish(DatalabAppState *s,int commit) {
+    if(!s||!s->pane_layout_edit.active)return;
+    if(commit && memcmp(&s->pane_drag_before,&s->workspace_authoring_projection,sizeof(s->pane_drag_before))==0)commit=0;
+    if(commit) { (void)kit_pane_layout_edit_commit(&s->pane_layout_edit,&s->pane_layout_revision); }
+    else if(kit_pane_layout_edit_cancel(&s->pane_layout_edit,&s->pane_layout_revision)) {
+        s->workspace_authoring_projection=s->pane_drag_before;s->workspace_authoring_pending_stub=s->pane_drag_pending_before;
+    }
 }

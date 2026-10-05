@@ -1,4 +1,5 @@
 #include "render/render_view_internal.h"
+#include "render/render_view_pane_host.h"
 #include "render/datalab_render_perf_diag.h"
 #include "render/datalab_native_image_profile_wave.h"
 #include "app/datalab_async_decode.h"
@@ -60,6 +61,8 @@ static void datalab_loop_handle_event(SDL_Window *window,
     } else if (event->type == SDL_WINDOWEVENT) {
         *resize_pending = 1;
     }
+    CorePaneId pane_owner=datalab_view_pane_event(window,renderer,event,app_state);
+    if(event->type==SDL_KEYDOWN&&event->key.keysym.sym==SDLK_ESCAPE&&pane_owner==2)return;
     if (datalab_workspace_authoring_route_interaction_event(window, renderer, event, app_state)) return;
     if (datalab_workspace_authoring_route_mouse_event(window, renderer, event, app_state)) {
         return;
@@ -70,6 +73,7 @@ static void datalab_loop_handle_event(SDL_Window *window,
     if (datalab_session_controls_route_mouse_event(window, renderer, event, app_state)) {
         return;
     }
+    if(pane_owner==DATALAB_VIEW_PANE_SOURCES||pane_owner==DATALAB_VIEW_PANE_HEADER)return;
     if (datalab_handle_mouse_event(window, renderer, event, app_state)) {
         return;
     }

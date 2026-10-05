@@ -80,3 +80,7 @@ clean:
 $(HOST_BUILD_DIR)/shared/kit/kit_pane/%.o: $(KIT_PANE_DIR)/src/%.c
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(HOST_CFLAGS) -MMD -MP -c $< -o $@
+
+$(HOST_BUILD_DIR)/shared/core_layout.o: $(CORE_LAYOUT_DIR)/src/core_layout.c $(CORE_LAYOUT_DIR)/include/core_layout.h
+	@mkdir -p "$(dir $@)"
+	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@

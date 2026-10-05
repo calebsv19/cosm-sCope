@@ -361,3 +361,6 @@ ui-text-focus-self-test: ui-interaction-self-test
 
 .PHONY: ui-text-presentation-self-test
 ui-text-presentation-self-test: ui-text-focus-self-test
+
+.PHONY: ui-pane-host-self-test
+ui-pane-host-self-test: ui-interaction-self-test

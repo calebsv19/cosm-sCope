@@ -165,6 +165,8 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
                                                              &pointer_y)) {
                 return 1;
             }
+            if (g_datalab_authoring_overlay_ui.projection_drag_active && !app_state->pane_layout_edit.active)
+                g_datalab_authoring_overlay_ui.projection_drag_active=0;
             if (g_datalab_authoring_overlay_ui.projection_drag_active) {
                 (void)datalab_workspace_authoring_projection_apply_drag(
                     app_state,
@@ -205,6 +207,7 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
                 datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.projection_splitter,
                                               pointer_x,
                                               pointer_y)) {
+                if(!datalab_workspace_authoring_projection_drag_begin(app_state))return 1;
                 g_datalab_authoring_overlay_ui.projection_drag_active = 1u;
                 g_datalab_authoring_overlay_ui.projection_drag_last_x = pointer_x;
                 return 1;
@@ -215,6 +218,7 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
         case SDL_MOUSEBUTTONUP:
             if (event->button.button == SDL_BUTTON_LEFT &&
                 g_datalab_authoring_overlay_ui.projection_drag_active) {
+                datalab_workspace_authoring_projection_drag_finish(app_state,1);
                 g_datalab_authoring_overlay_ui.projection_drag_active = 0u;
             }
             return 1;

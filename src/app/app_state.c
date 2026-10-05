@@ -504,6 +504,8 @@ void datalab_workspace_authoring_draft_begin(DatalabAppState *state) {
     if (!state) {
         return;
     }
+    if(!state->pane_layout_revision.active_revision)core_layout_state_init(&state->pane_layout_revision);
+    if(state->pane_layout_revision.mode==CORE_LAYOUT_MODE_RUNTIME)core_layout_enter_authoring(&state->pane_layout_revision);
     state->workspace_authoring_stub_active = 1;
     state->workspace_authoring_overlay_mode = DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE;
     state->workspace_authoring_pending_stub = 0u;
@@ -529,6 +531,10 @@ void datalab_workspace_authoring_cycle_overlay(DatalabAppState *state) {
 void datalab_workspace_authoring_draft_apply(DatalabAppState *state) {
     if (!state) {
         return;
+    }
+    datalab_workspace_authoring_projection_drag_finish(state,1);
+    if(state->pane_layout_revision.mode==CORE_LAYOUT_MODE_AUTHORING) {
+        core_layout_apply_authoring(&state->pane_layout_revision);core_layout_enter_authoring(&state->pane_layout_revision);
     }
     state->workspace_authoring_pending_stub = 0u;
     state->workspace_authoring_custom_theme_popup_open = 0u;
