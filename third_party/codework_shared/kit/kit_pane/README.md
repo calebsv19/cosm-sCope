@@ -80,3 +80,12 @@ make -C shared/kit/kit_pane
 ```sh
 make -C shared/kit/kit_pane test
 ```
+
+## Composition (`v0.4.0`)
+
+Optional `kit_pane_composition.h` adds stable pane identity, validated atomic
+shell/header/content derivation, viewport clipping, half-open hit regions and
+press ownership/cancellation. An optional SDL content-clip adapter restores
+existing clipping. Hosts keep layout solving, module purpose and appearance.
+See `../../docs/UI_PANE_COMPOSITION_CONTRACT.md`. Run `make test` and
+`make test-composition-sdl`; the latter checks exact clipped pixels at 1x/2x.

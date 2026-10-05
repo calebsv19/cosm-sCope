@@ -70,3 +70,16 @@ qualification and canonical/release rollout remain independent evidence.
 ## 2026-10-05 shared text presentation
 
 The measured companion is [Shared text presentation](UI_TEXT_PRESENTATION_CONTRACT.md), `kit_ui 0.16.0`. The trio now adopts measured caret/selection/preedit geometry and actual-font row/hit presentation. Host field eligibility, domain actions, native sessions and persistence retain their owners; mixed traversal/native IME acceptance and panes remain follow-ons. Earlier checkpoint references are historical.
+
+## Optional mixed order and native anchoring (0.17.0)
+
+`kit_ui_focus_order.h` supports a visible, semantic field/button order in one
+scope, reverse/wrapped traversal, disabled entries, reorder/removal and atomic
+invalid-input rejection. This is a reusable primitive; the trio's existing
+button-only traversal is retained until product-specific mixed-order adoption.
+`kit_ui_native_text_rect_sdl` maps measured render-space caret geometry into SDL
+window coordinates and clips native candidate anchors to the field/window. It
+never starts a text-input session. Host focus, lifecycle and field eligibility
+remain authoritative. Real macOS SDL session/rectangle tests are adapter proof;
+OS IME composition, candidate placement, international keyboard behavior and
+Linux/Windows native qualification require separate observed acceptance.
