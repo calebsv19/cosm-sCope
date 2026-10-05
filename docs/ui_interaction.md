@@ -66,3 +66,10 @@ and wider program adoption after the trio's human workflow review.
 ## 2026-10-05 bounded text editing and modal focus
 
 See [the adopted text contract](ui_text_focus.md). The optional shared model now owns scalar editing, selection and clipboard/preedit mechanics; host actions, text layout and persistence retain their existing owners.
+
+
+## 2026-10-05 shared text presentation
+
+Picker input-root draft and filter now adopt `kit_ui 0.16.0` measured text presentation in Main Edit. Two caller-owned picker presentations use the actual SDL font painter. Editing draws the full draft with caret, selection and staged preedit; filter labels and field text have separate geometry. Window-to-renderer pointer mapping remains host-owned. Viewer/custom-theme modes and catalog commit policy remain unchanged.
+
+See [Shared text presentation](ui_text_presentation.md) for storage ownership, output gates and residual limits. The next behavioral slice is mixed field/button traversal; native IME/session/clipboard qualification and pane composition follow before wider adoption. Earlier dated milestones remain historical.

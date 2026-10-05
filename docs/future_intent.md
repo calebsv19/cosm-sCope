@@ -106,3 +106,10 @@ See [the current interaction reference](ui_interaction.md) for exact scope, repl
 Input-picker path and filter fields now use `kit_ui 0.15.1` bounded editing in Main Edit. Path Enter validates/applies the existing directory; path Escape discards the draft. Filter Enter retains the existing selected-file open action; filter Escape retains the existing picker exit policy. Catalog filtering responds only to committed changes. Viewer custom-theme popup and Recent dropdown restore eligible semantic button focus. Custom slot Rename cycles preset labels and is not a free-text editor. Explicit host theme/zoom and authoring chords retain their existing policy.
 
 See [Text editing and modal focus](ui_text_focus.md) for exact ownership, tests and limitations. Text presentation, native IME/platform acceptance, pane composition and wider program adoption remain later slices. Earlier dated milestones describe their historical state.
+
+
+## 2026-10-05 shared text presentation
+
+Picker input-root draft and filter now adopt `kit_ui 0.16.0` measured text presentation in Main Edit. Two caller-owned picker presentations use the actual SDL font painter. Editing draws the full draft with caret, selection and staged preedit; filter labels and field text have separate geometry. Window-to-renderer pointer mapping remains host-owned. Viewer/custom-theme modes and catalog commit policy remain unchanged.
+
+See [Shared text presentation](ui_text_presentation.md) for storage ownership, output gates and residual limits. The next behavioral slice is mixed field/button traversal; native IME/session/clipboard qualification and pane composition follow before wider adoption. Earlier dated milestones remain historical.

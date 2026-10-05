@@ -20,6 +20,9 @@ KIT_UI_SRCS := \
 	$(KIT_UI_DIR)/src/kit_ui_interaction.c \
 	$(KIT_UI_DIR)/src/kit_ui_surface.c \
 	$(KIT_UI_DIR)/src/kit_ui_text_edit.c \
+	$(KIT_UI_DIR)/src/kit_ui_text_presentation.c \
+	$(KIT_UI_DIR)/src/kit_ui_text_presentation_render.c \
+	$(KIT_UI_DIR)/src/kit_ui_text_presentation_sdl.c \
 	$(KIT_UI_DIR)/src/kit_ui_focus_scope.c \
 	$(KIT_UI_DIR)/src/kit_ui_text_edit_sdl.c \
 	$(KIT_UI_DIR)/src/kit_ui_interaction_sdl.c \

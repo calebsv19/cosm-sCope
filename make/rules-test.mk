@@ -358,3 +358,6 @@ ui-interaction-self-test: $(TARGET)
 
 .PHONY: ui-text-focus-self-test
 ui-text-focus-self-test: ui-interaction-self-test
+
+.PHONY: ui-text-presentation-self-test
+ui-text-presentation-self-test: ui-text-focus-self-test

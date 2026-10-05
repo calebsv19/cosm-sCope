@@ -1,4 +1,5 @@
 #include "render/render_view_picker_text.h"
+#include "render/render_view_picker_text_presentation.h"
 #include "render/render_view_internal.h"
 #include "render/render_view_ui_surface.h"
 #include "render/render_view_picker_interaction.h"
@@ -171,6 +172,26 @@ int main(void) {
         memset(&e,0,sizeof(e)); e.type=SDL_WINDOWEVENT; e.window.event=SDL_WINDOWEVENT_FOCUS_LOST;
         datalab_workspace_authoring_route_interaction_event(w,r,&e,&s);
         assert(!g_datalab_button_surface.interaction.focused_id);
+        datalab_set_text_zoom_step(0);
+        char field[128]="aéWz";KitUiTextEdit edit={0};KitUiTextPresentation view={0};
+        assert(kit_ui_text_bind(&edit,field,sizeof(field),KIT_UI_TEXT_SINGLE_LINE).code==CORE_OK);
+        assert(kit_ui_text_position(&edit,3,1).code==CORE_OK);
+        assert(kit_ui_text_compose(&edit,"中W",1,1).code==CORE_OK);
+        SDL_RenderSetScale(r,(float)scale,(float)scale);SDL_RenderSetClipRect(r,NULL);
+        SDL_SetRenderDrawColor(r,20,20,20,255);SDL_RenderClear(r);
+        SDL_Rect outer={10,10,400,200};SDL_RenderSetClipRect(r,&outer);SDL_SetRenderDrawBlendMode(r,SDL_BLENDMODE_NONE);
+        assert(datalab_picker_text_present(r,&edit,&view,(SDL_Rect){30,30,220,datalab_text_line_height(1)},1,
+            (SDL_Color){240,240,240,255},(SDL_Color){80,180,255,255}).code==CORE_OK);
+        SDL_Rect restored_clip;SDL_RenderGetClipRect(r,&restored_clip);assert(!memcmp(&restored_clip,&outer,sizeof(outer)));
+        SDL_BlendMode blend;SDL_GetRenderDrawBlendMode(r,&blend);assert(blend==SDL_BLENDMODE_NONE);
+        assert(!strcmp(field,"aéWz") && !strcmp(view.display,"a中WWz") && view.rows[0].selection.width>0 && view.rows[0].preedit.width>0);
+        SDL_RenderPresent(r);
+        int cx=(int)((view.caret.x+.5f)*scale),cy=(int)((view.caret.y+2)*scale);
+        pixel=*((Uint32*)((char*)pixels->pixels+cy*pixels->pitch)+cx);SDL_GetRGBA(pixel,pixels->format,&red,&green,&blue,&alpha);
+        assert(red==80 && green==180 && blue==255);
+        if(capture_dir){char path[1024];snprintf(path,sizeof(path),"%s/text-%dx.bmp",capture_dir,scale);assert(SDL_SaveBMP(pixels,path)==0);}
+        assert(datalab_picker_text_hit(&edit,&view,view.rows[0].origin.x,view.rows[0].origin.y).code==CORE_OK && edit.cursor==0 && !edit.composition[0]);
+        printf("DataLab actual SDL font presentation %dx: preedit, selection, caret pixels, hit and enclosing clip restoration pass\n",scale);
         SDL_DestroyRenderer(r); SDL_FreeSurface(pixels);
     }
     char edit_path[32]="aé😀z";KitUiTextEdit editor={0};KitUiSurface buttons={0};SDL_Event text_event={0};
