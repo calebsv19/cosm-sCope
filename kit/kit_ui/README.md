@@ -306,3 +306,7 @@ Run `make test test-text-edit-sdl`. The generic archive has no SDL dependency.
 ### 0.15.1 bounded editor correction
 
 Selection extraction rejects output in the borrowed editing buffer; preedit ranges must fit its Unicode scalar count. Deterministic SDL clipboard fixtures verify failed cut and invalid/oversized paste preserve text without writing the system clipboard.
+
+### 0.16.0 shared text presentation
+
+Optional `kit_ui_text_presentation.h` measures scalar-safe text rows, hard wraps and explicit newlines, caret/selection/preedit geometry, caret-follow scrolling and shared hit mapping. The caller owns bounded presentation storage (8192 display bytes / 256 rows) through submission. Failed layout preserves the previous view; queued adapter failures restore command count and nested clip depth. `kit_ui_text_presentation_sdl.h` is optional and preserves SDL clip/color/blend state. Hosts supply actual font measurement and theme colors. No Core, domain commit, persistence, OS input-session or shaping policy is moved. See `docs/UI_TEXT_PRESENTATION_CONTRACT.md` and `make test-text-presentation`.

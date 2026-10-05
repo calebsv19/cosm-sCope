@@ -45,7 +45,7 @@ endif
 OBJ_DIR = build
 
 LIB = $(OBJ_DIR)/libkit_ui.a
-LIB_OBJ = $(OBJ_DIR)/kit_ui.o $(OBJ_DIR)/kit_ui_button.o $(OBJ_DIR)/kit_ui_hud.o $(OBJ_DIR)/kit_ui_interaction.o $(OBJ_DIR)/kit_ui_surface.o $(OBJ_DIR)/kit_ui_text_edit.o $(OBJ_DIR)/kit_ui_focus_scope.o
+LIB_OBJ = $(OBJ_DIR)/kit_ui.o $(OBJ_DIR)/kit_ui_button.o $(OBJ_DIR)/kit_ui_hud.o $(OBJ_DIR)/kit_ui_interaction.o $(OBJ_DIR)/kit_ui_surface.o $(OBJ_DIR)/kit_ui_text_edit.o $(OBJ_DIR)/kit_ui_focus_scope.o $(OBJ_DIR)/kit_ui_text_presentation.o $(OBJ_DIR)/kit_ui_text_presentation_render.o
 TEST_BIN = $(OBJ_DIR)/kit_ui_test
 VALIDATION_BIN = $(OBJ_DIR)/kit_ui_vk_validation
 
@@ -92,7 +92,7 @@ $(OBJ_DIR)/kit_ui_surface.o: src/kit_ui_surface.c include/kit_ui_surface.h inclu
 $(TEST_BIN): tests/kit_ui_test.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(INC) $< $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a -o $@
 
-test: $(TEST_BIN) test-interaction test-surface test-text-edit
+test: $(TEST_BIN) test-interaction test-surface test-text-edit test-text-presentation
 	./$(TEST_BIN)
 
 # SDL stays optional: the generic archive/test do not link SDL or this adapter.
@@ -147,3 +147,13 @@ test-text-edit: $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_t
 test-text-edit-sdl: $(LIB)
 	$(CC) $(CFLAGS) $(INC) $(shell $(PKG_CONFIG) --cflags sdl2) tests/kit_ui_text_edit_sdl_test.c src/kit_ui_text_edit_sdl.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a $(shell $(PKG_CONFIG) --libs sdl2) -lm -o $(OBJ_DIR)/kit_ui_text_edit_sdl_test
 	./$(OBJ_DIR)/kit_ui_text_edit_sdl_test
+
+$(OBJ_DIR)/kit_ui_text_presentation.o: src/kit_ui_text_presentation.c include/kit_ui_text_presentation.h include/kit_ui_text_edit.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@
+$(OBJ_DIR)/kit_ui_text_presentation_render.o: src/kit_ui_text_presentation_render.c include/kit_ui_text_presentation.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@
+
+.PHONY: test-text-presentation
+test-text-presentation: $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a
+	$(CC) $(CFLAGS) $(INC) tests/kit_ui_text_presentation_test.c $(LIB) $(KIT_RENDER_BUILD_DIR)/libkit_render.a ../../core/core_theme/build/libcore_theme.a ../../core/core_font/build/libcore_font.a ../../core/core_base/build/libcore_base.a -lm -o $(OBJ_DIR)/kit_ui_text_presentation_test
+	./$(OBJ_DIR)/kit_ui_text_presentation_test
