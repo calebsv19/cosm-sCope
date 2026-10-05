@@ -22,7 +22,7 @@ lifecycle management.
 ## Versioning
 
 - Module version source of truth: `shared/vk_renderer/VERSION`
-- Current version: `1.4.0`
+- Current version: `1.5.0`
 - `1.0.0` behavior note: debug capture is opt-in only and runs only when `vk_renderer_request_capture(...)` is called.
 - `1.1.0` behavior note: long-lived textures can now be updated in place through `vk_renderer_texture_update_rgba_subrect(...)` for bounded dirty-rect preview workflows without recreating whole textures every frame.
 - `1.1.1` behavior note: debug frame capture now normalizes SDL surface creation and channel ordering for both RGBA and BGRA source paths so saved captures are consistent across swapchain formats.
@@ -47,6 +47,19 @@ lifecycle management.
   now the proof that presentation has finished consuming its semaphore, so
   multi-frame rendering no longer re-signals a semaphore still held by the
   presentation engine.
+
+## Command Fidelity (1.5.0)
+
+Adds `vk_renderer_set_draw_transform`/`vk_renderer_reset_draw_transform` for
+immediate translation/signed scale and a float-bounds, UV/tint textured-quad
+entry point with explicit `VkResult` errors. Legacy integer texture draws use
+the same emission path with a white tint. Rounded edge coverage accounts for
+the command scale; immediate transform state resets on frame begin. Explicit
+mesh-affine APIs retain their own transform. Texture preparation is separated
+from frame-buffer/pipeline emission in a sibling source file. All consumers
+must rebuild against the changed public draw-state layout. See
+[the render command contract](../docs/RENDER_COMMAND_FIDELITY.md) for exact
+coordinates, borrowed GPU resources and 1x/2x capture verification.
 
 ## Rounded Geometry (1.4.0)
 

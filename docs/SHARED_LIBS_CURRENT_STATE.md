@@ -527,3 +527,26 @@ remain on their previous snapshots, so earlier program matrix entries describe
 those canonical states. No app VERSION bump or publication occurred.
 
 See [the shared rounded-rendering contract](UI_ROUNDED_RENDERING.md).
+
+## 2026-10-04 DataLab Main Edit Shared Button Adoption
+
+Shared `5b017d4` adds `kit_ui 0.12.0`'s optional direct-SDL appearance adapter.
+The generic kit archive remains independent of SDL. The new path reuses the
+existing spec/theme state resolver, compact rounded appearance, nested
+outline/fill geometry, and synchronous measured caption placement.
+
+DataLab Main Edit `d640b7d` imports that committed snapshot and routes playback,
+top-level authoring, Font/Theme/custom-theme, and Recent Directories controls
+through one small presentation adapter. The directory control composes its
+caption above a separate path readout. This lane imports `kit_render 0.14.5`,
+`kit_workspace_authoring 0.5.2`, `vk_renderer 1.4.0`, and `vk_runtime 0.6.0`.
+Its clean build, targeted contracts, full stable/headless smoke, native Vulkan
+resize/restart and real-host captures, and isolated Main Edit packages pass.
+
+The separate Desktop Main Edit package is installed with `com.cosm.scope.main-edit`
+and `DataLab-Main-Edit` runtime/log roots. Canonical DataLab stays at accepted
+`4bf29e6`, VERSION 0.4.0; its installed stable Desktop bundle remains 0.3.6 and
+byte-for-byte unchanged. The UI is still SDL-rasterized and Vulkan-presented;
+native image rendering retains its own path. Input/action/persistence semantics
+remain app-owned. Source adoption, program release, and Linux qualification are
+separate. Other apps retain their previously imported module snapshots.

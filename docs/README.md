@@ -3,6 +3,8 @@
 This directory contains public-facing shared-library documentation.
 
 ## Primary Public References
+- [Render command fidelity](RENDER_COMMAND_FIDELITY.md)
+- [Shared rounded UI rendering](UI_ROUNDED_RENDERING.md)
 - `GPU_VULKAN_RUNTIME_SYSTEM.md`
 - `VERSIONING.md`
 - `SHARED_LIB_OWNERSHIP_BOUNDARIES.md`

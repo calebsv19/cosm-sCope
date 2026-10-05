@@ -203,3 +203,17 @@ They do not imply canonical source adoption or a released app version.
 MemConsole imports committed shared source `e588734`; WorkspaceSandbox adds
 HUD follow-up `51b331a` through the same managed subtree workflow. Rebuild static renderer consumers after upgrading its public frame
 storage structure. Existing SDL adapters and display-free tests remain valid.
+
+## DataLab Main Edit Button Minimums (2026-10-04)
+
+DataLab Main Edit's common button adapter requires `kit_ui >= 0.12.0` for
+the optional SDL appearance entry point. The accepted managed snapshot is
+`5b017d4`, with `kit_render 0.14.5`, `vk_renderer 1.4.0`, `vk_runtime 0.6.0`,
+and imported `kit_workspace_authoring 0.5.2`. The latter remains the shared
+authoring layout/action vocabulary; DataLab draws its palette-aware top bar
+through the same SDL button adapter as playback and Font/Theme.
+
+This is a Main Edit adoption minimum, not a new canonical/public-release
+minimum for DataLab or other hosts. Canonical DataLab remains on its accepted
+snapshot. Clean rebuild is required after import, including changed shared
+archives and the renderer's rounded-geometry/frame-buffer source modules.

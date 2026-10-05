@@ -1,4 +1,4 @@
-# ===== Makefile: macOS + Vulkan (MoltenVK) + SDL2 =====
+# ===== Makefile: Vulkan + SDL2 (MoltenVK on macOS) =====
 
 # Tools
 CC         ?= cc
@@ -31,20 +31,23 @@ ifeq ($(strip $(SDL_CFLAGS)$(SDL_LIBS)),)
 endif
 
 # macOS frameworks (Metal for MoltenVK, Cocoa boilerplate for SDL)
-APPLE_FW := -framework Metal -framework QuartzCore -framework Cocoa -framework IOKit -framework CoreVideo
 UNAME_S := $(shell uname -s)
+APPLE_FW :=
+PLATFORM_CFLAGS :=
 VALIDATION_LAYER_DIR ?= $(patsubst %/,%,$(dir $(firstword \
 	$(wildcard /opt/homebrew/lib/libVkLayer_khronos_validation.dylib) \
 	$(wildcard /usr/local/lib/libVkLayer_khronos_validation.dylib))))
 ifeq ($(UNAME_S),Darwin)
+  APPLE_FW := -framework Metal -framework QuartzCore -framework Cocoa -framework IOKit -framework CoreVideo
+  PLATFORM_CFLAGS := -DVK_USE_PLATFORM_METAL_EXT
   VALIDATION_ENV := $(if $(VALIDATION_LAYER_DIR),DYLD_LIBRARY_PATH=$(VALIDATION_LAYER_DIR),)
 else
   VALIDATION_ENV :=
 endif
 
 # Common compile/link flags
-CFLAGS  := $(COPT) $(CSTD) $(CWARN) $(INC) $(VULKAN_CFLAGS) $(SDL_CFLAGS) -D_THREAD_SAFE -DVK_USE_PLATFORM_METAL_EXT -DVK_RENDERER_SHADER_ROOT=\"$(CURDIR)\"
-LDFLAGS := -L$(VK_RUNTIME_ROOT)/build/lib -lvkruntime $(VULKAN_LIBS) $(SDL_LIBS) $(APPLE_FW)
+CFLAGS  := $(COPT) $(CSTD) $(CWARN) $(INC) $(VULKAN_CFLAGS) $(SDL_CFLAGS) -D_THREAD_SAFE $(PLATFORM_CFLAGS) -DVK_RENDERER_SHADER_ROOT=\"$(CURDIR)\"
+LDFLAGS := -L$(VK_RUNTIME_ROOT)/build/lib -lvkruntime $(VULKAN_LIBS) $(SDL_LIBS) $(APPLE_FW) -lm
 
 # Sources / objects
 SRC := $(wildcard src/*.c)

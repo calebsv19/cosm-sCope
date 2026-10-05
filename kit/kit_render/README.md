@@ -6,6 +6,12 @@ It sits above `core_*` contracts and below higher-level kits such as `kit_ui` an
 
 ## Current Scope
 
+`0.14.6` implements command-local translation/signed scale and textured-quad
+UV/tint submission on Vulkan, validates borrowed command streams before drawing,
+and adds a captured-image conformance gate. The optional backend retains its
+null/default build boundary. See [the exact coordinate, lifetime, recovery and
+proof contract](../../docs/RENDER_COMMAND_FIDELITY.md).
+
 The live module defines:
 
 - a backend-agnostic render command model
