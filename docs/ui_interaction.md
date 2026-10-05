@@ -1,6 +1,6 @@
 # Shared button interaction in DataLab/sCope
 
-The retained Main Edit lane adopts `kit_ui 0.14.1` and
+The retained Main Edit lane adopts `kit_ui 0.15.1` and
 `kit_workspace_authoring 0.6.1`. The accepted shared source snapshot is
 `b1c67d7e1b78b826c81269a6531706fc1f29ea86`. `kit_render 0.14.6`, `vk_renderer 1.5.0` and
 `vk_runtime 0.6.0` retain the proven transform/textured-quad rendering contract.
@@ -25,7 +25,7 @@ The renderer sibling `src/render/render_view_ui_surface.c` owns the viewer butto
 
 The shared snapshot retains bounded semantic keys, opaque handles, geometry and
 press/queue state. It owns no product action, widget tree, label storage, pane
-layout, database or persistence. Text/caret/clipboard/IME engines and canvas/pane
+layout, database or persistence. Text layout/native IME candidate presentation and canvas/pane
 or scrollbar gestures remain distinct host contracts.
 
 ## Verification and adoption
@@ -59,5 +59,10 @@ VERSION changes, public releases and native Linux qualification remain later wor
 
 The shared [interaction contract](../third_party/codework_shared/docs/UI_INTERACTION_CONTRACT.md)
 defines the optional engine and snapshot semantics. The next architecture boundary
-is a separate text-edit/IME and modal-focus contract, followed by pane composition
+is text presentation and native IME acceptance, followed by pane composition
 and wider program adoption after the trio's human workflow review.
+
+
+## 2026-10-05 bounded text editing and modal focus
+
+See [the adopted text contract](ui_text_focus.md). The optional shared model now owns scalar editing, selection and clipboard/preedit mechanics; host actions, text layout and persistence retain their existing owners.

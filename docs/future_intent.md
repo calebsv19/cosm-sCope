@@ -99,3 +99,10 @@ Detailed execution plans and historical lane logs live in:
 Main Edit now uses `kit_ui 0.14.1` surface snapshots across the inventoried button surfaces, with the shared `b1c67d7` source pin. Playback HUD; Recent directories header/dropdown; common Font/Theme, custom slots/rename and custom-theme popup token/channel/adjust/assist/Close controls; top authoring Mode/Apply/Cancel; picker Recent roots/artifacts. The custom popup and Recent dropdown each publish only their active scope. No Add button is painted by DataLab. File-browser selection, scrollbars, projection splitters and the native folder dialog retain their existing owners.
 
 See [the current interaction reference](ui_interaction.md) for exact scope, replay gates, capture proof and remaining text-edit/pane/native-Linux boundaries. This is local Development adoption; app VERSION and canonical/production release state are unchanged.
+
+
+## 2026-10-05 bounded text editing and modal focus
+
+Input-picker path and filter fields now use `kit_ui 0.15.1` bounded editing in Main Edit. Path Enter validates/applies the existing directory; path Escape discards the draft. Filter Enter ends filter editing; filter Escape retains the existing picker exit policy. Catalog filtering responds only to committed changes. Viewer custom-theme popup and Recent dropdown restore eligible semantic button focus. Custom slot Rename cycles preset labels and is not a free-text editor. Explicit host theme/zoom and authoring chords retain their existing policy.
+
+See [Text editing and modal focus](ui_text_focus.md) for exact ownership, tests and limitations. Text presentation, native IME/platform acceptance, pane composition and wider program adoption remain later slices. Earlier dated milestones describe their historical state.
