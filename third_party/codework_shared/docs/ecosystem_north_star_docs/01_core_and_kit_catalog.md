@@ -877,3 +877,21 @@ precedence, caption coordinates, clipping, narrow controls and invalid inputs.
 The generic archive/default tests retain no SDL dependency. DataLab Main Edit
 is the first host of this adapter; its product behavior, theme persistence,
 event routing, renderer resources and lifecycle stay app-owned.
+
+
+## Render Fidelity Contract Update (2026-10-04)
+
+`kit_render 0.14.6` validates command-local translation/signed scale and native
+texture UV/tint fields before recording and before whole-frame submit. Its
+optional Vulkan bridge uses `vk_renderer 1.5.0` floating textured-quad and
+draw-transform primitives. The renderer owns GPU drawing/resource/presentation
+state; `vk_runtime 0.6.0` remains the device/queue lifecycle owner. There is no
+new core library or UI dependency in domain/headless execution.
+
+The common captured-image oracle covers 1x/2x geometry, UV crop/reversal, tint,
+clips, text placement, invalid stream repair, buffer growth and resize.
+orChestra/eCho Main Edit link their real native archives; DataLab Main Edit
+links its native renderer objects in the harness and retains shared SDL UI
+appearance. See [the command contract](../RENDER_COMMAND_FIDELITY.md); focus,
+keyboard/capture, pane composition, native Linux and wider adoption remain
+separate contracts.

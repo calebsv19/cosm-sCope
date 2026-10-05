@@ -87,3 +87,15 @@ checks pass. Native host capture verifies the UI compatibility canvas is still
 presented correctly through Vulkan at 2x scale. This is CPU-composed UI and
 remains distinct from DataLab's native image-session path. Other programs keep
 their previously imported snapshots until an explicit host migration.
+
+## Transform And Texture Follow-Up
+
+The same three Main Edit proving hosts now import shared `f80f91d`, with
+`kit_render 0.14.6` and `vk_renderer 1.5.0`. Command-local translation and signed
+independent scale, float rounded geometry, texture UV crop/reversal and RGBA
+tint now have a common host-linked native 1x/2x image oracle. This supersedes
+the earlier transform/UV/tint gap for this bounded command contract. See
+[Render command fidelity](RENDER_COMMAND_FIDELITY.md) for exact semantics,
+validation/recovery, source pins and proof commands. DataLab retains
+`kit_ui 0.12.0` SDL button drawing as the reference; Vulkan presentation and
+native image drawing remain separate from that CPU UI composition.
