@@ -975,3 +975,8 @@ Accepted-source verification compares vendored module bytes with immutable Git
 snapshot bytes. `--require-current-canonical` additionally checks mutable upstream
 state for a deliberate adoption audit. Concurrent upstream renderer work is neither
 reset nor silently imported into these accepted programs.
+
+
+## 2026-10-05 bounded text editing and modal focus
+
+`kit_ui 0.15.1` at accepted shared `0cc23aa` provides optional caller-owned bounded UTF-8 editing, Shift selection, clipboard/preedit normalization and one-modal semantic button focus restoration. Orchestra Main Edit adopts ingest input root; Echo Main Edit adopts search/title/body/DB path/edge limit/relationship target; DataLab Main Edit adopts picker root/filter and viewer modal focus. Minimum for these APIs is 0.15.1; no portfolio-wide minimum or renderer change is implied. `kit_workspace_authoring 0.6.1`, `kit_render 0.14.6`, `vk_renderer 1.5.0`, `vk_runtime 0.6.0` remain unchanged. Stable canonical app versions remain outside this Development adoption. Text presentation/native IME, panes and other programs remain incremental follow-ons. See `UI_TEXT_FOCUS_CONTRACT.md` in shared docs.

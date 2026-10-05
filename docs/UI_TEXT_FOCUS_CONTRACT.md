@@ -1,6 +1,6 @@
 # Bounded text editing and modal focus contract
 
-The optional `kit_ui 0.15.0` APIs extend the button interaction contract without
+The optional `kit_ui 0.15.1` APIs extend the button interaction contract without
 changing legacy callers or coupling Core to UI. This first slice supports one
 modal over one host scope, bounded caller-owned UTF-8 buffers and Unicode scalar
 movement. It is not a retained widget tree or a shaped rich-text editor.

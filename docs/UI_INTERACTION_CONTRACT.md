@@ -107,3 +107,8 @@ qualification. The source-linked reproducer and captures are retained under
 
 
 The 0.14.1 patch supports C++ linkage and optional returned control storage. The current source pin is `b1c67d7`. Host source checks verify immutable Git snapshot bytes; `--require-current-canonical` additionally checks the mutable upstream checkout. The expanded surface replay and ordinary HUD capture evidence is retained in `_private_workspace_artifacts/ui_unification/surfaces_20261004/`. Queue-time caption ownership is a host responsibility; eCho uses a bounded UI-frame arena, while DataLab draws captions synchronously through SDL.
+
+
+## 2026-10-05 bounded text editing and modal focus
+
+The accepted text companion is [Bounded text and modal focus](UI_TEXT_FOCUS_CONTRACT.md) at `kit_ui 0.15.1` / `0cc23aa`. The trio now adopts its editor-model and one-modal semantic restoration mechanics; host text layout/native IME, field transaction policy, product actions and persistence remain separate. Earlier checkpoint pins remain historical. Next prove shared caret/selection/preedit presentation, then native IME acceptance and pane composition.
