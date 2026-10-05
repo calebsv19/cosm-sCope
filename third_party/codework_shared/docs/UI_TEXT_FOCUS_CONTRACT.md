@@ -65,3 +65,8 @@ Standalone gates: `make -C shared/kit/kit_ui test test-text-edit-sdl`. Host adop
 and coverage are recorded in each Main Edit's `docs/ui_text_focus.md` and the
 supporting private trio inventory. Native OS candidate-window acceptance, Linux
 qualification and canonical/release rollout remain independent evidence.
+
+
+## 2026-10-05 shared text presentation
+
+The measured companion is [Shared text presentation](UI_TEXT_PRESENTATION_CONTRACT.md), `kit_ui 0.16.0`. The trio now adopts measured caret/selection/preedit geometry and actual-font row/hit presentation. Host field eligibility, domain actions, native sessions and persistence retain their owners; mixed traversal/native IME acceptance and panes remain follow-ons. Earlier checkpoint references are historical.
