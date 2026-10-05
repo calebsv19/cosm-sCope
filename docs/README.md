@@ -41,3 +41,5 @@ This directory contains public-facing shared-library documentation.
 Internal planning and historical/operator docs are maintained outside `shared/`.
 Current workspace docs root for this cleanup lane:
 - `CodeWork/docs/`
+
+- [Shared button interaction](UI_INTERACTION_CONTRACT.md): optional focus/capture state and common Font/Theme registration.

@@ -49,7 +49,7 @@ The implementation is still intentionally immediate-mode. The goal is reusable, 
 - pane lifecycle
 - event loop ownership
 - retained widget trees
-- keyboard focus or text input ownership
+- application-wide focus, text entry, clipboard or IME ownership
 - layout document loading
 - settings or action persistence
 - application-specific behavior
@@ -60,7 +60,7 @@ The implementation is still intentionally immediate-mode. The goal is reusable, 
 
 - `KitUiContext.render_ctx` is borrowed and must outlive the UI context.
 - All draw helpers are immediate-mode frame helpers. Borrowed label/text pointers only need to remain valid through the current render frame command consumption.
-- `kit_ui` writes commands into the caller-owned `KitRenderCommandBuffer` attached to the active `KitRenderFrame`; it does not retain widget state across frames.
+- `kit_ui` writes commands into the caller-owned `KitRenderCommandBuffer` attached to the active `KitRenderFrame`; drawing does not retain widget state across frames. The separate optional interaction context retains only focus/capture IDs and press state.
 - Clip-stack depth is bounded by `KIT_UI_CLIP_STACK_MAX`.
 - `kit_ui_fit_text_to_rect(...)` chooses the largest full-fit tier first, then falls back to the smallest height-fitting tier with ellipsis truncation.
 - The Vulkan validation harness is a host-side debug harness, not part of the shared widget contract itself.
@@ -96,7 +96,7 @@ Implemented now:
 
 ## Planned Growth
 
-1. add focus and keyboard-navigation helpers
+1. extend adoption of the optional focus and keyboard-navigation helpers
 2. add binding adapters for settings/action/telemetry keys
 3. add simple row/list helpers for inspectors
 4. remain the common control surface for settings, graph inspectors, and debug panes
@@ -260,3 +260,13 @@ clipping, narrow-control, and invalid-input checks. This optional adapter preser
 SDL rasterization; a Vulkan compatibility canvas that uploads those pixels is
 still CPU-composed UI. Input routing, focus ownership, action policy, persistence,
 and renderer lifetime stay with the host.
+
+## Focus and pointer capture (0.13.0)
+
+The optional `kit_ui_interaction.h` context owns focus and press-origin capture
+for registered buttons, with normalized events, ordered Tab traversal and
+release activation. Hosts own coordinates, scope changes, text entry and actions.
+The generic archive has no SDL dependency; `kit_ui_interaction_sdl.h` is an
+optional adapter. See [the interaction contract](../../docs/UI_INTERACTION_CONTRACT.md).
+
+Patch 0.13.1: Clamp the focus marker inside positive-size controls, including tiny control bounds; optional SDL declarations preserve C linkage in C++ hosts.

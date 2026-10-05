@@ -1111,3 +1111,25 @@ DataLab's UI remains CPU-composed in its SDL compatibility canvas; the existing
 native image-session path does not imply all-UI native GPU adoption. Broader
 picker/list/pane chrome stays app-specific. No other app or canonical/release
 snapshot was migrated by this cohort.
+
+
+## Render Fidelity Trio Closure (2026-10-04)
+
+- Shared transform and textured-quad field handling: **Resolved for the bounded
+  translation/signed-scale/UV/tint contract** in `kit_render 0.14.6` and
+  `vk_renderer 1.5.0`, with actual 1x/2x captured output and zero Vulkan
+  validation warnings/errors on Apple M2/MoltenVK.
+- orChestra/eCho Main Edit: **Adopted and proven locally** at `4b0f57d`/`4a6e093`
+  using normal host archives. The orChestra cold-build target now clears the
+  Vulkan kit archive and forwards source checks to avoid stale linkage.
+- DataLab Main Edit: **Adopted and proven locally** at `a291e7d`. Explicit native
+  source lists include both new renderer modules. The harness uses native app
+  objects plus an isolated Vulkan kit; SDL button drawing remains the UI
+  reference, so this is not all-UI GPU migration.
+- Cross-program integration proof: **Partial by design**. Product/headless,
+  native lifecycle and isolated package/installed identity pass for this trio.
+  Canonical source adoption, publication, interactive workflow review, native
+  Linux and remaining program consumers are separate boundaries.
+- Next shared contracts: focus/keyboard/pointer capture and pane/layout
+  composition. Transform stacks, rotation/shear and performance optimization
+  are not implied by this slice. [Full contract](../RENDER_COMMAND_FIDELITY.md).

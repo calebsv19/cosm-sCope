@@ -550,3 +550,26 @@ byte-for-byte unchanged. The UI is still SDL-rasterized and Vulkan-presented;
 native image rendering retains its own path. Input/action/persistence semantics
 remain app-owned. Source adoption, program release, and Linux qualification are
 separate. Other apps retain their previously imported module snapshots.
+
+
+## Render Command Fidelity Trio (2026-10-04)
+
+Shared source `f80f91d` supplies `kit_render 0.14.6` and `vk_renderer 1.5.0`.
+Translation and signed independent scale now apply to rect/rounded, stroke,
+text and texture geometry; textured quads consume float bounds, UV crop/flip
+and RGBA tint. CPU command validation runs before append and whole-frame
+submission; rejected streams can be repaired and resubmitted without partial
+native drawing. Clip coordinates and host input remain in frame space.
+
+Managed Main Edit imports and integration checkpoints are orChestra `4b0f57d`,
+eCho `4a6e093`, and DataLab/sCope `a291e7d`. All three pass the shared native
+1x/2x image oracle, their product/headless/native lifecycle gates, and isolated
+package identity/signature checks. Their installed Main Edit bundles match the
+verified packages; stable Desktop bundles and canonical program source/VERSION
+are unchanged. DataLab still composes UI through `kit_ui 0.12.0` SDL drawing;
+its native renderer objects are proven by a separate Vulkan-kit harness.
+
+This supersedes the earlier bounded transform/UV/tint gap; it does not prove
+all-program migration, native Linux, performance improvement, retained focus,
+keyboard navigation or generalized pane editing. See
+[Render command fidelity](RENDER_COMMAND_FIDELITY.md).

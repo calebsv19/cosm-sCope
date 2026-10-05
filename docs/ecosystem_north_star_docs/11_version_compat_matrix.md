@@ -217,3 +217,23 @@ This is a Main Edit adoption minimum, not a new canonical/public-release
 minimum for DataLab or other hosts. Canonical DataLab remains on its accepted
 snapshot. Clean rebuild is required after import, including changed shared
 archives and the renderer's rounded-geometry/frame-buffer source modules.
+
+
+## Render Fidelity Main Edit Minimums (2026-10-04)
+
+These contained development pins supersede the earlier rounded-only minima
+for this cohort, without changing canonical/released app matrix rows.
+
+| Main Edit program | kit_render | vk_renderer | kit_ui | kit_workspace_authoring | vk_runtime | Host integration |
+| --- | --- | --- | --- | --- | --- | --- |
+| WorkspaceSandbox / orChestra | 0.14.6 | 1.5.0 | 0.12.0 | 0.5.2 | 0.6.0 | `4b0f57d` |
+| MemConsole / eCho | 0.14.6 | 1.5.0 | 0.12.0 | 0.5.2 | 0.6.0 | `4a6e093` |
+| DataLab / sCope | 0.14.6 | 1.5.0 | 0.12.0 | 0.5.2 | 0.6.0 | `a291e7d` |
+
+Shared snapshot is `f80f91d`; exact selected module bytes are verified, not
+only versions. `vk_renderer 1.5.0` adds public draw-state fields and native
+APIs: rebuild every consumer on import; this is source compatibility, not a
+binary ABI promise. Explicit native source-list hosts must include
+`vk_renderer_draw_transform.c` and `vk_renderer_texture_draw.c`. DataLab's
+normal kit backend stays disabled while its GPU proof enables a separate
+archive. [Contract/proof](../RENDER_COMMAND_FIDELITY.md).

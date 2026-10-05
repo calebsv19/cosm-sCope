@@ -87,3 +87,12 @@ make -C shared/kit/kit_workspace_authoring
 ```sh
 make -C shared/kit/kit_workspace_authoring test
 ```
+
+## Font/Theme interaction registration (0.6.0)
+
+`kit_workspace_authoring_interaction.h` exposes the existing Font/Theme controls
+in visual reading order using their stable semantic IDs and enabled policy.
+Clipped controls are omitted. Hosts keep input scope and product actions.
+See [the interaction contract](../../docs/UI_INTERACTION_CONTRACT.md).
+
+Patch 0.6.1: Interaction registration declarations preserve C linkage in C++ hosts.

@@ -103,3 +103,26 @@ output, domain/headless and isolated package evidence remain distinct.
 DataLab's existing native image path and Vulkan-presented SDL UI canvas retain
 their separate ownership. Focus/capture, editable pane topology and other
 program migrations remain follow-on contracts.
+
+The 2026-10-04 local development cohort imports shared `f80f91d` and uses:
+
+| Main Edit host | Integration checkpoint | Proof wiring |
+| --- | --- | --- |
+| orChestra / WorkspaceSandbox | `4b0f57d` | Application Vulkan kit/renderer/runtime archives |
+| eCho / MemConsole | `4a6e093` | Application target-specific copied archives |
+| sCope / DataLab | `a291e7d` | Application native renderer/runtime objects plus an isolated Vulkan-kit harness archive; normal UI stays SDL |
+
+Each host exposes `make render-fidelity-self-test` and accepts
+`RENDER_FIDELITY_OUTPUT_DIR=<path>`. Source verifiers compare the five selected
+kit/renderer/runtime modules against the accepted commit, not only version
+strings. All three pass the common 1x/2x oracle, their product/headless and
+native lifecycle gates, and isolated Main Edit package identity/signature
+checks. Installed Main Edit bundles match their packages; stable Desktop
+bundles and canonical program source/version state remain unchanged.
+
+The image gate checks 301,545 geometry/texture pixels and 2,106 text samples at
+1x, and 465,019 geometry/texture pixels and 8,424 text samples at 2x. Validation
+warnings and errors are zero on Apple M2/MoltenVK. These are bounded contract
+checks, not general interaction acceptance or native Linux qualification.
+The shared build and all three independently linked host harnesses produce
+byte-identical 1x and 2x captures for this fixture on the verified local host.
