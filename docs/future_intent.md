@@ -54,8 +54,10 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 Main Edit has completed the bounded shared compact button appearance adoption.
 Keep new control drawing on `render_view_ui_buttons.c`. Main Edit now adopts
 the bounded translation/signed-scale and texture UV/tint contract, with a
-host-linked native image gate. Retained focus/pointer capture, generalized pane
-composition, and native Linux presentation qualification remain separate slices.
+host-linked native image gate. The common Font/Theme controls now adopt the
+optional shared focus/keyboard/press-origin capture contract. Next migrate
+normal runtime HUD/inspector controls, then text-entry/modal and pane composition
+in bounded slices; native Linux presentation remains separate qualification.
 Preserve the SDL compatibility canvas and existing native image-session policy
 until a measured migration demonstrates correctness and benefit.
 

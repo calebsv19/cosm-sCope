@@ -93,3 +93,12 @@ Private plans/checklists are kept in the workspace private bucket:
 
 - [Render command fidelity and SDL reference](render_fidelity.md): native
   transform/UV/tint proof using actual host objects, with SDL UI kept separate.
+
+
+## Font/Theme interaction reference
+
+See [Shared button interaction](ui_interaction.md) for the optional focus,
+keyboard and press-origin capture contract, host ownership, current shared pin,
+and `make ui-interaction-self-test`. This is the retained Main Edit Font/Theme
+surface only; ordinary runtime controls, text entry and panes retain their own
+input paths.

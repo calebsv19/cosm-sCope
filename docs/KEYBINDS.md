@@ -71,9 +71,13 @@
 - `Alt+C` / `Alt+V` are consumed during chord progression and do not route to Trace `C` lane-cycle behavior.
 - In active profile loops, `Alt+C+V` toggles authoring mode on/off.
 - While authoring is active, first-right-of-refusal keys are:
-  - `Tab`: cycle overlay (`pane` -> `font/theme` -> `pane`)
-  - `Enter`: apply pending draft state
-  - `Esc`: cancel draft state and exit authoring mode
+  - `Tab`: cycle overlays in Pane mode; traverse enabled controls in Font/Theme mode
+  - `Shift+Tab`: traverse Font/Theme controls in reverse
+  - `Ctrl+Tab`: cycle overlays from either authoring surface
+  - `Enter`: apply in Pane mode or without button focus; `Enter`/`Space` activate
+    a focused Font/Theme control on release
+  - `Ctrl+Enter`: apply pending draft from Font/Theme mode
+  - `Esc`: cancel an armed button first, otherwise cancel the draft and exit authoring
 - Additional reserved authoring keys are suppressed from host fallback while authoring is active (prevents profile-key collisions during authoring sessions).
 - Authoring-active render now takes over the host surface (`AR3`), and cross-host parity/stress
   validation for this path is complete (`AR4`).
@@ -84,6 +88,11 @@
 |---|---|---|---|---|
 | `Alt+C+V` | open selected file and enter authoring | toggle authoring on/off | toggle authoring off | Reserved chord; consumed before profile/runtime key handlers |
 | `Alt+C` / `Alt+V` (partial chord) | no picker action | no Trace `C` lane-cycle side effect | no pane/font action side effect | chord progression keys are consumed |
-| `Tab` | normal picker focus/navigation behavior | host/runtime behavior | cycle overlay | authoring-first when authoring is active |
-| `Enter` | apply path edit or open selected file | load selected file from Data Panel | apply authoring draft | authoring-first when authoring is active |
+| `Tab` | normal picker focus/navigation behavior | host/runtime behavior | Pane: cycle overlay; Font/Theme: traverse controls | authoring-first; popup controls keep their own input scope |
+| `Enter` | apply path edit or open selected file | load selected file from Data Panel | apply draft without focus; activate focused Font/Theme button on release | authoring-first; Ctrl+Enter applies regardless of button focus |
 | `Esc` | cancel edit mode or exit picker | quit app | cancel draft + exit authoring | authoring-first when authoring is active |
+
+
+The [Font/Theme interaction reference](ui_interaction.md) defines the shared
+button behavior and 1x/2x coordinate proof. Custom-theme popup/rename controls
+retain their existing input paths and reset background focus/capture.
