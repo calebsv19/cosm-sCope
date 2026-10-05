@@ -310,3 +310,13 @@ Selection extraction rejects output in the borrowed editing buffer; preedit rang
 ### 0.16.0 shared text presentation
 
 Optional `kit_ui_text_presentation.h` measures scalar-safe text rows, hard wraps and explicit newlines, caret/selection/preedit geometry, caret-follow scrolling and shared hit mapping. The caller owns bounded presentation storage (8192 display bytes / 256 rows) through submission. Failed layout preserves the previous view; queued adapter failures restore command count and nested clip depth. `kit_ui_text_presentation_sdl.h` is optional and preserves SDL clip/color/blend state. Hosts supply actual font measurement and theme colors. No Core, domain commit, persistence, OS input-session or shaping policy is moved. See `docs/UI_TEXT_PRESENTATION_CONTRACT.md` and `make test-text-presentation`.
+
+## Focus order and native caret anchoring (`v0.17.0`)
+
+Optional `kit_ui_focus_order.h` supplies semantic mixed field/button traversal
+for caller-defined visible order and scope. Hosts still bind text and dispatch
+actions; existing button-only surfaces remain compatible. The optional
+`kit_ui_native_text_sdl.h` adapter anchors native candidate UI to measured caret
+geometry in SDL window coordinates while the host retains Start/Stop and focus
+policy. `make test-focus-order` and `make test-native-text-sdl` qualify mechanics;
+the native test uses a real window but does not certify human IME acceptance.

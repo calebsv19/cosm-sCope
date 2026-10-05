@@ -16,7 +16,7 @@ INC = -Iinclude -I$(KIT_RENDER_DIR)/include -I$(CORE_BASE_DIR)/include -I$(CORE_
 OBJ_DIR = build
 
 LIB = $(OBJ_DIR)/libkit_pane.a
-LIB_OBJ = $(OBJ_DIR)/kit_pane.o
+LIB_OBJ = $(OBJ_DIR)/kit_pane.o $(OBJ_DIR)/kit_pane_composition.o
 TEST_BIN = $(OBJ_DIR)/kit_pane_test
 
 .PHONY: all clean test
@@ -41,7 +41,7 @@ $(CORE_THEME_DIR)/build/libcore_theme.a: $(CORE_BASE_DIR)/build/libcore_base.a
 $(CORE_FONT_DIR)/build/libcore_font.a: $(CORE_BASE_DIR)/build/libcore_base.a
 	$(MAKE) -C $(CORE_FONT_DIR)
 
-$(LIB_OBJ): src/kit_pane.c | $(OBJ_DIR)
+$(OBJ_DIR)/kit_pane.o: src/kit_pane.c include/kit_pane.h | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(INC) -c $< -o $@
 
 $(LIB): $(LIB_OBJ)
@@ -55,3 +55,17 @@ test: $(TEST_BIN)
 
 clean:
 	rm -rf $(OBJ_DIR)
+
+$(OBJ_DIR)/kit_pane_composition.o: src/kit_pane_composition.c include/kit_pane_composition.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@
+
+.PHONY: test-composition
+test: test-composition
+test-composition: $(LIB) $(CORE_BASE_DIR)/build/libcore_base.a
+	$(CC) $(CFLAGS) $(INC) tests/kit_pane_composition_test.c $(LIB) $(CORE_BASE_DIR)/build/libcore_base.a -lm -o $(OBJ_DIR)/kit_pane_composition_test
+	./$(OBJ_DIR)/kit_pane_composition_test
+
+.PHONY: test-composition-sdl
+test-composition-sdl: $(LIB) $(CORE_BASE_DIR)/build/libcore_base.a
+	$(CC) $(CFLAGS) $(INC) $(shell pkg-config --cflags sdl2) tests/kit_pane_composition_sdl_test.c src/kit_pane_composition_sdl.c $(LIB) $(CORE_BASE_DIR)/build/libcore_base.a $(shell pkg-config --libs sdl2) -lm -o $(OBJ_DIR)/kit_pane_composition_sdl_test
+	./$(OBJ_DIR)/kit_pane_composition_sdl_test
