@@ -15,6 +15,12 @@ static KitUiInteractionResult route(KitUiSurface *s, KitUiInteractionEventType t
     return r;
 }
 int main(void) {
+    KitUiSurface optional={0};
+    kit_ui_surface_begin(&optional,1u);
+    assert(kit_ui_surface_register(&optional,(KitUiSurfaceKey){1u,1u},
+        (KitRenderRect){0,0,20,20},NULL,1,NULL).code==CORE_OK);
+    assert(kit_ui_surface_end(&optional).code==CORE_OK && optional.count==1u);
+
     KitUiSurface s={0};
     kit_ui_surface_begin(&s,1);
     KitUiInteractionControl a=add(&s,1,UINT64_C(0x100000001),0,1);
