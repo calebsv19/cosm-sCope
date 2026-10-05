@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define KIT_UI_INTERACTION_CONTROL_MAX 64u
+#define KIT_UI_INTERACTION_CONTROL_MAX 256u
 
 /* IDs identify actions, not list positions. Zero means no owner. Controls and
  * their geometry are borrowed only for this call; the host owns their lifetime,

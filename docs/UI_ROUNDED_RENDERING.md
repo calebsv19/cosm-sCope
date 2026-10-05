@@ -99,3 +99,15 @@ the earlier transform/UV/tint gap for this bounded command contract. See
 validation/recovery, source pins and proof commands. DataLab retains
 `kit_ui 0.12.0` SDL button drawing as the reference; Vulkan presentation and
 native image drawing remain separate from that CPU UI composition.
+
+
+## Optional button interaction follow-up
+
+The retained Main Edit cohort now imports shared `ad3b83b`, with
+`kit_ui 0.13.1` / `kit_workspace_authoring 0.6.1`, on the common Font/Theme
+authoring controls. Appearance and input ownership stay separate: the optional
+context adds focus, press-origin capture and release activation while the host
+owns actions and persistence. DataLab uses the same rounded SDL drawing path;
+the two Vulkan command hosts append the shared focus marker. Broader controls,
+modal/text entry, panes and native Linux remain later slices. See
+[Button interaction](UI_INTERACTION_CONTRACT.md).

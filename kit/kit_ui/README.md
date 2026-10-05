@@ -1,5 +1,14 @@
 # kit_ui
 
+Version 0.14.0 adds the optional `kit_ui_surface.h` snapshot bridge. Hosts collect
+visible, clipped controls with semantic `(domain, uint64 value)` keys; opaque IDs
+remain stable across row reorder. A bounded FIFO delivers at most one activation
+per host frame. Modal scope changes cancel old owners while swallowing their
+outstanding release. The 256-control limit is explicit and invalid collections
+leave the published snapshot intact. Drawing, labels, application actions, text
+entry, gestures and lifecycle policy remain host-owned. See
+[the interaction contract](../../docs/UI_INTERACTION_CONTRACT.md).
+
 `kit_ui` is the shared immediate-mode widget and layout helper kit built on top of `kit_render`.
 
 It provides pane-hostable UI primitives that render through shared draw commands instead of owning any pane or runtime lifecycle.

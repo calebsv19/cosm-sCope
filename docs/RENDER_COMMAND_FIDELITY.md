@@ -101,8 +101,9 @@ hosts and DataLab as the SDL appearance reference. Each retained Main Edit
 imports a committed shared snapshot before host integration. Build, captured
 output, domain/headless and isolated package evidence remain distinct.
 DataLab's existing native image path and Vulkan-presented SDL UI canvas retain
-their separate ownership. Focus/capture, editable pane topology and other
-program migrations remain follow-on contracts.
+their separate ownership. The common Font/Theme controls now adopt the optional
+[button interaction contract](UI_INTERACTION_CONTRACT.md); broader focus/capture,
+editable pane topology and other program migrations remain follow-on slices.
 
 The 2026-10-04 local development cohort imports shared `f80f91d` and uses:
 
@@ -126,3 +127,14 @@ warnings and errors are zero on Apple M2/MoltenVK. These are bounded contract
 checks, not general interaction acceptance or native Linux qualification.
 The shared build and all three independently linked host harnesses produce
 byte-identical 1x and 2x captures for this fixture on the verified local host.
+
+
+## Interaction follow-up
+
+The trio now imports shared `ad3b83b` with `kit_ui 0.13.1` and
+`kit_workspace_authoring 0.6.1`; the renderer/runtime module files and fidelity
+semantics above are unchanged. The new optional Font/Theme interaction contract
+is proved separately through host replay and SDL focus-marker pixels. It does
+not widen native render command fidelity into general UI acceptance. See
+[Button interaction](UI_INTERACTION_CONTRACT.md) and each host's
+`docs/ui_interaction.md` for the current pin and later adoption boundaries.
