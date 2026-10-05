@@ -1,3 +1,4 @@
+#include "render/render_view_picker_text.h"
 #include "render/render_view.h"
 #include "render/render_view_internal.h"
 
@@ -19,6 +20,7 @@
 #include "render_view_picker_panes.h"
 #include "render_view_picker_interaction.h"
 #include "kit_ui_interaction_sdl.h"
+#include "kit_ui_focus_scope.h"
 
 #include "core_pane.h"
 
@@ -200,6 +202,9 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
     datalab_library_preview_init(&library_preview);
     picker_open_ticks = SDL_GetTicks();
 
+    KitUiTextEdit root_edit={0},filter_edit={0};
+    int text_keyboard=0,last_text_owner=0;
+    SDL_Rect root_text_rect={0},filter_text_rect={0};
     SDL_StartTextInput();
     if (getenv("DATALAB_PICKER_CLOSE_PROOF") != NULL) {
         SDL_Event close_event = {0};
@@ -219,9 +224,23 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                 exit_reason = "SDL_QUIT";
                 break;
             }
+            int text_owner=edit_mode?1:(filter_edit_mode?2:0);
+            if(text_owner!=last_text_owner) {text_keyboard=text_owner!=0;last_text_owner=text_owner;}
+            if(e.type==SDL_KEYDOWN && e.key.keysym.sym==SDLK_TAB) {
+                text_keyboard=0;kit_ui_text_cancel_composition(&root_edit);kit_ui_text_cancel_composition(&filter_edit);
+            }
+            if(e.type==SDL_MOUSEBUTTONDOWN && e.button.button==SDL_BUTTON_LEFT && text_owner) {
+                int x=0,y=0;
+                if(datalab_render_map_window_to_renderer_point(window,renderer,e.button.x,e.button.y,&x,&y)) {
+                    const SDL_Rect *field=text_owner==1?&root_text_rect:&filter_text_rect;
+                    text_keyboard=datalab_render_point_in_rect(field,x,y);
+                    if(text_keyboard)kit_ui_focus_scope_text(&picker_buttons);
+                }
+            }
             KitUiSurfaceKey action={0};
             if (datalab_picker_route_buttons(&picker_buttons,window,renderer,&e,
-                edit_mode || filter_edit_mode,&action)) {
+                (edit_mode || filter_edit_mode) && text_keyboard,&action)) {
+                if(e.type==SDL_MOUSEBUTTONDOWN)text_keyboard=0;
                 if (action.domain) {
                     DatalabPickerActionHost host={input_catalog,&catalog_view,input_root,edit_root,status,out_pack_path,
                         sizeof(input_root),sizeof(status),out_pack_path_cap,recent_input_roots,&recent_input_root_count,
@@ -231,22 +250,24 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                 }
                 continue;
             }
-            if (e.type == SDL_TEXTINPUT && (edit_mode || filter_edit_mode)) {
-                char *target = edit_mode ? edit_root : filter;
-                size_t target_cap = edit_mode ? sizeof(edit_root) : sizeof(filter);
-                size_t cur = strlen(target);
-                size_t add = strlen(e.text.text);
-                if (cur + add + 1u < target_cap) {
-                    strncat(target, e.text.text, target_cap - cur - 1u);
-                    if (filter_edit_mode) {
-                        datalab_picker_view_apply_filter(&catalog_view, filter, &file_count);
-                        selected = 0u;
-                        datalab_catalog_view_set_selected_index(&catalog_view, selected);
-                        frame_scroll_reveal_selection = 1;
-                    }
-                }
-                continue;
+            if(!edit_mode)kit_ui_text_cancel_composition(&root_edit);
+            if(!filter_edit_mode)kit_ui_text_cancel_composition(&filter_edit);
+            if(e.type==SDL_WINDOWEVENT && (e.window.event==SDL_WINDOWEVENT_FOCUS_LOST || e.window.event==SDL_WINDOWEVENT_HIDDEN)) {
+                kit_ui_text_cancel_composition(&root_edit);kit_ui_text_cancel_composition(&filter_edit);text_keyboard=0;
             }
+            if((edit_mode || filter_edit_mode) && text_keyboard) {
+                KitUiTextEdit *active=edit_mode?&root_edit:&filter_edit;
+                char *target=edit_mode?edit_root:filter;
+                KitUiTextEventResult text_result=datalab_picker_text_event(active,&picker_buttons,&e,target,
+                    edit_mode?sizeof(edit_root):sizeof(filter));
+                if(text_result.status.code!=CORE_OK)snprintf(status,sizeof(status),"%s",text_result.status.message);
+                if(text_result.changed && filter_edit_mode) {
+                    datalab_picker_view_apply_filter(&catalog_view,filter,&file_count);selected=0;
+                    datalab_catalog_view_set_selected_index(&catalog_view,selected);frame_scroll_reveal_selection=1;
+                }
+                if(text_result.consumed && !text_result.submit && !text_result.cancel)continue;
+                /* Intent reaches existing Enter/Escape transaction below. */
+            } else if(e.type==SDL_TEXTINPUT || e.type==SDL_TEXTEDITING)continue;
             if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
                 picker_splitter_drag = 0;
                 picker_drag_splitter.active = false;
@@ -491,21 +512,6 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                     }
                     break;
                 case SDLK_BACKSPACE:
-                    if (filter_edit_mode) {
-                        size_t len = strlen(filter);
-                        if (len > 0u) {
-                            filter[len - 1u] = '\0';
-                            datalab_picker_view_apply_filter(&catalog_view, filter, &file_count);
-                            selected = 0u;
-                            datalab_catalog_view_set_selected_index(&catalog_view, selected);
-                            frame_scroll_reveal_selection = 1;
-                        }
-                    } else if (edit_mode) {
-                        size_t len = strlen(edit_root);
-                        if (len > 0u) {
-                            edit_root[len - 1u] = '\0';
-                        }
-                    }
                     break;
                 case SDLK_UP:
                     if (!edit_mode && selected > 0u) {
@@ -853,6 +859,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             draw_text_5x7(renderer, top.x + pad, y_help,
                           "TECHNICAL WORKSPACE  |  PACK + BMP + PNG  |  CMD/CTRL+T THEME  / FILTER  R RESCAN  B BROWSE  E EDIT LOCATION  ENTER OPEN",
                           1, palette.text_secondary_r, palette.text_secondary_g, palette.text_secondary_b, 255);
+            root_text_rect=(SDL_Rect){top.x+pad,y_path_value,top.w-pad*2,line_h1};
+            filter_text_rect=(SDL_Rect){top.x+top.w/2,y_status,top.w/2-pad,line_h1};
             draw_text_5x7(renderer, top.x + pad, y_path_label,
                           edit_mode ? "PATH (EDIT MODE):" : "PATH:",
                           1, palette.text_muted_r, palette.text_muted_g, palette.text_muted_b, 255);

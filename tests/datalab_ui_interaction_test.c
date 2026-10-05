@@ -1,3 +1,4 @@
+#include "render/render_view_picker_text.h"
 #include "render/render_view_internal.h"
 #include "render/render_view_ui_surface.h"
 #include "render/render_view_picker_interaction.h"
@@ -121,6 +122,10 @@ int main(void) {
         click(w,r,&s,DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_ASSIST,scale);
         click(w,r,&s,DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_POPUP_CLOSE,scale);
         assert(!s.workspace_authoring_custom_theme_popup_open); paint_font(r,&s,scale);
+        KitUiSurfaceKey restored={0};
+        assert(kit_ui_surface_key(&g_datalab_button_surface,g_datalab_button_surface.interaction.focused_id,&restored));
+        assert(restored.domain==DATALAB_UI_FONT && restored.value==DATALAB_AUTHORING_FONT_HIT_CUSTOM_EDIT);
+        puts("DataLab actual custom modal restores semantic button identity");
         /* Focus marker is painted by SDL at the host's output scale. */
         click(w,r,&s,DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_TEXT_RESET,scale);
         datalab_ui_surface_draw_focus(r,&s); SDL_RenderPresent(r);
@@ -168,6 +173,20 @@ int main(void) {
         assert(!g_datalab_button_surface.interaction.focused_id);
         SDL_DestroyRenderer(r); SDL_FreeSurface(pixels);
     }
+    char edit_path[32]="aé😀z";KitUiTextEdit editor={0};KitUiSurface buttons={0};SDL_Event text_event={0};
+    text_event.type=SDL_KEYDOWN;text_event.key.keysym.sym=SDLK_LEFT;
+    assert(datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path)).consumed);
+    text_event.key.keysym.sym=SDLK_BACKSPACE;datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path));assert(strcmp(edit_path,"aéz")==0);
+    text_event=(SDL_Event){0};text_event.type=SDL_TEXTEDITING;strcpy(text_event.edit.text,"候補");text_event.edit.length=2;
+    datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path));assert(strcmp(edit_path,"aéz")==0);
+    text_event=(SDL_Event){0};text_event.type=SDL_KEYDOWN;text_event.key.keysym.sym=SDLK_RETURN;
+    assert(!datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path)).submit);
+    text_event=(SDL_Event){0};text_event.type=SDL_TEXTINPUT;strcpy(text_event.text.text,"中");
+    datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path));assert(strcmp(edit_path,"aé中z")==0);
+    text_event=(SDL_Event){0};text_event.type=SDL_KEYDOWN;text_event.key.keysym.sym=SDLK_RETURN;
+    assert(datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path)).submit);
+    text_event.key.repeat=1;assert(!datalab_picker_text_event(&editor,&buttons,&text_event,edit_path,sizeof(edit_path)).submit);
+    puts("DataLab picker text adapter: UTF8, preedit isolation and nonrepeating host commit intent pass");
     SDL_DestroyWindow(w); SDL_Quit();
     puts("DataLab surface replay: 1x/2x release, keyboard repeat, disabled controls, top HUD, custom popup, playback, Recent roots and picker IO pass");
 }

@@ -6,6 +6,7 @@ int datalab_workspace_authoring_route_interaction_event(SDL_Window *window, SDL_
     if (!window || !renderer || !event || !state) return 0;
     KitUiInteractionEvent normalized;
     if (!kit_ui_interaction_event_from_sdl(event,&normalized)) return 0;
+    if(normalized.type==KIT_UI_INTERACTION_CANCEL)datalab_ui_surface_reset();
     int width=0,height=0;
     if (SDL_GetRendererOutputSize(renderer,&width,&height)!=0) return 0;
     /* Runtime rectangles are refreshed by painting. Resize cannot reuse an
@@ -32,10 +33,6 @@ int datalab_workspace_authoring_route_interaction_event(SDL_Window *window, SDL_
             else datalab_recent_apply_button(state,key.domain,key.value);
         }
     }
-    kit_ui_surface_set_scope(&g_datalab_button_surface,
-        !state->workspace_authoring_stub_active ? (state->recent_input_root_dropdown_open ? 2u:1u) :
-        state->workspace_authoring_custom_theme_popup_open ? 5u :
-        state->workspace_authoring_overlay_mode==DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME ? 4u:3u);
     return normalized.type==KIT_UI_INTERACTION_CANCEL ? 0 : result.consumed;
 }
 void datalab_overlay_draw_font_theme_button(SDL_Renderer *renderer, const SDL_Rect *rect,

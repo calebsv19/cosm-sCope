@@ -2,6 +2,7 @@
 #define DATALAB_RENDER_VIEW_UI_SURFACE_H
 #include "render/render_view_ui_buttons.h"
 #include "kit_ui_surface.h"
+#include "kit_ui_focus_scope.h"
 enum { DATALAB_UI_TOP=1, DATALAB_UI_FONT, DATALAB_UI_PLAYBACK,
        DATALAB_UI_RECENT_HEADER, DATALAB_UI_RECENT_ROOT };
 extern KitUiSurface g_datalab_button_surface;

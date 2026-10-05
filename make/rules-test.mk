@@ -355,3 +355,6 @@ ui-interaction-self-test: $(TARGET)
 	@mkdir -p "$(TEST_BUILD_DIR)"
 	$(HOST_CC) $(HOST_CFLAGS) tests/datalab_ui_interaction_test.c $(filter-out $(PROGRAM_OBJ_DIR)/main.o,$(OBJS)) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB) $(LDFLAGS) $(LIBS) -o $(TEST_BUILD_DIR)/datalab_ui_interaction_test
 	@task_runtime=$$(mktemp -d /private/tmp/datalab-ui-interaction.XXXXXX); cd "$$task_runtime" && DYLD_LIBRARY_PATH=/opt/homebrew/lib "$(abspath $(TEST_BUILD_DIR))/datalab_ui_interaction_test"; task_status=$$?; rm -rf "$$task_runtime"; exit $$task_status
+
+.PHONY: ui-text-focus-self-test
+ui-text-focus-self-test: ui-interaction-self-test

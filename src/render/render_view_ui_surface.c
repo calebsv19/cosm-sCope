@@ -4,13 +4,14 @@
 #include <stdio.h>
 KitUiSurface g_datalab_button_surface;
 static KitRenderRect viewport;
+static KitUiFocusScope focus_scope;
 int datalab_ui_surface_viewport_matches(int w,int h) { return w==viewport.width && h==viewport.height; }
 static uint32_t surface_scope(const DatalabAppState *s) {
     if (!s->workspace_authoring_stub_active) return s->recent_input_root_dropdown_open ? 2u : 1u;
     if (s->workspace_authoring_custom_theme_popup_open) return 5u;
     return s->workspace_authoring_overlay_mode==DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME ? 4u : 3u;
 }
-void datalab_ui_surface_reset(void) { kit_ui_surface_reset(&g_datalab_button_surface); }
+void datalab_ui_surface_reset(void) { kit_ui_focus_scope_cancel(&focus_scope,&g_datalab_button_surface);kit_ui_surface_reset(&g_datalab_button_surface); }
 uint64_t datalab_ui_path_key(const char *s) {
     uint64_t h=UINT64_C(14695981039346656037);
     for (;s && *s;++s) { h^=(unsigned char)*s; h*=UINT64_C(1099511628211); }
@@ -25,6 +26,8 @@ void datalab_ui_surface_add(uint32_t domain, uint64_t value, SDL_Rect r, int ena
 CoreResult datalab_ui_surface_collect(const DatalabAppState *s, int w, int h) {
     if (!s || w<=0 || h<=0) return (CoreResult){CORE_ERR_INVALID_ARG,"invalid surface viewport"};
     viewport=(KitRenderRect){0,0,w,h};
+    CoreResult focused=kit_ui_focus_scope_sync(&focus_scope,&g_datalab_button_surface,surface_scope(s),s->workspace_authoring_custom_theme_popup_open || s->recent_input_root_dropdown_open);
+    if(focused.code!=CORE_OK)return focused;
     kit_ui_surface_begin(&g_datalab_button_surface,surface_scope(s));
     if (!s->workspace_authoring_stub_active) {
         datalab_recent_collect_buttons(s);
@@ -69,7 +72,9 @@ CoreResult datalab_ui_surface_collect(const DatalabAppState *s, int w, int h) {
             datalab_ui_surface_add(DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_DEC_10+i,u->custom_popup_adjust_buttons[i],1);
         datalab_ui_surface_add(DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_ASSIST,u->custom_popup_assist_button,1);
     }
-    return kit_ui_surface_end(&g_datalab_button_surface);
+    CoreResult result=kit_ui_surface_end(&g_datalab_button_surface);
+    kit_ui_focus_scope_restore(&focus_scope,&g_datalab_button_surface);
+    return result;
 }
 KitUiButtonState datalab_ui_surface_button_state(uint32_t domain, uint64_t value,
     const SDL_Rect *r, int enabled, int selected) {
