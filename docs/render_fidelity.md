@@ -42,3 +42,9 @@ native image drawing. The common fidelity harness checks 301,545 pixels and
 2,106 text samples at 1x, and 465,019 pixels and 8,424 text samples at 2x, with
 zero Vulkan validation warnings or errors. `visual-harness` is build readiness,
 not unattended interactive workflow acceptance.
+
+## Font/Theme interaction follow-up
+
+Main Edit adopts optional shared focus/capture on the common Font/Theme buttons.
+See [Font/Theme interaction](ui_interaction.md) for exact scope, shortcuts and proof gates.
+The composite SDK pin advances; DataLab UI composition remains SDL and native image behavior is unchanged.

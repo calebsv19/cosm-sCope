@@ -4,6 +4,7 @@
 #include "render/render_view_internal.h"
 #include "kit_ui.h"
 #include "kit_workspace_authoring_ui.h"
+#include "kit_workspace_authoring_interaction.h"
 
 enum {
     DATALAB_AUTHORING_LAYOUT_MODE_RUNTIME = 0,
@@ -78,6 +79,7 @@ typedef struct DatalabAuthoringThemePalette {
 } DatalabAuthoringThemePalette;
 
 typedef struct DatalabAuthoringOverlayUiState {
+    KitUiInteractionContext font_theme_interaction;
     int viewport_w;
     int viewport_h;
     int pane_overlay_active;
@@ -108,7 +110,17 @@ typedef struct DatalabAuthoringOverlayUiState {
 } DatalabAuthoringOverlayUiState;
 
 extern DatalabAuthoringOverlayUiState g_datalab_authoring_overlay_ui;
+int datalab_authoring_build_font_theme_layout(const DatalabAppState *app_state,
+    int viewport_width, int viewport_height, KitWorkspaceAuthoringFontThemeLayout *out_layout);
+DatalabAuthoringFontThemeHitId datalab_overlay_hit_from_shared_button(KitWorkspaceAuthoringFontThemeButtonId button_id);
+int datalab_workspace_authoring_route_interaction_event(SDL_Window *window, SDL_Renderer *renderer,
+    const SDL_Event *event, DatalabAppState *app_state);
+void datalab_workspace_authoring_draw_interaction_focus(SDL_Renderer *renderer, const DatalabAppState *state,
+    int width, int height);
 
+
+void datalab_overlay_draw_font_theme_button(SDL_Renderer *renderer, const SDL_Rect *rect,
+    const char *label, uint32_t id, int selected, const DatalabAuthoringThemePalette *palette);
 int datalab_overlay_clamp_int(int value, int min_value, int max_value);
 void datalab_overlay_draw_centered_text(SDL_Renderer *renderer,
                                         const SDL_Rect *rect,

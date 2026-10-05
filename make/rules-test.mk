@@ -349,3 +349,9 @@ package-desktop-vulkan-self-test: package-desktop-smoke vulkan-rollout-contract
 		--initial-capture "$(PACKAGE_VULKAN_INITIAL_CAPTURE)" \
 		--resized-capture "$(PACKAGE_VULKAN_RESIZED_CAPTURE)" \
 		--log "$(PACKAGE_VULKAN_LOG)" --minimum-scale 1.5
+
+.PHONY: ui-interaction-self-test
+ui-interaction-self-test: $(TARGET)
+	@mkdir -p "$(TEST_BUILD_DIR)"
+	$(HOST_CC) $(HOST_CFLAGS) tests/datalab_ui_interaction_test.c $(filter-out $(PROGRAM_OBJ_DIR)/main.o,$(OBJS)) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB) $(LDFLAGS) $(LIBS) -o $(TEST_BUILD_DIR)/datalab_ui_interaction_test
+	@task_runtime=$$(mktemp -d /private/tmp/datalab-ui-interaction.XXXXXX); cd "$$task_runtime" && DYLD_LIBRARY_PATH=/opt/homebrew/lib "$(abspath $(TEST_BUILD_DIR))/datalab_ui_interaction_test"; task_status=$$?; rm -rf "$$task_runtime"; exit $$task_status

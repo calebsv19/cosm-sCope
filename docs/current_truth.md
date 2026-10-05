@@ -529,3 +529,9 @@ and textured-quad source modules. The common image proof links DataLab's actual
 native renderer/runtime objects while its normal UI kit remains backend-neutral.
 The accepted `kit_ui 0.12.0` SDL button adapter and compatibility-canvas ownership
 remain the UI reference. See [Render command fidelity and SDL reference](render_fidelity.md).
+
+## Font/Theme interaction follow-up
+
+Main Edit adopts optional shared focus/capture on the common Font/Theme buttons.
+See [Font/Theme interaction](ui_interaction.md) for exact scope, shortcuts and proof gates.
+The composite SDK pin advances; DataLab UI composition remains SDL and native image behavior is unchanged.

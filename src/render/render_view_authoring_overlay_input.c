@@ -7,7 +7,7 @@ static int datalab_overlay_point_in_rect(const SDL_Rect *rect, int x, int y) {
     return x >= rect->x && x < (rect->x + rect->w) && y >= rect->y && y < (rect->y + rect->h);
 }
 
-static DatalabAuthoringFontThemeHitId datalab_overlay_hit_from_shared_button(
+DatalabAuthoringFontThemeHitId datalab_overlay_hit_from_shared_button(
     KitWorkspaceAuthoringFontThemeButtonId button_id) {
     switch (button_id) {
         case KIT_WORKSPACE_AUTHORING_FONT_THEME_BUTTON_TEXT_SIZE_DEC:
@@ -228,7 +228,11 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
                     font_hit = DATALAB_AUTHORING_FONT_HIT_NONE;
                 }
                 g_datalab_authoring_overlay_ui.hover_font_hit = font_hit;
-                if (font_hit != DATALAB_AUTHORING_FONT_HIT_NONE) {
+                if (font_hit != DATALAB_AUTHORING_FONT_HIT_NONE &&
+                    (app_state->workspace_authoring_custom_theme_popup_open ||
+                     (font_hit >= DATALAB_AUTHORING_FONT_HIT_CUSTOM_OPEN &&
+                      font_hit != DATALAB_AUTHORING_FONT_HIT_CUSTOM_CREATE &&
+                      font_hit != DATALAB_AUTHORING_FONT_HIT_CUSTOM_EDIT))) {
                     (void)datalab_overlay_apply_font_theme_hit(font_hit, app_state);
                 }
             }

@@ -273,6 +273,8 @@ static CoreResult datalab_workspace_authoring_draw_scene_callback(
     }
 
     datalab_overlay_draw_top_buttons(host->renderer, &palette);
+    datalab_workspace_authoring_draw_interaction_focus(host->renderer, host->app_state,
+                                                        derive->width, derive->height);
 
     help_strip.x = datalab_scaled_px(8.0f);
     help_strip.y = datalab_scaled_px(30.0f);
@@ -290,7 +292,9 @@ static CoreResult datalab_workspace_authoring_draw_scene_callback(
     draw_text_5x7(host->renderer,
                   help_strip.x + datalab_scaled_px(6.0f),
                   help_strip.y + datalab_scaled_px(4.0f),
-                  "Workspace authoring  |  Tab: appearance  |  Enter: apply and return  |  Esc: cancel",
+                  pane_overlay_active
+                    ? "Workspace authoring  |  Tab: appearance  |  Enter: apply  |  Esc: cancel"
+                    : "Font/Theme  |  Tab: focus  |  Enter/Space: activate  |  Ctrl+Tab: mode  |  Ctrl+Enter: apply  |  Esc: cancel",
                   1,
                   palette.text_secondary_r,
                   palette.text_secondary_g,

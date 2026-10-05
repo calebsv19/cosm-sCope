@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "ui/input.h"
+#include "render/render_view_authoring_overlay_shared.h"
 
 typedef struct DatalabLoopFramePhases {
     DatalabInputFrame input_frame;
@@ -59,6 +60,7 @@ static void datalab_loop_handle_event(SDL_Window *window,
     } else if (event->type == SDL_WINDOWEVENT) {
         *resize_pending = 1;
     }
+    if (datalab_workspace_authoring_route_interaction_event(window, renderer, event, app_state)) return;
     if (datalab_workspace_authoring_route_mouse_event(window, renderer, event, app_state)) {
         return;
     }
