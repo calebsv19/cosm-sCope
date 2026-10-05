@@ -281,3 +281,24 @@ optional adapter. See [the interaction contract](../../docs/UI_INTERACTION_CONTR
 Patch 0.13.1: Clamp the focus marker inside positive-size controls, including tiny control bounds; optional SDL declarations preserve C linkage in C++ hosts.
 
 The 0.14.1 surface patch supports C++ linkage and optional returned control storage; callers may register geometry without retaining the returned opaque handle.
+
+
+## Bounded text editing and modal focus (0.15.0)
+
+Optional `kit_ui_text_edit.h` borrows caller-owned UTF-8 storage and owns byte
+positions at Unicode scalar boundaries, selection and bounded preedit composition.
+Insertion and capacity/format failure are transactional. Selection replacement,
+Home/End, Shift movement, Backspace/Delete and select-all are shared mechanics.
+`kit_ui_text_edit_sdl.h` is an optional SDL normalization/clipboard adapter; it
+returns Enter/Escape intents and stages composition without changing committed
+text. Hosts own field eligibility, commit/cancel, SDL text-input sessions,
+wrapping/hit geometry, filtering and persistence. UTF-8 scalars are not grapheme
+clusters; complex shaping and native candidate-window acceptance remain later proof.
+
+`kit_ui_focus_scope.h` supports one explicit modal over one host scope, preserves
+semantic button focus on entry and restores it only if its enabled target is
+still published on return. Nested modal changes fail explicitly. Scope changes
+retain outstanding button release ownership. Text takeover clears button focus
+and armed-key owner. Lifecycle cancellation clears restoration intent.
+
+Run `make test test-text-edit-sdl`. The generic archive has no SDL dependency.
