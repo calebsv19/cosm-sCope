@@ -112,3 +112,8 @@ The 0.14.1 patch supports C++ linkage and optional returned control storage. The
 ## 2026-10-05 bounded text editing and modal focus
 
 The accepted text companion is [Bounded text and modal focus](UI_TEXT_FOCUS_CONTRACT.md) at `kit_ui 0.15.1` / `0cc23aa`. The trio now adopts its editor-model and one-modal semantic restoration mechanics; host text layout/native IME, field transaction policy, product actions and persistence remain separate. Earlier checkpoint pins remain historical. Next prove shared caret/selection/preedit presentation, then native IME acceptance and pane composition.
+
+
+## 2026-10-05 shared text presentation
+
+The measured companion is [Shared text presentation](UI_TEXT_PRESENTATION_CONTRACT.md), `kit_ui 0.16.0`. The trio now adopts measured caret/selection/preedit geometry and actual-font row/hit presentation. Host field eligibility, domain actions, native sessions and persistence retain their owners; mixed traversal/native IME acceptance and panes remain follow-ons. Earlier checkpoint references are historical.
