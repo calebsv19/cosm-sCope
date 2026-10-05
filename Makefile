@@ -29,6 +29,7 @@ include make/sources.mk
 
 include make/rules-build.mk
 include make/rules-test.mk
+include make/rules-render-fidelity.mk
 include make/rules-memory-check.mk
 include make/package-macos.mk
 include make/package-linux-desktop.mk

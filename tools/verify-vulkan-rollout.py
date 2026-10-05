@@ -7,7 +7,9 @@ import struct
 import subprocess
 from pathlib import Path
 
-EXPECTED_SHARED_COMMIT = "5b017d4c2a418b7d1648d0e2075af65a123d9ee1"
+EXPECTED_SHARED_COMMIT = "f80f91d6f1e1ec731434934d83fac85b338172a3"
+SOURCE_MODULES = ("vk_runtime", "vk_renderer", "kit/kit_render", "kit/kit_ui",
+                  "kit/kit_workspace_authoring")
 
 
 def output(command: list[str], cwd: Path) -> str:
@@ -32,11 +34,11 @@ def verify_source(adopted: Path, canonical: Path) -> str:
                       cwd=canonical, check=False).returncode:
         raise SystemExit(f"canonical shared history does not contain {EXPECTED_SHARED_COMMIT}")
     status = output(["git", "status", "--porcelain", "--untracked-files=all", "--",
-                     "vk_runtime", "vk_renderer"], canonical)
+                     *SOURCE_MODULES], canonical)
     if status:
         raise SystemExit("canonical Vulkan source is dirty:\n" + status)
     tracked = output(["git", "ls-tree", "-r", "--name-only", EXPECTED_SHARED_COMMIT,
-                      "--", "vk_runtime", "vk_renderer"],
+                      "--", *SOURCE_MODULES],
                      canonical).splitlines()
     manifest = hashlib.sha256()
     mismatches = []
@@ -55,6 +57,8 @@ def verify_source(adopted: Path, canonical: Path) -> str:
         manifest.update(b"\n")
     if mismatches:
         raise SystemExit("adopted Vulkan source mismatch: " + ", ".join(mismatches[:12]))
+    print(f"render fidelity exact-source contract: {EXPECTED_SHARED_COMMIT}; "
+          f"{len(tracked)} files")
     return manifest.hexdigest()
 
 
@@ -223,8 +227,10 @@ def main() -> int:
     verify_adoption(args.repo_root.resolve())
     runtime = version(args.shared_root / "vk_runtime/VERSION")
     renderer = version(args.shared_root / "vk_renderer/VERSION")
-    if runtime != (0, 6, 0) or renderer != (1, 4, 0):
+    if runtime != (0, 6, 0) or renderer != (1, 5, 0):
         raise SystemExit(f"unexpected Vulkan versions: runtime={runtime} renderer={renderer}")
+    if version(args.shared_root / "kit/kit_render/VERSION") != (0, 14, 6):
+        raise SystemExit("kit_render 0.14.6 required")
     if args.app:
         if not args.initial_capture or not args.resized_capture or not args.log:
             raise SystemExit("app proof requires captures and log")
@@ -241,7 +247,9 @@ def main() -> int:
         run_actual_hosts(args.app, args.default_pack, args.log.parent, args.shader_root)
     print("DataLab Vulkan rollout contract: "
           f"canonical_commit={EXPECTED_SHARED_COMMIT} "
-          f"source_manifest_sha256={manifest} vk_runtime=0.6.0 vk_renderer=1.4.0")
+          f"source_manifest_sha256={manifest} "
+          f"vk_runtime={'.'.join(map(str, runtime))} "
+          f"vk_renderer={'.'.join(map(str, renderer))}")
     return 0
 
 

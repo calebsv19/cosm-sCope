@@ -52,8 +52,9 @@ Keep `datalab` as a reliable local data visualizer and validator for CodeWork-ge
 ## Shared UI Follow-On Boundary
 
 Main Edit has completed the bounded shared compact button appearance adoption.
-Keep new control drawing on `render_view_ui_buttons.c`. Renderer transform and
-texture UV/tint conformance, retained focus/pointer capture, generalized pane
+Keep new control drawing on `render_view_ui_buttons.c`. Main Edit now adopts
+the bounded translation/signed-scale and texture UV/tint contract, with a
+host-linked native image gate. Retained focus/pointer capture, generalized pane
 composition, and native Linux presentation qualification remain separate slices.
 Preserve the SDL compatibility canvas and existing native image-session policy
 until a measured migration demonstrates correctness and benefit.

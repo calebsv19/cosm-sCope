@@ -520,3 +520,12 @@ The isolated package targets and runtime/log namespace remain those above.
 - Full execution/history docs are in:
   - `/Users/calebsv/Desktop/CodeWork/docs/private_program_docs/datalab/`
 - This file is the compressed public current-state contract.
+
+## 2026-10-04 Main Edit render fidelity
+
+The retained development lane adopts shared `f80f91d`, including `kit_render
+0.14.6` and `vk_renderer 1.5.0`, and explicitly builds the new native transform
+and textured-quad source modules. The common image proof links DataLab's actual
+native renderer/runtime objects while its normal UI kit remains backend-neutral.
+The accepted `kit_ui 0.12.0` SDL button adapter and compatibility-canvas ownership
+remain the UI reference. See [Render command fidelity and SDL reference](render_fidelity.md).

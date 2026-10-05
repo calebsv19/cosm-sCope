@@ -90,3 +90,6 @@ Start here for public repository documentation.
 Private plans/checklists are kept in the workspace private bucket:
 
 - `../../docs/private_program_docs/datalab/`
+
+- [Render command fidelity and SDL reference](render_fidelity.md): native
+  transform/UV/tint proof using actual host objects, with SDL UI kept separate.

@@ -38,6 +38,8 @@ VK_RENDERER_SRCS := \
 	$(VK_RENDERER_DIR)/src/vk_renderer_pipeline.c \
 	$(VK_RENDERER_DIR)/src/vk_renderer_frame_buffers.c \
 	$(VK_RENDERER_DIR)/src/vk_renderer_rounded_rect.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_draw_transform.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_texture_draw.c \
 	$(VK_RENDERER_DIR)/src/vk_renderer_textures.c
 
 CORE_PACK_OBJS := $(patsubst $(CORE_PACK_DIR)/src/%.c,$(HOST_BUILD_DIR)/shared/core/core_pack/%.o,$(CORE_PACK_SRCS))
