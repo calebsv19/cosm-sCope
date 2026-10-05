@@ -614,3 +614,42 @@ increment control identity and clips its shorter readout before Reset. Full
 eCho regression and real panel native focus captures pass again. The shared
 module pin remains `ad3b83b`; this small host cleanup adds no shared API or
 program version change.
+
+
+## Complete trio button surface adoption (2026-10-04)
+
+The retained orChestra, eCho and DataLab Main Edit lanes now adopt `kit_ui 0.14.1`
+optional semantic surface snapshots across their inventoried runtime, authoring,
+modal and auxiliary-picker button surfaces. The shared source pin is `b1c67d7`;
+`kit_workspace_authoring 0.6.1`, `kit_render 0.14.6`, `vk_renderer 1.5.0` and
+`vk_runtime 0.6.0` retain their preceding contracts.
+
+The snapshot bridges normalized input and immediate drawing: 256 visible controls,
+full-width domain/value keys, opaque identity stable across row reordering,
+visible clipping, transactional registration and a bounded 32-activation FIFO.
+Direct hosts collect per event; drawing-time hosts claim one action per frame and
+redraw while pending. Modal scopes remove background targets while swallowing
+old owned releases. Hosts own actions, text/caret/IME, label lifetime, coordinates,
+pane/scrollbar gestures, domain state and persistence. No Core UI dependency or
+mandatory SDL dependency was introduced.
+
+orChestra covers top controls, ingest HUD/root actions/authoring shortcuts,
+Font/Theme and module assignment. eCho covers left browse/project/item controls,
+graph settings/actions, relationships, legend filters, DB modal and authoring.
+DataLab covers playback, Recent roots, common/custom authoring and picker roots/
+artifacts. eCho copies transient captions into a UI-frame arena; DataLab remains
+the SDL UI reference while native image rendering/Vulkan presentation stay distinct.
+
+Generic/SDL state tests, production-linked host replays, exact accepted-source
+and tamper checks, ordinary orChestra/eCho native focus output at 1x/2x with zero
+validation messages, and DataLab SDL pixel/output mapping are proved. Product,
+lifecycle and package/installed identity gates remain separately reported by each
+host. Human workflow review, text-edit/IME and modal-focus composition, pane
+composition, native Linux and wider/canonical release rollout are next boundaries.
+See [the interaction contract](UI_INTERACTION_CONTRACT.md) and each host's
+`docs/ui_interaction.md`; this Development checkpoint changes no app VERSION.
+
+Accepted-source verification compares vendored module bytes with immutable Git
+snapshot bytes. `--require-current-canonical` additionally checks mutable upstream
+state for a deliberate adoption audit. Concurrent upstream renderer work is neither
+reset nor silently imported into these accepted programs.

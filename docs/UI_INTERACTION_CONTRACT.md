@@ -1,6 +1,6 @@
 # Shared button interaction contract
 
-## Optional surface snapshots (kit_ui 0.14.0)
+## Optional surface snapshots (kit_ui 0.14.1)
 
 `KitUiSurface` bridges immediate drawing and event-driven hosts without a widget
 tree. A host begins a scope, registers visible controls with full-width semantic
@@ -68,11 +68,17 @@ OS pointer delivery remains host-owned.
 
 ## Adoption and proof
 
-The first surface is Font/Theme workspace authoring in retained Main Edit lanes
-of WorkspaceSandbox/orChestra, MemConsole/eCho and DataLab/sCope. Product actions,
-Apply/Cancel, pane editing, text entry and custom-theme modal controls remain
-host-owned. No portfolio-wide focus, pane, text-entry, clipboard or IME claim is
-implied. See each host's `docs/ui_interaction.md` for its actual routing and proof.
+The retained Main Edit trio now registers its inventoried button surfaces:
+
+- orChestra: top authoring controls, ingest HUD/tabs/root actions/authoring shortcuts, common Font/Theme and module-picker assignment rows.
+- eCho: left browse/project/item controls, graph settings/action HUD, relationships, legend filters, DB modal and common/top authoring controls.
+- DataLab: playback, Recent directories, common and custom-theme authoring controls, top controls and picker Recent roots/artifacts.
+
+Active modal scopes exclude background controls and cancel their old targets while
+consuming outstanding releases. Product actions, database/catalog operations,
+Apply/Cancel, pane editing, text/caret/clipboard/IME and persistence remain
+host-owned. No portfolio-wide or generic text-edit contract is implied. See each
+host's `docs/ui_interaction.md` for actual routing, scopes and proof.
 
 Shared gates:
 
@@ -87,8 +93,8 @@ cancellation, invalid-registration preservation, clipped registration, and real
 SDL focus-marker pixels at 1x/2x. Host gates must exercise real action adapters;
 linkage or a synthetic controller demo alone is insufficient adoption proof.
 
-Next boundaries are normal-runtime HUD/inspector adoption, text-entry/modal
-composition, pane/layout composition and native Linux qualification. The
+Next boundaries are the separate text-edit/IME and modal-focus composition
+contract, pane/layout composition, human workflow review and native Linux qualification. The
 renderer command contract remains [Render command fidelity](RENDER_COMMAND_FIDELITY.md).
 
 
@@ -98,3 +104,6 @@ interior matches the contract at 1x/2x with zero validation warnings/errors.
 This local output proof is separate from human workflow review and native Linux
 qualification. The source-linked reproducer and captures are retained under
 `_private_workspace_artifacts/ui_unification/interaction_20261004/`.
+
+
+The 0.14.1 patch supports C++ linkage and optional returned control storage. The current source pin is `b1c67d7`. Host source checks verify immutable Git snapshot bytes; `--require-current-canonical` additionally checks the mutable upstream checkout. The expanded surface replay and ordinary HUD capture evidence is retained in `_private_workspace_artifacts/ui_unification/surfaces_20261004/`. Queue-time caption ownership is a host responsibility; eCho uses a bounded UI-frame arena, while DataLab draws captions synchronously through SDL.
