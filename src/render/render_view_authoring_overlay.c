@@ -1,5 +1,5 @@
 #include "render/render_view_internal.h"
-#include "render/render_view_authoring_overlay_shared.h"
+#include "render/render_view_ui_surface.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -104,12 +104,7 @@ static void datalab_overlay_draw_top_buttons(SDL_Renderer *renderer, const Datal
         } else if (button->id == KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_ADD) {
             label = "Layout later";
         }
-        datalab_overlay_draw_button(renderer,
-                                    &rect,
-                                    label,
-                                    g_datalab_authoring_overlay_ui.hover_top_button == button->id,
-                                    0,
-                                    palette);
+        datalab_ui_surface_draw_button(renderer,&rect,label,DATALAB_UI_TOP,button->id,1,0,palette);
     }
 }
 

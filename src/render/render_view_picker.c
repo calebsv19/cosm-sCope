@@ -17,71 +17,12 @@
 #include "render/render_view_library_preview.h"
 #include "render_view_picker_support.h"
 #include "render_view_picker_panes.h"
+#include "render_view_picker_interaction.h"
+#include "kit_ui_interaction_sdl.h"
 
 #include "core_pane.h"
 
 #define DATALAB_PICKER_PAGE_WINDOW DATALAB_CATALOG_VIEW_PAGE_WINDOW
-
-typedef struct DatalabPickerRecentUiState {
-    SDL_Rect list_rect;
-    SDL_Rect item_rects[DATALAB_RECENT_INPUT_ROOT_LIMIT];
-    size_t visible_count;
-    size_t first_index;
-} DatalabPickerRecentUiState;
-
-typedef struct DatalabPickerRecentFileUiState {
-    SDL_Rect item_rects[4];
-    size_t visible_count;
-} DatalabPickerRecentFileUiState;
-
-
-static int datalab_picker_refresh_catalog(DatalabInputCatalog *catalog,
-                                          DatalabCatalogView *view,
-                                          const char *root,
-                                          DatalabInputCatalogRefreshReason reason,
-                                          char *status,
-                                          size_t status_cap) {
-    CoreResult result;
-    if (!catalog || !view || !root) {
-        return 0;
-    }
-    result = datalab_input_catalog_refresh(catalog, root, reason);
-    if (result.code != CORE_OK) {
-        DatalabSupportedFileScanResult failed_scan = {0};
-        failed_scan.root_unavailable = result.code == CORE_ERR_IO;
-        failed_scan.allocation_failed = result.code == CORE_ERR_OUT_OF_MEMORY;
-        failed_scan.invalid_request = result.code == CORE_ERR_INVALID_ARG;
-        datalab_format_supported_file_scan_status(&failed_scan, root, "choose folder", status, status_cap);
-        return 0;
-    }
-    datalab_catalog_view_bind(view, catalog);
-    if (status && status_cap > 0u) {
-        snprintf(status,
-                 status_cap,
-                 "found %zu supported files [catalog %s %lluus]",
-                 catalog->file_count,
-                 datalab_input_catalog_refresh_reason_name(reason),
-                 (unsigned long long)catalog->last_scan_duration_us);
-    }
-    fprintf(stderr,
-            "datalab: input catalog refresh reason=%s root=%s duration_us=%llu files=%zu result=%d\n",
-            datalab_input_catalog_refresh_reason_name(reason),
-            root,
-            (unsigned long long)catalog->last_scan_duration_us,
-            catalog->file_count,
-            (int)result.code);
-    return 1;
-}
-
-static void datalab_picker_view_apply_filter(DatalabCatalogView *view,
-                                             const char *filter,
-                                             uint64_t *out_count) {
-    if (!view) return;
-    datalab_catalog_view_set_filter(view, filter);
-    /* Per-event budget; subsequent frames continue truthfully scanning. */
-    datalab_catalog_view_step_filter(view, 512u);
-    if (out_count) *out_count = datalab_catalog_view_count(view);
-}
 
 static int datalab_picker_view_selected_name(DatalabCatalogView *view,
                                              char *out_name,
@@ -103,6 +44,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                                          size_t out_pack_path_cap) {
     SDL_Window *window = NULL;
     SDL_Renderer *renderer = NULL;
+    KitUiSurface picker_buttons;
+    kit_ui_surface_reset(&picker_buttons);
     int done = 0;
     int canceled = 0;
     Uint32 picker_open_ticks = 0u;
@@ -276,6 +219,18 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                 exit_reason = "SDL_QUIT";
                 break;
             }
+            KitUiSurfaceKey action={0};
+            if (datalab_picker_route_buttons(&picker_buttons,window,renderer,&e,
+                edit_mode || filter_edit_mode,&action)) {
+                if (action.domain) {
+                    DatalabPickerActionHost host={input_catalog,&catalog_view,input_root,edit_root,status,out_pack_path,
+                        sizeof(input_root),sizeof(status),out_pack_path_cap,recent_input_roots,&recent_input_root_count,
+                        recent_input_files,recent_input_file_count,filter,&all_file_count,&file_count,&selected,
+                        &frame_scroll_reveal_selection,&edit_mode,&done};
+                    datalab_picker_apply_button(&host,action);
+                }
+                continue;
+            }
             if (e.type == SDL_TEXTINPUT && (edit_mode || filter_edit_mode)) {
                 char *target = edit_mode ? edit_root : filter;
                 size_t target_cap = edit_mode ? sizeof(edit_root) : sizeof(filter);
@@ -342,7 +297,6 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
                 int pointer_x = 0;
                 int pointer_y = 0;
-                size_t recent_idx = 0u;
                 if (!datalab_render_map_window_to_renderer_point(window,
                                                                  renderer,
                                                                  e.button.x,
@@ -379,69 +333,7 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                     }
                     continue;
                 }
-                for (recent_idx = 0u; recent_idx < recent_file_ui.visible_count; ++recent_idx) {
-                    if (!datalab_render_point_in_rect(&recent_file_ui.item_rects[recent_idx], pointer_x, pointer_y)) {
-                        continue;
-                    }
-                    if (recent_idx < recent_input_file_count && recent_input_files[recent_idx][0] != '\0') {
-                        char recent_root[DATALAB_APP_PATH_CAP];
-                        if (!datalab_picker_is_regular_file(recent_input_files[recent_idx])) {
-                            snprintf(status, sizeof(status), "recent artifact is no longer available");
-                        } else if (!datalab_picker_parent_directory(recent_input_files[recent_idx],
-                                                                    recent_root,
-                                                                    sizeof(recent_root))) {
-                            snprintf(status, sizeof(status), "recent artifact root is unavailable");
-                        } else {
-                            (void)datalab_input_root_select_recent(input_root,
-                                                                   sizeof(input_root),
-                                                                   recent_input_roots,
-                                                                   &recent_input_root_count,
-                                                                   DATALAB_RECENT_INPUT_ROOT_LIMIT,
-                                                                   recent_root);
-                            snprintf(edit_root, sizeof(edit_root), "%s", input_root);
-                            (void)datalab_picker_refresh_catalog(input_catalog, &catalog_view, input_root,
-                                                                 DATALAB_INPUT_CATALOG_REFRESH_ROOT_CHANGE, status, sizeof(status));
-                            all_file_count = datalab_input_catalog_count(input_catalog);
-                            datalab_picker_view_apply_filter(&catalog_view, filter, &file_count);
-                            if (datalab_input_catalog_file_is_current(input_catalog,
-                                                                      input_root,
-                                                                      core_path_basename(recent_input_files[recent_idx]))) {
-                                snprintf(out_pack_path, out_pack_path_cap, "%s", recent_input_files[recent_idx]);
-                                done = 1;
-                            } else {
-                                snprintf(status, sizeof(status), "recent artifact is no longer current in input root");
-                            }
-                        }
-                        break;
-                    }
-                }
-                if (done) {
-                    continue;
-                }
-                for (recent_idx = 0u; recent_idx < recent_ui.visible_count; ++recent_idx) {
-                    if (!datalab_render_point_in_rect(&recent_ui.item_rects[recent_idx], pointer_x, pointer_y)) {
-                        continue;
-                    }
-                    const size_t root_index = recent_ui.first_index + recent_idx;
-                    if (root_index < recent_input_root_count && recent_input_roots[root_index][0] != '\0') {
-                        (void)datalab_input_root_select_recent(input_root,
-                                                               sizeof(input_root),
-                                                               recent_input_roots,
-                                                               &recent_input_root_count,
-                                                               DATALAB_RECENT_INPUT_ROOT_LIMIT,
-                                                               recent_input_roots[root_index]);
-                        snprintf(edit_root, sizeof(edit_root), "%s", input_root);
-                        (void)datalab_picker_refresh_catalog(input_catalog, &catalog_view, input_root,
-                                                             DATALAB_INPUT_CATALOG_REFRESH_ROOT_CHANGE, status, sizeof(status));
-                        all_file_count = datalab_input_catalog_count(input_catalog);
-                        datalab_picker_view_apply_filter(&catalog_view, filter, &file_count);
-                        selected = 0u;
-                        datalab_catalog_view_set_selected_index(&catalog_view, selected);
-                        frame_scroll_reveal_selection = 1;
-                        edit_mode = 0;
-                    }
-                    break;
-                }
+
             }
             if (e.type != SDL_KEYDOWN) {
                 continue;
@@ -944,12 +836,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                     directory_scroll.viewport.w - datalab_scaled_px(6.0f), recent_row_h
                 };
                 int is_active_recent = root_index < recent_input_root_count && strcmp(recent_input_roots[root_index], input_root) == 0;
-                if (is_active_recent) {
-                    SDL_SetRenderDrawColor(renderer, palette.selected_fill_r, palette.selected_fill_g, palette.selected_fill_b, 200);
-                    SDL_RenderFillRect(renderer, &item_rect);
-                    SDL_SetRenderDrawColor(renderer, palette.selected_border_r, palette.selected_border_g, palette.selected_border_b, 255);
-                    SDL_RenderDrawRect(renderer, &item_rect);
-                }
+                datalab_picker_draw_row(&picker_buttons,renderer,item_rect,DATALAB_PICKER_ROOT,
+                    recent_input_roots[root_index],is_active_recent,&palette);
                 draw_text_5x7_clipped(renderer, &directory_scroll.viewport, item_rect.x + datalab_scaled_px(4.0f), item_rect.y + datalab_scaled_px(2.0f),
                                       datalab_picker_display_path(recent_input_roots[root_index], display_recent_roots[recent_i], sizeof(display_recent_roots[recent_i])), 1,
                                       is_active_recent ? palette.text_primary_r : palette.text_secondary_r,
@@ -1009,6 +897,7 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             recent_file_y = browser.y + browser.h - (recent_file_rows > 0 ? (recent_file_rows * row_h) + line_h1 + (pad * 2) : 0);
             if (recent_file_rows > 0) {
                 recent_file_ui.visible_count = (size_t)recent_file_rows;
+                recent_file_ui.list_rect = list_clip;
                 draw_text_5x7(renderer, browser.x + pad, recent_file_y,
                               "RECENT ARTIFACTS", 1,
                               palette.text_secondary_r, palette.text_secondary_g, palette.text_secondary_b, 255);
@@ -1018,6 +907,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                         recent_file_y + line_h1 + datalab_scaled_px(4.0f) + (recent_file_i * row_h),
                         browser.w - (pad * 2), row_h
                     };
+                    datalab_picker_draw_row(&picker_buttons,renderer,recent_file_ui.item_rects[recent_file_i],
+                        DATALAB_PICKER_FILE,recent_input_files[recent_file_i],0,&palette);
                     draw_text_5x7_clipped(renderer, &list_clip,
                                           browser.x + pad,
                                           recent_file_y + line_h1 + datalab_scaled_px(4.0f) + (recent_file_i * row_h),
@@ -1118,6 +1009,10 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                                              &preview_colors,
                                              preview_label);
             }
+            datalab_picker_collect_buttons(&picker_buttons,ww,wh,&recent_ui,recent_input_roots,
+                recent_input_root_count,&recent_file_ui,recent_input_files,recent_input_file_count);
+            kit_ui_interaction_sdl_draw_focus(renderer,&picker_buttons.interaction,picker_buttons.controls,
+                picker_buttons.count,(KitRenderColor){80,180,255,255});
             (void)datalab_renderer_backend_present(renderer);
             if (getenv("DATALAB_PICKER_PROOF_EXIT") != NULL) {
                 canceled = 1;

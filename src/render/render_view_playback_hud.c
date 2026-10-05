@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "kit_ui_sdl.h"
-#include "render/render_view_ui_buttons.h"
+#include "render/render_view_ui_surface.h"
 
 typedef enum DatalabPlaybackHudAction {
     DATALAB_PLAYBACK_HUD_ACTION_NONE = 0,
@@ -24,6 +24,7 @@ typedef struct DatalabPlaybackHudButton {
 } DatalabPlaybackHudButton;
 
 typedef struct DatalabPlaybackHudUiState {
+    int width,height;
     SDL_Rect panel_rect;
     DatalabPlaybackHudButton buttons[8];
     size_t button_count;
@@ -87,42 +88,28 @@ static void datalab_hud_apply_action(DatalabAppState *app_state,
     }
 }
 
-int datalab_playback_hud_route_mouse_event(SDL_Window *window,
-                                           SDL_Renderer *renderer,
-                                           const SDL_Event *event,
-                                           DatalabAppState *app_state) {
-    int pointer_x = 0;
-    int pointer_y = 0;
-    size_t i = 0u;
-    if (!window || !renderer || !event || !app_state) {
-        return 0;
+void datalab_playback_hud_collect_buttons(const DatalabAppState *s) {
+    if (!datalab_ui_surface_viewport_matches(g_playback_hud_ui.width,g_playback_hud_ui.height)) return;
+    int files=datalab_session_controls_file_count()>0;
+    for (size_t i=0;i<g_playback_hud_ui.button_count;++i) {
+        DatalabPlaybackHudButton *b=&g_playback_hud_ui.buttons[i];
+        int enabled=files;
+        if (b->action==DATALAB_PLAYBACK_HUD_ACTION_SPEED_DOWN) enabled=s->playback_speed_index>0;
+        if (b->action==DATALAB_PLAYBACK_HUD_ACTION_SPEED_UP) enabled=s->playback_speed_index<4;
+        if (b->action==DATALAB_PLAYBACK_HUD_ACTION_MODE_LOOP || b->action==DATALAB_PLAYBACK_HUD_ACTION_MODE_BOUNCE) enabled=1;
+        datalab_ui_surface_add(DATALAB_UI_PLAYBACK,b->action,b->rect,enabled);
     }
-    if (!datalab_session_controls_mouse_enabled(app_state)) {
-        return 0;
-    }
-    if (event->type != SDL_MOUSEBUTTONDOWN || event->button.button != SDL_BUTTON_LEFT) {
-        return 0;
-    }
-    if (!datalab_render_map_window_to_renderer_point(window,
-                                                     renderer,
-                                                     event->button.x,
-                                                     event->button.y,
-                                                     &pointer_x,
-                                                     &pointer_y)) {
-        return 0;
-    }
-    if (!datalab_render_point_in_rect(&g_playback_hud_ui.panel_rect, pointer_x, pointer_y)) {
-        return 0;
-    }
-    for (i = 0u; i < g_playback_hud_ui.button_count; ++i) {
-        if (datalab_render_point_in_rect(&g_playback_hud_ui.buttons[i].rect, pointer_x, pointer_y)) {
-            if (g_playback_hud_ui.buttons[i].enabled) {
-                datalab_hud_apply_action(app_state, g_playback_hud_ui.buttons[i].action);
-            }
-            return 1;
-        }
-    }
-    return 1;
+}
+void datalab_playback_hud_apply_button(DatalabAppState *s, uint64_t value) {
+    datalab_hud_apply_action(s,(DatalabPlaybackHudAction)value);
+}
+int datalab_playback_hud_route_mouse_event(SDL_Window *w, SDL_Renderer *r,
+    const SDL_Event *e, DatalabAppState *s) {
+    /* Panel backdrop absorbs presses; registered controls route before this. */
+    int x,y;
+    return s && datalab_session_controls_mouse_enabled(s) && e && e->type==SDL_MOUSEBUTTONDOWN &&
+        e->button.button==SDL_BUTTON_LEFT && datalab_render_map_window_to_renderer_point(w,r,e->button.x,e->button.y,&x,&y) &&
+        datalab_render_point_in_rect(&g_playback_hud_ui.panel_rect,x,y);
 }
 
 void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *app_state) {
@@ -262,6 +249,7 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
 
     panel = kit_ui_sdl_rect_from_render(row_layout.panel_rect);
     g_playback_hud_ui.panel_rect = panel;
+    g_playback_hud_ui.width=ww; g_playback_hud_ui.height=wh;
 
     text_api = datalab_ui_text_api(datalab_scaled_px(4.0f));
     kit_ui_sdl_fill_rounded_rect(renderer,
@@ -270,23 +258,9 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
                                  style.panel_fill);
 
     for (i = 0u; i < row_layout.button_count; ++i) {
-        KitUiButtonState button_state;
-        kit_ui_button_state_init(&button_state);
-        button_state.selected = selected[i];
-        button_state.disabled = !enabled[i];
         button = kit_ui_sdl_rect_from_render(row_layout.button_rects[i]);
-        SDL_Window *mouse_window = SDL_GetMouseFocus();
-        int pointer_x = 0;
-        int pointer_y = 0;
-        int mouse_x = 0;
-        int mouse_y = 0;
-        Uint32 mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
-        if (mouse_window && datalab_render_map_window_to_renderer_point(
-                mouse_window, renderer, mouse_x, mouse_y, &pointer_x, &pointer_y)) {
-            button_state.hovered = datalab_render_point_in_rect(&button, pointer_x, pointer_y);
-            button_state.pressed = button_state.hovered && (mouse_buttons & SDL_BUTTON_LMASK) != 0;
-        }
-        datalab_ui_draw_button(renderer, &button, labels[i], &button_state, &palette);
+        datalab_ui_surface_draw_button(renderer,&button,labels[i],DATALAB_UI_PLAYBACK,
+            actions[i],enabled[i],selected[i],&palette);
         datalab_hud_add_button(button, actions[i], enabled[i]);
     }
 
@@ -295,4 +269,5 @@ void datalab_draw_playback_hud(SDL_Renderer *renderer, const DatalabAppState *ap
         text_api.clip_padding_x = datalab_scaled_px(8.0f);
         kit_ui_sdl_draw_readout(renderer, &readout_rect, readout, &style, &text_api);
     }
+    datalab_ui_surface_draw_focus(renderer,app_state);
 }

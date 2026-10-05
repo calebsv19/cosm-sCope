@@ -4,9 +4,10 @@
 #include <string.h>
 
 #include "kit_ui_sdl.h"
-#include "render/render_view_authoring_overlay_shared.h"
+#include "render/render_view_ui_surface.h"
 
 typedef struct DatalabRecentInputRootUiState {
+    int width,height;
     SDL_Rect button_rect;
     SDL_Rect list_rect;
     SDL_Rect item_rects[DATALAB_RECENT_INPUT_ROOT_LIMIT];
@@ -275,51 +276,36 @@ uint64_t datalab_session_controls_visual_revision(const DatalabAppState *app_sta
     return hash;
 }
 
-int datalab_session_controls_route_mouse_event(SDL_Window *window,
-                                               SDL_Renderer *renderer,
-                                               const SDL_Event *event,
-                                               DatalabAppState *app_state) {
-    int pointer_x = 0;
-    int pointer_y = 0;
-    size_t i = 0u;
-    if (!window || !renderer || !event || !app_state) {
-        return 0;
-    }
-    if (!datalab_session_controls_mouse_enabled(app_state)) {
-        return 0;
-    }
-    if (event->type != SDL_MOUSEBUTTONDOWN || event->button.button != SDL_BUTTON_LEFT) {
-        return 0;
-    }
-    if (!datalab_render_map_window_to_renderer_point(window,
-                                                     renderer,
-                                                     event->button.x,
-                                                     event->button.y,
-                                                     &pointer_x,
-                                                     &pointer_y)) {
-        return 0;
-    }
-    if (datalab_render_point_in_rect(&g_recent_input_root_ui.button_rect, pointer_x, pointer_y)) {
-        app_state->recent_input_root_dropdown_open = !app_state->recent_input_root_dropdown_open;
-        return 1;
-    }
-    if (!app_state->recent_input_root_dropdown_open) {
-        return 0;
-    }
-    for (i = 0u; i < g_recent_input_root_ui.visible_count; ++i) {
-        if (!datalab_render_point_in_rect(&g_recent_input_root_ui.item_rects[i], pointer_x, pointer_y)) {
-            continue;
+void datalab_recent_collect_buttons(const DatalabAppState *s) {
+    if (!datalab_ui_surface_viewport_matches(g_recent_input_root_ui.width,g_recent_input_root_ui.height)) return;
+    datalab_ui_surface_add(DATALAB_UI_RECENT_HEADER,1u,g_recent_input_root_ui.button_rect,1);
+    if (!s->recent_input_root_dropdown_open) return;
+    for (size_t i=0;i<g_recent_input_root_ui.visible_count && i<s->recent_input_root_count;++i)
+        if (s->recent_input_roots[i][0])
+            datalab_ui_surface_add(DATALAB_UI_RECENT_ROOT,datalab_ui_path_key(s->recent_input_roots[i]),
+                g_recent_input_root_ui.item_rects[i],1);
+}
+void datalab_recent_apply_button(DatalabAppState *s, uint32_t domain, uint64_t value) {
+    if (domain==DATALAB_UI_RECENT_HEADER) { s->recent_input_root_dropdown_open=!s->recent_input_root_dropdown_open; return; }
+    if (domain==DATALAB_UI_RECENT_ROOT) for (size_t i=0;i<s->recent_input_root_count;++i)
+        if (datalab_ui_path_key(s->recent_input_roots[i])==value) {
+            char path[DATALAB_APP_PATH_CAP];
+            snprintf(path,sizeof(path),"%s",s->recent_input_roots[i]);
+            datalab_recent_input_root_activate(s,path); return;
         }
-        if (i < app_state->recent_input_root_count && app_state->recent_input_roots[i][0] != '\0') {
-            datalab_recent_input_root_activate(app_state, app_state->recent_input_roots[i]);
-            return 1;
-        }
+}
+int datalab_session_controls_route_mouse_event(SDL_Window *window, SDL_Renderer *renderer,
+    const SDL_Event *event, DatalabAppState *s) {
+    int x,y;
+    if (!s || !datalab_session_controls_mouse_enabled(s) || !event ||
+        event->type!=SDL_MOUSEBUTTONDOWN || event->button.button!=SDL_BUTTON_LEFT ||
+        !s->recent_input_root_dropdown_open ||
+        !datalab_render_map_window_to_renderer_point(window,renderer,event->button.x,event->button.y,&x,&y)) return 0;
+    /* Dropdown controls route first. Keep the existing outside-dismiss policy. */
+    if (!datalab_render_point_in_rect(&g_recent_input_root_ui.list_rect,x,y)) {
+        s->recent_input_root_dropdown_open=0; return 1;
     }
-    if (!datalab_render_point_in_rect(&g_recent_input_root_ui.list_rect, pointer_x, pointer_y)) {
-        app_state->recent_input_root_dropdown_open = 0;
-        return 1;
-    }
-    return 0;
+    return 1;
 }
 
 void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const DatalabAppState *app_state) {
@@ -390,12 +376,8 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
                   palette.text_primary_b,
                   255);
 
-    datalab_overlay_draw_button(renderer,
-                                &button,
-                                "",
-                                app_state->recent_input_root_dropdown_open,
-                                app_state->recent_input_root_dropdown_open,
-                                &palette);
+    datalab_ui_surface_draw_button(renderer,&button,"",DATALAB_UI_RECENT_HEADER,1u,1,
+        app_state->recent_input_root_dropdown_open,&palette);
     /* This is a two-line control. Center the caption in its first line so it
      * does not share the full button midpoint with the directory readout. */
     datalab_overlay_draw_centered_text(renderer, &button,
@@ -420,6 +402,7 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
                           palette.text_secondary_b,
                           255);
     g_recent_input_root_ui.button_rect = button;
+    g_recent_input_root_ui.width=ww; g_recent_input_root_ui.height=wh;
 
     if (app_state->recent_input_root_dropdown_open && visible_count > 0) {
         list_rect = (SDL_Rect){
@@ -448,10 +431,9 @@ void datalab_draw_recent_input_root_header(SDL_Renderer *renderer, const Datalab
                 row_h
             };
             int is_active = strcmp(app_state->recent_input_roots[i], root) == 0;
-            if (is_active) {
-                SDL_SetRenderDrawColor(renderer, palette.button_active_r, palette.button_active_g, palette.button_active_b, 230);
-                SDL_RenderFillRect(renderer, &item_rect);
-            }
+            KitUiButtonState row_state=datalab_ui_surface_button_state(DATALAB_UI_RECENT_ROOT,
+                datalab_ui_path_key(app_state->recent_input_roots[i]),&item_rect,1,is_active);
+            datalab_ui_draw_button(renderer,&item_rect,"",&row_state,&palette);
             draw_text_5x7_clipped(renderer,
                                   &clip_rect,
                                   item_rect.x + datalab_scaled_px(4.0f),

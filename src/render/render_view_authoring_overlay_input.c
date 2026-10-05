@@ -1,4 +1,4 @@
-#include "render/render_view_authoring_overlay_shared.h"
+#include "render/render_view_ui_surface.h"
 
 static int datalab_overlay_point_in_rect(const SDL_Rect *rect, int x, int y) {
     if (!rect) {
@@ -111,7 +111,7 @@ static int datalab_overlay_hit_is_custom_popup_control(DatalabAuthoringFontTheme
     return 0;
 }
 
-static int datalab_overlay_apply_top_button(KitWorkspaceAuthoringOverlayButtonId button_id,
+int datalab_overlay_apply_top_button(KitWorkspaceAuthoringOverlayButtonId button_id,
                                             DatalabAppState *app_state) {
     const char *action_id = NULL;
 
@@ -148,7 +148,6 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
                                                   const SDL_Event *event,
                                                   DatalabAppState *app_state) {
     KitWorkspaceAuthoringOverlayButtonId top_button = KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_NONE;
-    DatalabAuthoringFontThemeHitId font_hit = DATALAB_AUTHORING_FONT_HIT_NONE;
     int pointer_x = 0;
     int pointer_y = 0;
 
@@ -202,16 +201,6 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
                                                              &pointer_y)) {
                 return 1;
             }
-            top_button = kit_workspace_authoring_ui_overlay_hit_test(g_datalab_authoring_overlay_ui.top_buttons,
-                                                                      g_datalab_authoring_overlay_ui.top_button_count,
-                                                                      (float)pointer_x,
-                                                                      (float)pointer_y);
-            if (top_button != KIT_WORKSPACE_AUTHORING_OVERLAY_BUTTON_NONE) {
-                g_datalab_authoring_overlay_ui.hover_top_button = top_button;
-                (void)datalab_overlay_apply_top_button(top_button, app_state);
-                return 1;
-            }
-
             if (app_state->workspace_authoring_overlay_mode == DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE &&
                 datalab_overlay_point_in_rect(&g_datalab_authoring_overlay_ui.projection_splitter,
                                               pointer_x,
@@ -221,21 +210,6 @@ int datalab_workspace_authoring_route_mouse_event(SDL_Window *window,
                 return 1;
             }
 
-            if (app_state->workspace_authoring_overlay_mode == DATALAB_WORKSPACE_AUTHORING_OVERLAY_FONT_THEME) {
-                font_hit = datalab_overlay_font_theme_hit_test(pointer_x, pointer_y);
-                if (app_state->workspace_authoring_custom_theme_popup_open &&
-                    !datalab_overlay_hit_is_custom_popup_control(font_hit)) {
-                    font_hit = DATALAB_AUTHORING_FONT_HIT_NONE;
-                }
-                g_datalab_authoring_overlay_ui.hover_font_hit = font_hit;
-                if (font_hit != DATALAB_AUTHORING_FONT_HIT_NONE &&
-                    (app_state->workspace_authoring_custom_theme_popup_open ||
-                     (font_hit >= DATALAB_AUTHORING_FONT_HIT_CUSTOM_OPEN &&
-                      font_hit != DATALAB_AUTHORING_FONT_HIT_CUSTOM_CREATE &&
-                      font_hit != DATALAB_AUTHORING_FONT_HIT_CUSTOM_EDIT))) {
-                    (void)datalab_overlay_apply_font_theme_hit(font_hit, app_state);
-                }
-            }
             return 1;
 
         case SDL_MOUSEBUTTONUP:

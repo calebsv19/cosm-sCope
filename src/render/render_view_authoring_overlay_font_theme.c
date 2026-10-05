@@ -1,4 +1,4 @@
-#include "render/render_view_authoring_overlay_shared.h"
+#include "render/render_view_ui_surface.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -488,12 +488,7 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                 custom_slot_button_w,
                 button_h
             };
-            datalab_overlay_draw_button(renderer,
-                                        &g_datalab_authoring_overlay_ui.custom_slot_buttons[i],
-                                        slot_name,
-                                        g_datalab_authoring_overlay_ui.hover_font_hit == hover_hit,
-                                        i == active_custom_slot,
-                                        palette);
+            datalab_ui_surface_draw_button(renderer,&g_datalab_authoring_overlay_ui.custom_slot_buttons[i],slot_name,DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_SLOT_0+i,1,i == active_custom_slot,palette);
             controls_x += custom_slot_button_w + custom_slot_gap;
         }
 
@@ -509,12 +504,7 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
         };
         g_datalab_authoring_overlay_ui.custom_open_button = g_datalab_authoring_overlay_ui.custom_edit_button;
 
-        datalab_overlay_draw_button(renderer,
-                                    &g_datalab_authoring_overlay_ui.custom_rename_button,
-                                    "Rename",
-                                    g_datalab_authoring_overlay_ui.hover_font_hit == DATALAB_AUTHORING_FONT_HIT_CUSTOM_RENAME,
-                                    0,
-                                    palette);
+        datalab_ui_surface_draw_button(renderer,&g_datalab_authoring_overlay_ui.custom_rename_button,"Rename",DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_RENAME,1,0,palette);
         datalab_overlay_draw_font_theme_button(renderer,
                                     &g_datalab_authoring_overlay_ui.custom_create_button,
                                     "Save current preset",
@@ -608,12 +598,7 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
             datalab_scaled_px(20.0f),
             datalab_scaled_px(20.0f)
         };
-        datalab_overlay_draw_button(renderer,
-                                    &g_datalab_authoring_overlay_ui.custom_popup_close_button,
-                                    "X",
-                                    g_datalab_authoring_overlay_ui.hover_font_hit == DATALAB_AUTHORING_FONT_HIT_CUSTOM_POPUP_CLOSE,
-                                    0,
-                                    palette);
+        datalab_ui_surface_draw_button(renderer,&g_datalab_authoring_overlay_ui.custom_popup_close_button,"X",DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_POPUP_CLOSE,1,0,palette);
         draw_text_5x7(renderer,
                       popup_inner_x,
                       popup.y + popup_title.h + datalab_scaled_px(8.0f),
@@ -657,8 +642,9 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
             token_value_b = b_ptr ? (int)(*b_ptr) : 0;
             g_datalab_authoring_overlay_ui.custom_popup_token_rows[i] = row_rect;
             is_row_active = (i == popup_selected_token);
-            is_row_hover = g_datalab_authoring_overlay_ui.hover_font_hit ==
-                           (DatalabAuthoringFontThemeHitId)(DATALAB_AUTHORING_FONT_HIT_CUSTOM_TOKEN_0 + i);
+            KitUiButtonState row_state=datalab_ui_surface_button_state(DATALAB_UI_FONT,
+                DATALAB_AUTHORING_FONT_HIT_CUSTOM_TOKEN_0+i,&row_rect,1,is_row_active);
+            is_row_hover = row_state.hovered || row_state.pressed;
 
             if (is_row_active) {
                 SDL_SetRenderDrawColor(renderer,
@@ -722,12 +708,7 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                 button_h
             };
             g_datalab_authoring_overlay_ui.custom_popup_channel_buttons[channel] = channel_rect;
-            datalab_overlay_draw_button(renderer,
-                                        &channel_rect,
-                                        label,
-                                        g_datalab_authoring_overlay_ui.hover_font_hit == hover_id,
-                                        is_channel_active,
-                                        palette);
+            datalab_ui_surface_draw_button(renderer,&channel_rect,label,DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_CHANNEL_R+channel,1,is_channel_active,palette);
             controls_x += popup_channel_button_w + datalab_scaled_px(4.0f);
         }
 
@@ -743,12 +724,7 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
                 button_h
             };
             g_datalab_authoring_overlay_ui.custom_popup_adjust_buttons[i] = adjust_rect;
-            datalab_overlay_draw_button(renderer,
-                                        &adjust_rect,
-                                        k_adjust_labels[i],
-                                        g_datalab_authoring_overlay_ui.hover_font_hit == hover_id,
-                                        0,
-                                        palette);
+            datalab_ui_surface_draw_button(renderer,&adjust_rect,k_adjust_labels[i],DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_DEC_10+i,1,0,palette);
             controls_x += popup_adjust_button_w + datalab_scaled_px(4.0f);
         }
 
@@ -759,12 +735,7 @@ void datalab_overlay_draw_font_theme_takeover(SDL_Renderer *renderer,
             datalab_scaled_px(84.0f),
             button_h
         };
-        datalab_overlay_draw_button(renderer,
-                                    &g_datalab_authoring_overlay_ui.custom_popup_assist_button,
-                                    "Assist",
-                                    g_datalab_authoring_overlay_ui.hover_font_hit == DATALAB_AUTHORING_FONT_HIT_CUSTOM_ASSIST,
-                                    0,
-                                    palette);
+        datalab_ui_surface_draw_button(renderer,&g_datalab_authoring_overlay_ui.custom_popup_assist_button,"Assist",DATALAB_UI_FONT,DATALAB_AUTHORING_FONT_HIT_CUSTOM_ASSIST,1,0,palette);
 
         {
             const uint8_t *r_ptr = datalab_overlay_custom_theme_channel_ptr_const(

@@ -18,6 +18,7 @@ KIT_UI_SRCS := \
 	$(KIT_UI_DIR)/src/kit_ui_button.c \
 	$(KIT_UI_DIR)/src/kit_ui_hud.c \
 	$(KIT_UI_DIR)/src/kit_ui_interaction.c \
+	$(KIT_UI_DIR)/src/kit_ui_surface.c \
 	$(KIT_UI_DIR)/src/kit_ui_interaction_sdl.c \
 	$(KIT_UI_DIR)/src/kit_ui_sdl.c
 

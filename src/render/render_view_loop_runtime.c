@@ -9,7 +9,7 @@
 #include <string.h>
 
 #include "ui/input.h"
-#include "render/render_view_authoring_overlay_shared.h"
+#include "render/render_view_ui_surface.h"
 
 typedef struct DatalabLoopFramePhases {
     DatalabInputFrame input_frame;
@@ -225,6 +225,7 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
                                     const DatalabFrame *frame,
                                     DatalabAppState *app_state,
                                     const DatalabLoopProfileOps *ops) {
+    datalab_ui_surface_reset();
     DatalabLoopRunState run_state = {0};
     const int native_reuse_proof = frame && frame->profile == DATALAB_PROFILE_IMAGE &&
                                    getenv("DATALAB_NATIVE_IMAGE_REUSE_PROOF") != NULL;
