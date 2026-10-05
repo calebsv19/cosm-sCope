@@ -163,3 +163,22 @@ This document defines what each shared library owns so behavior does not overlap
 - Do not place pane geometry solve or hit-testing semantics in `core_layout`.
 - Do not add persistence/file-IO behavior to `core_config`.
 - Do not couple `core_action` to platform keycode parsing or UI command widgets.
+
+## 2026-10-05 pane composition foundation
+
+Accepted shared source `86037d7` supplies `kit_pane 0.4.0` and `kit_ui 0.17.0`.
+The trio Main Edit adopts stable pane identities, viewport/content clipping and
+small host adapters. Orchestra uses shared geometry for leaf chrome/content and
+authoring hover; Echo uses navigation/detail/graph clips and pane pointer capture;
+DataLab uses picker pane scopes and shared list paint/hit clipping. Core pane,
+module, layout transaction and snapshot responsibilities remain unchanged.
+Mixed field/button focus order is available as a tested optional primitive;
+product mixed-order wiring remains a follow-on. Native SDL caret anchoring is
+adopted in the existing trio editable fields. Real macOS SDL window/session tests
+qualify the adapter; human IME candidate/commit/cancel and native Linux/Windows
+acceptance remain separate. Existing backend versions remain kit_render 0.14.6,
+vk_renderer 1.5.0 and vk_runtime 0.6.0; no mutable renderer work was imported.
+See [pane composition contract](UI_PANE_COMPOSITION_CONTRACT.md).
+Next priority is a reusable pane-host composition/dispatch lifecycle with explicit
+splitter transactions and focus takeover, followed by per-program adoption.
+Canonical source, app VERSION, stable Desktop bundles and releases are unchanged.
