@@ -89,10 +89,15 @@ CoreResult kit_ui_text_selection(const KitUiTextEdit *e,char *out,size_t cap) {
     size_t n;if(!out||!ready(e,&n))return bad();
     size_t lo=e->cursor<e->anchor?e->cursor:e->anchor,hi=e->cursor>e->anchor?e->cursor:e->anchor;
     if(cap<=hi-lo)return (CoreResult){CORE_ERR_OUT_OF_MEMORY,"selection output too small"};
-    memmove(out,e->text+lo,hi-lo);out[hi-lo]=0;return core_result_ok();
+    uintptr_t output=(uintptr_t)out,buffer=(uintptr_t)e->text;
+    /* Selection extraction must not mutate the borrowed editing buffer. */
+    if(output>=buffer && output<buffer+e->capacity)return bad();
+    memcpy(out,e->text+lo,hi-lo);out[hi-lo]=0;return core_result_ok();
 }
 CoreResult kit_ui_text_compose(KitUiTextEdit *e,const char *s,int start,int length) {
     size_t n;if(!s||!ready(e,&n)||start<0||length<0)return bad();size_t len=strlen(s);
     if(len>=sizeof(e->composition)||!valid(s,len))return bad();
-    memcpy(e->composition,s,len+1);e->composition_start=start;e->composition_length=length;return core_result_ok();
+    size_t count=0;for(size_t i=0,k;i<len;i+=k) {scalar((const unsigned char *)s+i,len-i,&k);++count;}
+    if((size_t)start>count || (size_t)length>count-(size_t)start)return bad();
+    memmove(e->composition,s,len+1);e->composition_start=start;e->composition_length=length;return core_result_ok();
 }

@@ -302,3 +302,7 @@ retain outstanding button release ownership. Text takeover clears button focus
 and armed-key owner. Lifecycle cancellation clears restoration intent.
 
 Run `make test test-text-edit-sdl`. The generic archive has no SDL dependency.
+
+### 0.15.1 bounded editor correction
+
+Selection extraction rejects output in the borrowed editing buffer; preedit ranges must fit its Unicode scalar count. Deterministic SDL clipboard fixtures verify failed cut and invalid/oversized paste preserve text without writing the system clipboard.
