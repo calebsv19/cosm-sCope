@@ -2,7 +2,7 @@
 
 The retained Main Edit lane adopts `kit_ui 0.15.1` and
 `kit_workspace_authoring 0.6.1`. The accepted shared source snapshot is
-`b1c67d7e1b78b826c81269a6531706fc1f29ea86`. `kit_render 0.14.6`, `vk_renderer 1.5.0` and
+`0cc23aa87a2fc1b17c355a79c09b5eebdbf395a6`. `kit_render 0.14.6`, `vk_renderer 1.5.0` and
 `vk_runtime 0.6.0` retain the proven transform/textured-quad rendering contract.
 
 ## Adopted surfaces

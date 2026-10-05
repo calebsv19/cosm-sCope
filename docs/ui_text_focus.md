@@ -4,7 +4,7 @@ Main Edit Development reference. Canonical program sources and release versions 
 
 ## Adopted fields and policy
 
-Input-picker path and filter fields use the shared editor through `src/render/render_view_picker_text.c`. Path Enter validates/applies the existing directory; path Escape discards the draft. Filter Enter ends filter editing; filter Escape retains the existing picker exit policy. Catalog filtering responds only to committed changes. Viewer custom-theme popup and Recent dropdown restore eligible semantic button focus. Custom slot Rename cycles preset labels and is not a free-text editor. Explicit host theme/zoom and authoring chords retain their existing policy.
+Input-picker path and filter fields use the shared editor through `src/render/render_view_picker_text.c`. Path Enter validates/applies the existing directory; path Escape discards the draft. Filter Enter retains the existing selected-file open action; filter Escape retains the existing picker exit policy. Catalog filtering responds only to committed changes. Viewer custom-theme popup and Recent dropdown restore eligible semantic button focus. Custom slot Rename cycles preset labels and is not a free-text editor. Explicit host theme/zoom and authoring chords retain their existing policy.
 
 Optional `kit_ui 0.15.1` at shared source `0cc23aa` supplies caller-owned bounded UTF-8 editing and semantic button focus restoration. Movement/deletion and Shift selection use Unicode scalar boundaries; Ctrl/Cmd+A/C/X/V share the same transaction checks. Invalid UTF-8, line breaks in single-line fields, numeric violations and insufficient capacity reject the whole insertion without truncation. Clipboard cut mutates only after successful publication.
 
