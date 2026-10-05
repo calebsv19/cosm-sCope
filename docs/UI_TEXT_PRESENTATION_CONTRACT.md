@@ -17,3 +17,5 @@ Selection backgrounds precede their row text; preedit underlines and caret follo
 Run generic edit/presentation tests, optional platform adapter tests, real host field replays and actual captured output at 1x/2x. Test selection, composition isolation, scroll reveal, newline/wrap positions, clipping, field independence and text lifetime. Linkage/command inspection does not prove renderer output. Captured output does not prove OS IME candidate/session behavior.
 
 The reference rollout is Orchestra ingest root, Echo search/title/body/DB/numeric fields, and DataLab picker path/filter. Native Linux/Windows, OS clipboard/IME candidate placement, mixed focus traversal, text undo, nested modals, grapheme movement, bidi and shaping remain separate boundaries. Body editing now uses measured scalar hard wraps; read-only document wrapping remains host-owned.
+
+Row origins are top-left positions. The queued adapter converts row y to the existing kit_render vertically centered text origin; the SDL callback consumes top-left positions. Both use the same measured line height.
