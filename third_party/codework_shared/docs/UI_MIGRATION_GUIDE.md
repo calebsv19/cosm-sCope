@@ -20,6 +20,10 @@ own layout, domain content and pane names while adopting the same mechanics.
 7. Pane host behavior (kit_pane 0.5.0): lifecycle/input takeover, nested
    core_layout edits and reusable bounded header slots, adopted in the trio.
 
+8. Fullscreen/window lifecycle (kit_ui 0.18.0, vk_renderer 1.6.0): independent
+   logical/drawable/render extents, transition cancellation, suspension and
+   bounded swapchain recovery, with actual macOS trio loops/captures.
+
 These are additive layers. Core owns pane topology/constraints, module/snapshot
 meaning, domain state and revision semantics. Kits own reusable expression and
 input mechanics. Hosts own layouts, providers, resources, actions, history,
@@ -61,12 +65,30 @@ the SDL drawing reference even where Vulkan presents a composed canvas.
 10. Stop at the reviewed program boundary. Canonical adoption, app VERSION,
     release/publication, Registry and remote platform acceptance are separate.
 
+## Window lifecycle checkpoint
+
+Observe actual SDL geometry before routing and after draining events. Use
+`kit_ui_window_refresh_sdl`; apply render-coordinate conversion once and reuse the
+same extent for painting, hits and caret placement. Cancel stale pane/control
+capture at invalidating window events before text/control consumers. Suspend
+submissions for hidden/minimized/nonpositive drawables and keep a bounded host
+tick for restoration. Compare actual drawable extents independently of logical
+layout and any bounded software render canvas. Recreate presentation resources
+without replacing domain content. Rebuild all public Vulkan context consumers.
+
+See [the window lifecycle contract](UI_WINDOW_LIFECYCLE_CONTRACT.md). Qualify unit
+mapping/fence failures, production-linked cancellation, and the opt-in actual app
+loop `CODEWORK_WINDOW_LIFECYCLE_PROOF=<directory>` through fullscreen enter/exit,
+resize, hide/show and minimize/restore, plus captured output and continued frames.
+Proof runtime data and capture files belong in an isolated task directory. DataLab
+plain SDL can be selected with `DATALAB_RENDER_BACKEND=sdl`; a drawable beyond its
+bounded canvas can be tested with `CODEWORK_WINDOW_PROOF_LARGE=1`.
+
 ## Next boundary
 
-Qualify fullscreen/window lifecycle in the trio: transitions, drawable size,
-render/input coordinate mapping, resource recovery, cancellation, native text
-anchoring and continued rendering. After that stabilization, use the recipe above
-for the next program, retaining per-program evidence and rollback at every step.
-Mixed field/button traversal is available as kit preparation; native caret/session
-adapter checks pass locally, while human OS IME workflow and other OS platforms
-still need their own acceptance. Docking/module-provider lifecycle is later work.
+The trio fullscreen/window slice is qualified on macOS. Apply this recipe to one
+selected program at a time, retaining its layouts/domain behavior and proving
+its actual controls, cancellation, rendering and native window lifecycle before
+moving on. Mixed traversal is kit preparation; human OS IME sessions, external
+monitor/DPI movement, native Linux/Windows and exclusive fullscreen require their
+own acceptance. Generalized docking/module-provider lifecycle is later work.
