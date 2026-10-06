@@ -1039,3 +1039,34 @@ programs remain separate. See the pane host contract and migration guide.
 ## 2026-10-05 fullscreen/window lifecycle candidate
 
 The proving-trio slice uses committed `kit_ui 0.18.0` optional SDL window observation/mapping and `vk_renderer 1.6.0` fence/acquire/recovery corrections. Hosts retain event loops, window lifetimes, domain cancellation and persistence; `vk_runtime 0.6.0`, `kit_render 0.14.6` and `kit_pane 0.5.0` retain their responsibilities. The shared unit and macOS native standalone lifecycle/retained-texture gates pass; per-program adoption requires its own actual-loop/native proof. See `docs/UI_WINDOW_LIFECYCLE_CONTRACT.md`. The accepted branch is `codex/ui-window-lifecycle-20261005`, isolated from unrelated uncommitted shared renderer/mesh work; version equality alone is insufficient, so exact source pins remain required.
+
+## Fullscreen/window lifecycle acceptance — 2026-10-05
+
+Accepted shared source `854b51ff57c756b4565021fe759c27a459efbfd3` supplies `kit_ui 0.18.0` optional SDL window
+observation, coordinate mapping, F11 desktop-fullscreen and bounded native proof;
+`vk_renderer 1.6.0` resets fences only before submission, consumes suboptimal
+acquired images and performs bounded out-of-date recovery. Hosts own their loops,
+window/resource lifetimes, layouts, domain state, edit restoration and persistence.
+Logical size, actual drawable size and an explicitly bounded render extent are
+separate. Resize/move/display/maximize/restore/hide/minimize/focus loss cancel stale
+pane/control ownership before consumers. Non-presentable windows defer submissions.
+
+Orchestra and Echo use logical command UI coordinates. DataLab retains SDL drawing
+and Vulkan canvas presentation, including a bounded 4096x4096 canvas; large
+presentation extents scale that canvas with matched paint/input geometry. Both
+DataLab viewer and startup picker adopt the lifecycle; the plain SDL viewer path
+also passes. Native macOS actual loops pass all eight stages (initial, resize,
+fullscreen, windowed, hidden, shown, minimized, restored), six captures each and
+continued rendering, with zero Vulkan validation warnings/errors. DataLab also
+passes a 5000x1440 drawable. Unit fault injection proves acquire-out-of-date and
+suboptimal fence behavior; production-linked pane tests prove canceled payload
+and revision restoration for all ten invalidating event kinds.
+
+Scope is the proving trio retained Main Edit lanes. Canonical/stable programs and
+app VERSION remain unchanged. macOS proof does not qualify Linux/Windows,
+exclusive fullscreen, external-monitor migration, device-loss recovery, human IME
+workflow or every program. The native proof drives SDL desktop fullscreen; it does
+not automate clicking macOS's green window control. Next: apply the established
+migration recipe to one selected program, then qualify its actual UI/native paths.
+Mixed field/button traversal and OS IME sessions remain bounded follow-on work;
+generalized docking/provider insertion/persistence needs its own contract.
