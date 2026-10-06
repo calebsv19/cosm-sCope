@@ -268,6 +268,18 @@ int main(void) {
     pane_press.type=SDL_MOUSEBUTTONDOWN;assert(datalab_view_pane_event(w,viewer_renderer,&pane_press,&pane_state)==2);
     pane_state.session_hud_collapsed=1;pane_press.type=SDL_MOUSEBUTTONUP;
     assert(!datalab_view_pane_event(w,viewer_renderer,&pane_press,&pane_state));
+    datalab_workspace_authoring_begin_takeover(&pane_state);
+    Uint8 window_events[]={SDL_WINDOWEVENT_RESIZED,SDL_WINDOWEVENT_SIZE_CHANGED,SDL_WINDOWEVENT_DISPLAY_CHANGED,SDL_WINDOWEVENT_MOVED,SDL_WINDOWEVENT_MINIMIZED,SDL_WINDOWEVENT_MAXIMIZED,SDL_WINDOWEVENT_RESTORED,SDL_WINDOWEVENT_HIDDEN,SDL_WINDOWEVENT_SHOWN,SDL_WINDOWEVENT_FOCUS_LOST};
+    for(unsigned i=0;i<sizeof(window_events);i++) {
+        float ratio=pane_state.workspace_authoring_projection.profile_surface_ratio;
+        CoreLayoutState revision=pane_state.pane_layout_revision;
+        assert(datalab_workspace_authoring_projection_drag_begin(&pane_state));
+        assert(datalab_workspace_authoring_projection_apply_drag(&pane_state,-40,1000));
+        SDL_Event changed={0};changed.type=SDL_WINDOWEVENT;changed.window.event=window_events[i];
+        datalab_view_pane_event(w,viewer_renderer,&changed,&pane_state);
+        assert(!pane_state.pane_layout_edit.active&&pane_state.workspace_authoring_projection.profile_surface_ratio==ratio&&!memcmp(&revision,&pane_state.pane_layout_revision,sizeof(revision)));
+    }
+    puts("DataLab all window lifecycle events restore projection payload/revision");
     SDL_DestroyRenderer(viewer_renderer);SDL_FreeSurface(viewer_pixels);
     puts("DataLab actual viewer adapter: source clip restoration, render-coordinate capture crossing and hiding cancels release pass");
     puts("DataLab viewer host: canvas/source/header ownership, hidden source invalidation, projection drag cancel/nested commit and accepted apply pass");

@@ -15,7 +15,7 @@ CoreResult datalab_picker_text_present(SDL_Renderer *renderer,KitUiTextEdit *edi
     SDL_Rect rect,int active,SDL_Color text,SDL_Color accent) {
     KitUiTextPresentationOptions options={{rect.x,rect.y,rect.w,rect.h},datalab_text_line_height(1),datalab_scaled_px(1),0,0,active,1};
     CoreResult r=kit_ui_text_presentation_build(view,edit,&options,measure,NULL);if(r.code!=CORE_OK)return r;
-    int width=0,height=0;float sx=1,sy=1;SDL_GetRendererOutputSize(renderer,&width,&height);SDL_RenderGetScale(renderer,&sx,&sy);
+    int width=0,height=0;float sx=1,sy=1;datalab_renderer_backend_output_size(renderer,&width,&height);SDL_RenderGetScale(renderer,&sx,&sy);
     r=kit_ui_native_text_rect_sdl(NULL,view,width/sx,height/sy,NULL);if(r.code!=CORE_OK)return r;
     KitRenderColor c={accent.r,accent.g,accent.b,accent.a};KitUiTextPresentationColors colors={c,c,c};colors.selection.a=72;
     TextPaint user={renderer,text};return kit_ui_text_presentation_sdl(renderer,view,&colors,paint,&user);

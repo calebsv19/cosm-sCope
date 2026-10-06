@@ -1,3 +1,4 @@
+#include "kit_ui_window_probe_sdl.h"
 #include "render/render_view_picker_text.h"
 #include "render/render_view_picker_text_presentation.h"
 #include "render/render_view.h"
@@ -33,6 +34,8 @@ static int datalab_picker_view_selected_name(DatalabCatalogView *view,
                                              size_t out_name_cap) {
     return datalab_catalog_view_selected_name_copy(view, out_name, out_name_cap);
 }
+
+static int datalab_picker_window_capture(void *renderer,const char *path) {return datalab_renderer_backend_request_capture(renderer,path);}
 
 CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                                          DatalabImageResidency *image_residency,
@@ -216,7 +219,18 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
             fprintf(stderr, "datalab picker close proof push failed: %s\n", SDL_GetError());
         }
     }
+    KitUiWindowProbe window_probe;kit_ui_window_probe_init_sdl(&window_probe,"datalab-picker");
+    KitUiWindowState window_state={0};
     while (!done) {
+        int proof_status=kit_ui_window_probe_tick_sdl(&window_probe,window,datalab_renderer_backend_presented_frames(renderer),datalab_picker_window_capture,renderer);
+        if(proof_status) {
+            canceled=1;done=1;exit_reason=proof_status>0?"window-proof-complete":"window-proof-failed";
+            if(proof_status>0 && datalab_renderer_backend_kind(renderer)==DATALAB_RENDERER_BACKEND_VULKAN && !datalab_renderer_backend_verify(renderer,"picker-window-lifecycle",1))exit_reason="window-proof-failed";
+            break;
+        }
+        uint32_t changes=0;kit_ui_window_refresh_sdl(&window_state,window,&changes);
+        if(changes)kit_ui_surface_reset(&picker_buttons);
+
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) {
@@ -227,6 +241,7 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
                 exit_reason = "SDL_QUIT";
                 break;
             }
+            if(kit_ui_window_fullscreen_key_sdl(window,&e)) {kit_ui_surface_reset(&picker_buttons);continue;}
             int text_owner=edit_mode?1:(filter_edit_mode?2:0);
             if(text_owner!=last_text_owner) {text_keyboard=text_owner!=0;last_text_owner=text_owner;}
             if(e.type==SDL_KEYDOWN && e.key.keysym.sym==SDLK_TAB) {
@@ -633,6 +648,8 @@ CoreResult datalab_render_pick_pack_path(DatalabInputCatalog *input_catalog,
         selected = datalab_catalog_view_selected_index(&catalog_view);
 
         {
+            kit_ui_window_refresh_sdl(&window_state,window,&changes);
+            if(!window_state.presentable){SDL_Delay(16);continue;}
             int ww = 0;
             int wh = 0;
             DatalabPickerThemePalette palette = {0};

@@ -8,7 +8,7 @@ int datalab_workspace_authoring_route_interaction_event(SDL_Window *window, SDL_
     if (!kit_ui_interaction_event_from_sdl(event,&normalized)) return 0;
     if(normalized.type==KIT_UI_INTERACTION_CANCEL)datalab_ui_surface_reset();
     int width=0,height=0;
-    if (SDL_GetRendererOutputSize(renderer,&width,&height)!=0) return 0;
+    if (datalab_renderer_backend_output_size(renderer,&width,&height)!=0) return 0;
     /* Runtime rectangles are refreshed by painting. Resize cannot reuse an
      * old snapshot; preserve release ownership while invalidating its target. */
     if (event->type==SDL_WINDOWEVENT && (event->window.event==SDL_WINDOWEVENT_SIZE_CHANGED ||

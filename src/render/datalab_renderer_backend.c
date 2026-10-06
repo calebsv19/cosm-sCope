@@ -1,3 +1,5 @@
+#include "datalab_sdl_capture.h"
+#include "kit_ui_window_sdl.h"
 #include "render/datalab_renderer_backend.h"
 #include "render/datalab_native_image_present.h"
 #include "render/datalab_render_perf_diag.h"
@@ -30,6 +32,7 @@ typedef struct DatalabRendererBackend {
     int drawable_width;
     int drawable_height;
     unsigned long frame_count;
+    char sdl_capture_path[1024];
     uint64_t presentation_recreate_count;
     uint64_t presentation_seed_upload_count;
     uint64_t presentation_seed_upload_bytes;
@@ -73,8 +76,10 @@ static int datalab_backend_drawable_size(SDL_Window *window, int *width, int *he
         return 0;
     }
     SDL_Vulkan_GetDrawableSize(window, width, height);
-    return *width > 0 && *height > 0 &&
-           *width <= DATALAB_CANVAS_WIDTH && *height <= DATALAB_CANVAS_HEIGHT;
+    if(*width<=0 || *height<=0)return 0;
+    if(*width>DATALAB_CANVAS_WIDTH)*width=DATALAB_CANVAS_WIDTH;
+    if(*height>DATALAB_CANVAS_HEIGHT)*height=DATALAB_CANVAS_HEIGHT;
+    return 1;
 }
 
 static int datalab_backend_recreate_presentation(DatalabRendererBackend *backend,
@@ -120,7 +125,8 @@ static int datalab_backend_sync_size(DatalabRendererBackend *backend) {
         !datalab_backend_drawable_size(backend->window, &width, &height)) {
         return 0;
     }
-    if (!backend->texture_initialized || width != backend->drawable_width ||
+    int actual_width=0,actual_height=0;SDL_Vulkan_GetDrawableSize(backend->window,&actual_width,&actual_height);
+    if (!backend->texture_initialized || actual_width!=(int)backend->vk.context.swapchain.extent.width || actual_height!=(int)backend->vk.context.swapchain.extent.height || width != backend->drawable_width ||
         height != backend->drawable_height) {
         return datalab_backend_recreate_presentation(backend, width, height);
     }
@@ -264,11 +270,8 @@ int datalab_renderer_backend_map_point_between_extents(int source_width,
         !out_destination_x || !out_destination_y) {
         return 0;
     }
-    *out_destination_x = (int)lround(((double)source_x / (double)source_width) *
-                                    (double)destination_width);
-    *out_destination_y = (int)lround(((double)source_y / (double)source_height) *
-                                    (double)destination_height);
-    return 1;
+    KitUiWindowState extent={.logical_width=source_width,.logical_height=source_height};
+    return kit_ui_window_map_point_sdl(&extent,destination_width,destination_height,source_x,source_y,out_destination_x,out_destination_y);
 }
 
 int datalab_renderer_backend_map_window_to_drawable_point(SDL_Window *window,
@@ -317,6 +320,10 @@ int datalab_renderer_backend_present(SDL_Renderer *renderer) {
     if (backend->kind == DATALAB_RENDERER_BACKEND_SDL) {
         datalab_render_perf_diag_note_backend((int)backend->kind, 0u, 0u, 0u, 0u);
         stage_begin = datalab_render_perf_diag_stage_begin(DATALAB_RENDER_PERF_STAGE_VULKAN_END);
+        if(backend->sdl_capture_path[0]) {
+            if(!datalab_sdl_capture(renderer,backend->sdl_capture_path))return 0;
+            backend->sdl_capture_path[0]=0;
+        }
         SDL_RenderPresent(renderer);
         datalab_render_perf_diag_stage_end(DATALAB_RENDER_PERF_STAGE_VULKAN_END, stage_begin);
         backend->frame_count += 1u;
@@ -403,17 +410,17 @@ int datalab_renderer_backend_present(SDL_Renderer *renderer) {
                                         (int)result);
         return 0;
     }
-    vk_renderer_set_logical_size(&backend->vk, (float)extent.width, (float)extent.height);
+    vk_renderer_set_logical_size(&backend->vk, (float)backend->drawable_width, (float)backend->drawable_height);
     stage_begin = datalab_render_perf_diag_stage_begin(DATALAB_RENDER_PERF_STAGE_VULKAN_DRAW);
     if (native_image_active) {
         datalab_native_image_present_draw(&backend->native_image,
                                           &backend->vk,
                                           &backend->texture,
-                                          extent.width,
-                                          extent.height);
+                                          (uint32_t)backend->drawable_width,
+                                          (uint32_t)backend->drawable_height);
     } else {
         source = (SDL_Rect){0, 0, backend->drawable_width, backend->drawable_height};
-        destination = (SDL_Rect){0, 0, (int)extent.width, (int)extent.height};
+        destination = (SDL_Rect){0, 0, backend->drawable_width, backend->drawable_height};
         vk_renderer_set_draw_color(&backend->vk, 1.0f, 1.0f, 1.0f, 1.0f);
         vk_renderer_draw_texture(&backend->vk, &backend->texture, &source, &destination);
     }
@@ -533,6 +540,10 @@ int datalab_renderer_backend_native_image_counters_snapshot(
 
 int datalab_renderer_backend_request_capture(SDL_Renderer *renderer, const char *path) {
     DatalabRendererBackend *backend = &g_datalab_backend;
+    if(renderer && renderer==backend->canvas && backend->kind==DATALAB_RENDERER_BACKEND_SDL && path && *path) {
+        int n=snprintf(backend->sdl_capture_path,sizeof(backend->sdl_capture_path),"%s",path);
+        return n>0 && (size_t)n<sizeof(backend->sdl_capture_path);
+    }
     if (!renderer || renderer != backend->canvas ||
         backend->kind != DATALAB_RENDERER_BACKEND_VULKAN || !path || !path[0]) {
         return 0;
@@ -599,7 +610,8 @@ int datalab_renderer_backend_drawable_metrics(SDL_Renderer *renderer,
     }
     SDL_GetWindowSize(backend->window, logical_width, logical_height);
     if (backend->kind == DATALAB_RENDERER_BACKEND_VULKAN) {
-        if (!datalab_backend_drawable_size(backend->window, drawable_width, drawable_height)) {
+        SDL_Vulkan_GetDrawableSize(backend->window,drawable_width,drawable_height);
+        if (*drawable_width<=0 || *drawable_height<=0) {
             return 0;
         }
     } else if (SDL_GetRendererOutputSize(renderer, drawable_width, drawable_height) != 0) {
@@ -615,4 +627,8 @@ int datalab_renderer_backend_drawable_metrics(SDL_Renderer *renderer,
     }
     *scale = scale_x;
     return 1;
+}
+
+uint64_t datalab_renderer_backend_presented_frames(SDL_Renderer *renderer) {
+    return renderer==g_datalab_backend.canvas?g_datalab_backend.frame_count:0;
 }

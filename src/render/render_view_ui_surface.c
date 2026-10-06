@@ -94,7 +94,7 @@ void datalab_ui_surface_draw_button(SDL_Renderer *renderer, const SDL_Rect *r,
 }
 void datalab_ui_surface_draw_focus(SDL_Renderer *renderer, const DatalabAppState *s) {
     int w=0,h=0;
-    if (!renderer || SDL_GetRendererOutputSize(renderer,&w,&h)!=0) return;
+    if (!renderer || datalab_renderer_backend_output_size(renderer,&w,&h)!=0) return;
     CoreResult result=datalab_ui_surface_collect(s,w,h);
     if (result.code!=CORE_OK) { fprintf(stderr,"datalab: surface collection failed: %s\n",result.message); return; }
     kit_ui_interaction_sdl_draw_focus(renderer,&g_datalab_button_surface.interaction,

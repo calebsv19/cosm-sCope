@@ -29,6 +29,8 @@ KIT_UI_SRCS := \
 	$(KIT_UI_DIR)/src/kit_ui_focus_scope.c \
 	$(KIT_UI_DIR)/src/kit_ui_text_edit_sdl.c \
 	$(KIT_UI_DIR)/src/kit_ui_native_text_sdl.c \
+	$(KIT_UI_DIR)/src/kit_ui_window_sdl.c \
+	$(KIT_UI_DIR)/src/kit_ui_window_probe_sdl.c \
 	$(KIT_UI_DIR)/src/kit_ui_interaction_sdl.c \
 	$(KIT_UI_DIR)/src/kit_ui_sdl.c
 
@@ -43,6 +45,7 @@ VK_RUNTIME_SRCS := \
 VK_RENDERER_SRCS := \
 	$(VK_RENDERER_DIR)/src/vk_renderer.c \
 	$(VK_RENDERER_DIR)/src/vk_renderer_commands.c \
+	$(VK_RENDERER_DIR)/src/vk_renderer_frame_submission.c \
 	$(VK_RENDERER_DIR)/src/vk_renderer_config.c \
 	$(VK_RENDERER_DIR)/src/vk_renderer_context.c \
 	$(VK_RENDERER_DIR)/src/vk_renderer_device.c \

@@ -1,3 +1,4 @@
+#include "kit_ui_window_sdl.h"
 #include "render/render_view_pane_host.h"
 static KitPaneHost host;
 static SDL_Rect source_bounds,header_bounds;
@@ -26,17 +27,18 @@ CoreResult datalab_view_pane_begin(SDL_Renderer *renderer,const DatalabAppState 
     return kit_pane_content_begin_sdl(renderer,kit_pane_composition_find(&host.view,id),saved);
 }
 CorePaneId datalab_view_pane_event(SDL_Window *window,SDL_Renderer *renderer,const SDL_Event *event,DatalabAppState *s){
-    if(!event||!s||sync(renderer,s).code!=CORE_OK)return 0;
+    if(!event||!s)return 0;
     if(s->pane_layout_edit.active && (!s->workspace_authoring_stub_active ||
         s->workspace_authoring_overlay_mode!=DATALAB_WORKSPACE_AUTHORING_OVERLAY_PANE || s->workspace_authoring_custom_theme_popup_open))
         datalab_workspace_authoring_projection_drag_finish(s,0);
-    if(event->type==SDL_WINDOWEVENT && (event->window.event==SDL_WINDOWEVENT_FOCUS_LOST||event->window.event==SDL_WINDOWEVENT_HIDDEN||event->window.event==SDL_WINDOWEVENT_SIZE_CHANGED)){
+    if(kit_ui_window_event_invalidates_sdl(event)){
         kit_pane_host_cancel(&host,0,0);datalab_raster_viewport_end_drag(&s->raster_viewport);
         datalab_workspace_authoring_projection_drag_finish(s,0);return 0;
     }
     if(event->type==SDL_KEYDOWN&&event->key.keysym.sym==SDLK_ESCAPE && s->pane_layout_edit.active){
         datalab_workspace_authoring_projection_drag_finish(s,0);return 2;
     }
+    if(sync(renderer,s).code!=CORE_OK)return 0;
     int x=0,y=0,wx=0,wy=0;KitPaneHostEventType type=KIT_PANE_HOST_POINTER_MOVE;
     if(event->type==SDL_MOUSEBUTTONDOWN||event->type==SDL_MOUSEBUTTONUP){wx=event->button.x;wy=event->button.y;
         type=event->type==SDL_MOUSEBUTTONDOWN?KIT_PANE_HOST_POINTER_DOWN:KIT_PANE_HOST_POINTER_UP;

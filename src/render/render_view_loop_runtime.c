@@ -1,3 +1,4 @@
+#include "kit_ui_window_probe_sdl.h"
 #include "render/render_view_internal.h"
 #include "render/render_view_pane_host.h"
 #include "render/datalab_render_perf_diag.h"
@@ -28,6 +29,9 @@ typedef struct DatalabLoopFramePhases {
 
 typedef struct DatalabLoopRunState {
     int quit;
+    KitUiWindowState window_state;
+    KitUiWindowProbe window_probe;
+    uint64_t presented_frames;
     Uint64 perf_freq;
     uint32_t last_present_ticks;
     DatalabLoopWaitPolicyInput wait_policy_input;
@@ -54,6 +58,12 @@ static void datalab_loop_handle_event(SDL_Window *window,
     DatalabWorkspaceAuthoringAdapterResult authoring_route = {0};
     if (!event || !input_frame || !app_state || !quit || !resize_pending) {
         return;
+    }
+    int fullscreen_key=kit_ui_window_fullscreen_key_sdl(window,event);
+    if(fullscreen_key){
+        SDL_Event cancel={0};cancel.type=SDL_WINDOWEVENT;cancel.window.event=SDL_WINDOWEVENT_SIZE_CHANGED;
+        (void)datalab_view_pane_event(window,renderer,&cancel,app_state);datalab_ui_surface_reset();*resize_pending=1;
+        if(fullscreen_key<0)fprintf(stderr,"Fullscreen transition failed: %s\n",SDL_GetError());return;
     }
     datalab_input_apply_event(input_frame, event);
     if (event->type == SDL_QUIT) {
@@ -224,6 +234,8 @@ static void datalab_loop_frame_phase_finalize(DatalabLoopFramePhases *phase,
                                           phase->resize_pending);
 }
 
+static int datalab_window_capture(void *renderer,const char *path){return datalab_renderer_backend_request_capture(renderer,path);}
+
 CoreResult datalab_loop_run_profile(SDL_Window *window,
                                     SDL_Renderer *renderer,
                                     const DatalabFrame *frame,
@@ -231,6 +243,7 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
                                     const DatalabLoopProfileOps *ops) {
     datalab_ui_surface_reset();
     DatalabLoopRunState run_state = {0};
+    kit_ui_window_probe_init_sdl(&run_state.window_probe,"datalab");
     const int native_reuse_proof = frame && frame->profile == DATALAB_PROFILE_IMAGE &&
                                    getenv("DATALAB_NATIVE_IMAGE_REUSE_PROOF") != NULL;
     uint32_t native_reuse_proof_present_count = 0u;
@@ -248,6 +261,9 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
     run_state.wait_policy_input.interaction_active = 1u;
     datalab_native_image_profile_wave_init(&profile_wave, frame);
     while (!run_state.quit) {
+        int proof_status=kit_ui_window_probe_tick_sdl(&run_state.window_probe,window,datalab_renderer_backend_presented_frames(renderer),datalab_window_capture,renderer);
+        if(proof_status){
+            if(proof_status<0 || (datalab_renderer_backend_kind(renderer)==DATALAB_RENDERER_BACKEND_VULKAN && !datalab_renderer_backend_verify(renderer,"window-lifecycle",1)))return (CoreResult){CORE_ERR_IO,"window lifecycle proof failed"};break;}
         DatalabLoopFramePhases phase;
         DatalabRenderSubmitOutcome render_submit = {0};
         CoreResult render_result = core_result_ok();
@@ -255,6 +271,13 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
             datalab_native_image_profile_wave_frame(&profile_wave, frame);
 
         datalab_loop_frame_phase_wait_and_input(window, renderer, &phase, &run_state, app_state);
+        uint32_t changes=0;
+        if(kit_ui_window_refresh_sdl(&run_state.window_state,window,&changes).code!=CORE_OK)return (CoreResult){CORE_ERR_IO,"window observation failed"};
+        if(changes) {
+            SDL_Event cancel={0};cancel.type=SDL_WINDOWEVENT;cancel.window.event=SDL_WINDOWEVENT_SIZE_CHANGED;
+            (void)datalab_view_pane_event(window,renderer,&cancel,app_state);datalab_ui_surface_reset();phase.resize_pending=1;
+        }
+        if(run_state.window_probe.directory)phase.resize_pending=1;
         if (datalab_loop_frame_phase_runtime_tick(&phase, app_state)) {
             break;
         }
@@ -262,6 +285,7 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
 
         phase.render_reason_bits = datalab_loop_frame_phase_render_decision(&phase, run_state.last_present_ticks);
         phase.should_render = phase.render_reason_bits ? 1u : 0u;
+        if(!run_state.window_state.presentable){SDL_Delay(16);datalab_loop_frame_phase_finalize(&phase,&run_state,app_state);continue;}
         if (phase.should_render) {
             datalab_render_perf_diag_begin_frame((int)active_frame->profile,
                                                  phase.render_reason_bits,
@@ -284,6 +308,7 @@ CoreResult datalab_loop_run_profile(SDL_Window *window,
                 return render_submit.result;
             }
             if (render_submit.presented) {
+                ++run_state.presented_frames;
                 run_state.last_present_ticks = SDL_GetTicks();
                 if (!datalab_native_image_profile_wave_on_present(&profile_wave,
                                                                   window,

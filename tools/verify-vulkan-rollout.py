@@ -7,7 +7,7 @@ import struct
 import subprocess
 from pathlib import Path
 
-EXPECTED_SHARED_COMMIT = "ddc9fee6e17482dcd64cf777d7a105b7ed9b157d"
+EXPECTED_SHARED_COMMIT = "2ed6262fbb4ee10d57b39bbd7f521ba7571d3ddd"
 SOURCE_MODULES = ("vk_runtime", "vk_renderer", "kit/kit_render", "kit/kit_ui",
                   "kit/kit_workspace_authoring", "kit/kit_pane", "core/core_pane", "core/core_layout")
 
@@ -228,7 +228,7 @@ def main() -> int:
     verify_adoption(args.repo_root.resolve())
     runtime = version(args.shared_root / "vk_runtime/VERSION")
     renderer = version(args.shared_root / "vk_renderer/VERSION")
-    if runtime != (0, 6, 0) or renderer != (1, 5, 0):
+    if runtime != (0, 6, 0) or renderer != (1, 6, 0):
         raise SystemExit(f"unexpected Vulkan versions: runtime={runtime} renderer={renderer}")
     if version(args.shared_root / "kit/kit_render/VERSION") != (0, 14, 6):
         raise SystemExit("kit_render 0.14.6 required")

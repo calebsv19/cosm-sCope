@@ -43,6 +43,7 @@ int datalab_renderer_backend_map_window_to_drawable_point(SDL_Window *window,
                                                           int *out_drawable_x,
                                                           int *out_drawable_y);
 int datalab_renderer_backend_present(SDL_Renderer *renderer);
+uint64_t datalab_renderer_backend_presented_frames(SDL_Renderer *renderer);
 int datalab_renderer_backend_prepare_native_image(SDL_Renderer *renderer,
                                                   const void *pixels,
                                                   uint32_t width,
