@@ -1273,3 +1273,7 @@ unchanged. Fullscreen lifecycle qualification is next; docking, generalized
 pane provider insertion/persistence, product-wide mixed field/button traversal,
 human OS IME candidate/commit/cancel acceptance, native Linux/Windows and other
 programs remain separate. See the pane host contract and migration guide.
+
+## 2026-10-05 fullscreen/window lifecycle candidate
+
+The proving-trio slice uses committed `kit_ui 0.18.0` optional SDL window observation/mapping and `vk_renderer 1.6.0` fence/acquire/recovery corrections. Hosts retain event loops, window lifetimes, domain cancellation and persistence; `vk_runtime 0.6.0`, `kit_render 0.14.6` and `kit_pane 0.5.0` retain their responsibilities. The shared unit and macOS native standalone lifecycle/retained-texture gates pass; per-program adoption requires its own actual-loop/native proof. See `docs/UI_WINDOW_LIFECYCLE_CONTRACT.md`. The accepted branch is `codex/ui-window-lifecycle-20261005`, isolated from unrelated uncommitted shared renderer/mesh work; version equality alone is insufficient, so exact source pins remain required.

@@ -738,6 +738,11 @@ VkResult vk_renderer_begin_frame(VkRenderer* renderer,
     uint32_t frame_index = 0;
     VkCommandBuffer cmd = VK_NULL_HANDLE;
     VkResult result = vk_renderer_commands_begin_frame(renderer, &frame_index, &cmd);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        result = vk_renderer_recover_surface(renderer, renderer->context.window, result);
+        if (result == VK_SUCCESS)
+            result = vk_renderer_commands_begin_frame(renderer, &frame_index, &cmd);
+    }
     if (result != VK_SUCCESS) return result;
 
     renderer->current_frame_index = frame_index;
@@ -911,7 +916,9 @@ VkResult vk_renderer_end_frame(VkRenderer* renderer,
     VkResult result =
         vk_renderer_commands_end_frame(renderer, renderer->current_frame_index, cmd);
     renderer->current_frame_index = UINT32_MAX;
-    if (capture->requested && !capture->dumped) {
+    if (capture->requested && !capture->dumped &&
+        (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+         result == VK_ERROR_OUT_OF_DATE_KHR)) {
         if (renderer->context.device) {
             vkWaitForFences(renderer->context.device->device,
                             1,
@@ -921,12 +928,17 @@ VkResult vk_renderer_end_frame(VkRenderer* renderer,
         }
         vk_renderer_debug_capture_dump(renderer);
     }
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+        return vk_renderer_recover_surface(renderer, renderer->context.window, result);
     return result;
 }
 
 VkResult vk_renderer_recreate_swapchain(VkRenderer* renderer, SDL_Window* window) {
     if (!renderer || !window) return VK_ERROR_INITIALIZATION_FAILED;
     if (!renderer->context.device) return VK_ERROR_INITIALIZATION_FAILED;
+    int drawable_width=0, drawable_height=0;
+    SDL_Vulkan_GetDrawableSize(window,&drawable_width,&drawable_height);
+    if (drawable_width<=0 || drawable_height<=0) return VK_NOT_READY;
     vk_renderer_device_wait_idle(renderer->context.device);
 
     destroy_framebuffers(renderer);

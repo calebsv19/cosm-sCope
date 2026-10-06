@@ -320,3 +320,9 @@ actions; existing button-only surfaces remain compatible. The optional
 geometry in SDL window coordinates while the host retains Start/Stop and focus
 policy. `make test-focus-order` and `make test-native-text-sdl` qualify mechanics;
 the native test uses a real window but does not certify human IME acceptance.
+
+## 2026-10-05 window lifecycle
+
+0.18.0 adds optional SDL window observation, explicit logical/render coordinate mapping, F11 desktop-fullscreen handling and an opt-in native lifecycle qualification driver. Lifecycle transitions cancel stale button ownership through the existing SDL interaction adapter; the host keeps the window, event loop and domain state.
+
+See [shared window contract](../../docs/UI_WINDOW_LIFECYCLE_CONTRACT.md).
