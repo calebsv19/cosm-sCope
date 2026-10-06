@@ -187,8 +187,8 @@ release-artifact:
 # Fixture/local-adapter proof only. It deliberately accepts only a safe,
 # job-scoped relative root and never invokes the distribution target.
 release-output-root-contract:
-	@case "$(RELEASE_ROOT)" in build/release-authenticated/*) ;; *) echo "RELEASE_ROOT must be a job-scoped build/release-authenticated path"; exit 1;; esac
-	@case "$(RELEASE_ROOT)" in */../*|../*|*/..|build/release-authenticated/|*/./*|./*) echo "RELEASE_ROOT must not contain traversal or dot segments"; exit 1;; esac
+	@case "$(RELEASE_ROOT)" in build/release-authenticated/*|/*/datalab/build/release-authenticated/*) ;; *) echo "RELEASE_ROOT must be a job-scoped build/release-authenticated path"; exit 1;; esac
+	@case "$(RELEASE_ROOT)" in */../*|../*|*/..|*/release-authenticated/|*/./*|./*|*/.) echo "RELEASE_ROOT must not contain traversal or dot segments"; exit 1;; esac
 	@case "$(RELEASE_ROOT)" in *'//'*) echo "RELEASE_ROOT must not contain empty path segments"; exit 1;; esac
 
 release-output-root-conformance: release-output-root-contract

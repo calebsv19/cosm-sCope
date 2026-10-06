@@ -1,5 +1,25 @@
 # DataLab Current Truth
 
+## 0.5.0 release preparation — 2026-10-06
+
+Canonical `main` adopted the clean Main Edit checkpoint
+`17efd0378cd5b86b4c52a05d10ed6af035f36fdf` by fast-forward. The candidate
+includes the button, text, pane, renderer and window-lifecycle slices below,
+with the accepted shared subtree preserved. Earlier dated entries describe
+their original Development checkpoints; their statements that canonical was
+unchanged are historical.
+
+The selected successor is 0.5.0 for macOS arm64. Public/Registry current remains
+0.4.0 until separately approved publication and independent readback. The stable
+Desktop app remains 0.3.6; the isolated Main Edit app remains separate. Preparation
+does not install either app. Intel packages, the private Linux candidate, worker
+deployment and MCP distribution are outside this desktop release.
+
+The retained native macOS lifecycle proof does not qualify other platforms,
+human IME sessions, external-monitor migration or device-loss recovery. No
+application data-format migration is introduced by this candidate. User input
+roots and the existing DataLab runtime/persistence namespace are preserved.
+
 ## Persistent Main Edit Development Lane
 
 DataLab implements the MEW1 persistent development topology:
@@ -29,7 +49,7 @@ The image-pipeline specialist worktree, private Linux candidate, program
 `VERSION`, release artifacts, Registry state, publication, and deployment are
 separate ownership and authority boundaries.
 
-Last updated: 2026-10-04
+Last updated: 2026-10-06
 
 ## Main Edit Shared Button Adoption — 2026-10-04
 
@@ -438,7 +458,7 @@ The isolated package targets and runtime/log namespace remain those above.
     release-bundle audit fail if either bundle value drifts
   - `make -C datalab release-verify ...`
   - `make -C datalab release-distribute ...`
-  - current public release evidence is refreshed for `0.2.0` under `build/release/`, including accepted notary output for the 2026-06-06 pass
+  - public/Registry current is `0.4.0`; `0.5.0` is in local preparation. The `0.2.0` artifacts from 2026-06-06 are historical evidence, not current distribution.
   - local Intel artifact generation now emits
     `sCope-0.2.0-macOS-x86_64-stable.*` with ad-hoc signing and no
     notarization requirement for local staging

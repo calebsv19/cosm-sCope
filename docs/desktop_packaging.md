@@ -11,10 +11,21 @@ The isolated app is `sCope Main Edit.app`, bundle ID
 embedded exact source/binary identity. It is a local development package, not
 a release or Registry artifact. See `docs/main_edit_worktree.md`.
 
-Last updated: 2026-08-04
+Last updated: 2026-10-06
+
+## Current release scope
+
+The selected 0.5.0 preparation targets macOS arm64 only. Public/Registry current
+remains 0.4.0 until separately approved publication; the stable Desktop app is
+still 0.3.6. Preparation produces a verified candidate without installing it.
+Use the exact authenticated ZIP for any later approved stable-app replacement,
+preserving the prior bundle and user runtime data. `package-desktop-refresh`
+creates a local ad-hoc development installation, not an authenticated release
+installation. Intel and private Linux examples below are separate historical
+lanes, not additional 0.5.0 distribution targets.
 
 ## Bundle Contract
-- output app: `dist/sCope.app`
+- output app: `build/targets/macOS-arm64/dist/sCope.app`
 - launcher: `Contents/MacOS/datalab-launcher`
 - runtime binary: `Contents/MacOS/datalab-bin`
 - bundled frameworks include Vulkan runtime closure:
@@ -38,14 +49,14 @@ Last updated: 2026-08-04
   - `make -C datalab release-sign APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)"`
   - `make -C datalab release-notarize APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="cosm-notary"`
   - `make -C datalab release-distribute APPLE_SIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)" APPLE_NOTARY_PROFILE="cosm-notary"`
-  - current 2026-06-06 artifact set:
+  - historical 2026-06-06 artifact set (not current distribution):
     - `build/release/sCope-0.2.0-macOS-arm64-stable.zip`
     - `build/release/sCope-0.2.0-macOS-arm64-stable.zip.sha256`
     - `build/release/sCope-0.2.0-macOS-arm64-stable.manifest.txt`
     - `build/release/notary_submit.json`
 - local Intel package artifact:
   - `HOME=/private/tmp/codex-datalab-x86-home make -C datalab release-artifact TARGET_ARCH=x86_64 BUILD_TOOLCHAIN=clang PACKAGE_TOOLCHAIN=clang`
-  - current local artifact set:
+  - historical local Intel artifact set:
     - `build/release/sCope-0.2.0-macOS-x86_64-stable.zip`
     - `build/release/sCope-0.2.0-macOS-x86_64-stable.zip.sha256`
     - `build/release/sCope-0.2.0-macOS-x86_64-stable.manifest.txt`
@@ -64,6 +75,12 @@ cannot share a mutable output path. The local conformance command is
 rejects the developer default and any pre-existing selected root before
 building, then verifies the ZIP, checksum, and manifest all remain under the
 chosen root.
+
+With physically separate source and Registry data roots, the bound executor
+supplies an absolute `<data-root>/datalab/build/release-authenticated/<job-id>`
+path. The package target also accepts that program-specific shape. Registry
+containment validation binds the exact root and rejects symlinks; the Make
+guard rejects traversal, dot segments, empty path segments and an empty job.
 
 The selected root is an unsigned-preparation boundary only. Authentication
 must write a separately retained authenticated artifact set and bind it to the
@@ -123,10 +140,23 @@ scope; later publication remains outside that grant and requires Decision 2.
   unpacked GUI liveness, installed launcher self-test, and installed desktop
   launcher liveness through the bounded PC handoff lane. A PC root-screen
   image write remains quota-limited; that does not alter the installed-launcher
-  liveness result. This private candidate does not replace public `0.2.0`
+  liveness result. This private candidate does not replace public `0.4.0`
   artifacts or metadata.
 
-## Validation Flow
+## Validation and installation boundaries
+
+For managed release preparation, the Decision-1 owner binds version edits,
+`run-headless-smoke`, `package-desktop-self-test`, and the isolated
+`release-output-root-conformance` artifact set. Run a clean build plus
+`ui-interaction-self-test` and `main-edit-package-contract-checks` for this UI
+checkpoint. Inspect target dependencies: `test-package-boundary` and package
+self-tests build and ad-hoc sign local bundles. They are preparation effects.
+Developer ID signing/notarization uses the bound `cosm-notary` owner and a
+separate authenticated artifact root; verify the extracted archive afterward.
+Publication and stable Desktop installation require their separate approval.
+
+The following manual development sequence includes installation at step 6;
+do not run that step as part of candidate-only preparation:
 1. `make -C datalab clean && make -C datalab`
 2. `make -C datalab test`
 3. `make -C datalab run-headless-smoke`
