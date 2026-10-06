@@ -182,4 +182,3 @@ void vk_renderer_commands_destroy(VkRenderer* renderer,
     renderer->frame_count = 0;
     renderer->frame_index = 0;
 }
-
