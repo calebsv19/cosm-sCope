@@ -71,7 +71,7 @@ static int datalab_backend_vulkan_requested(void) {
     return !value || value[0] == '\0' || strcmp(value, "vulkan") == 0;
 }
 
-static int datalab_backend_drawable_size(SDL_Window *window, int *width, int *height) {
+static int datalab_backend_render_size(SDL_Window *window, int *width, int *height) {
     if (!window || !width || !height) {
         return 0;
     }
@@ -112,9 +112,11 @@ static int datalab_backend_recreate_presentation(DatalabRendererBackend *backend
     backend->drawable_width = width;
     backend->drawable_height = height;
     fprintf(stdout,
-            "DATALAB_VULKAN_RESIZE schema=1 status=pass drawable=%dx%d\n",
+            "DATALAB_VULKAN_RESIZE schema=1 status=pass render=%dx%d drawable=%ux%u\n",
             width,
-            height);
+            height,
+            backend->vk.context.swapchain.extent.width,
+            backend->vk.context.swapchain.extent.height);
     return 1;
 }
 
@@ -122,7 +124,7 @@ static int datalab_backend_sync_size(DatalabRendererBackend *backend) {
     int width = 0;
     int height = 0;
     if (!backend || backend->kind != DATALAB_RENDERER_BACKEND_VULKAN ||
-        !datalab_backend_drawable_size(backend->window, &width, &height)) {
+        !datalab_backend_render_size(backend->window, &width, &height)) {
         return 0;
     }
     int actual_width=0,actual_height=0;SDL_Vulkan_GetDrawableSize(backend->window,&actual_width,&actual_height);
@@ -251,7 +253,7 @@ int datalab_renderer_backend_output_size(SDL_Renderer *renderer, int *width, int
     if (renderer != backend->canvas || backend->kind == DATALAB_RENDERER_BACKEND_SDL) {
         return SDL_GetRendererOutputSize(renderer, width, height);
     }
-    if (!datalab_backend_drawable_size(backend->window, width, height)) {
+    if (!datalab_backend_render_size(backend->window, width, height)) {
         return -1;
     }
     return 0;

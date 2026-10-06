@@ -27,6 +27,7 @@ uint32_t datalab_renderer_backend_window_flags(void);
 SDL_Renderer *datalab_renderer_backend_create(SDL_Window *window);
 void datalab_renderer_backend_destroy(SDL_Renderer *renderer);
 DatalabRendererBackendKind datalab_renderer_backend_kind(SDL_Renderer *renderer);
+/* Chosen UI render extent; Vulkan canvas is bounded. Actual pixels: drawable_metrics. */
 int datalab_renderer_backend_output_size(SDL_Renderer *renderer, int *width, int *height);
 int datalab_renderer_backend_map_point_between_extents(int source_width,
                                                        int source_height,
@@ -69,6 +70,7 @@ int datalab_renderer_backend_request_capture(SDL_Renderer *renderer, const char 
 int datalab_renderer_backend_verify(SDL_Renderer *renderer,
                                     const char *stage,
                                     int require_validation);
+/* Native logical and drawable dimensions, independent of the bounded render extent. */
 int datalab_renderer_backend_drawable_metrics(SDL_Renderer *renderer,
                                               int *logical_width,
                                               int *logical_height,
