@@ -169,3 +169,9 @@ test-focus-order: $(LIB) ../../core/core_base/build/libcore_base.a
 test-native-text-sdl: $(LIB)
 	$(CC) $(CFLAGS) $(INC) $(shell $(PKG_CONFIG) --cflags sdl2) tests/kit_ui_native_text_sdl_test.c src/kit_ui_native_text_sdl.c $(LIB) ../../core/core_base/build/libcore_base.a $(shell $(PKG_CONFIG) --libs sdl2) -lm -o $(OBJ_DIR)/kit_ui_native_text_sdl_test
 	./$(OBJ_DIR)/kit_ui_native_text_sdl_test
+
+.PHONY: test-window-sdl
+test-window-sdl:
+	@mkdir -p build
+	$(CC) $(CFLAGS) $(INC) $(shell $(PKG_CONFIG) --cflags sdl2) tests/kit_ui_window_sdl_test.c src/kit_ui_window_sdl.c $(shell $(PKG_CONFIG) --libs sdl2) -lm -o build/kit_ui_window_sdl_test
+	SDL_VIDEODRIVER=dummy ./build/kit_ui_window_sdl_test

@@ -1,3 +1,4 @@
+#include "kit_ui_window_sdl.h"
 #include "kit_ui_interaction_sdl.h"
 #include <string.h>
 
@@ -34,10 +35,7 @@ int kit_ui_interaction_event_from_sdl(const SDL_Event *event,
             out_event->repeat = event->key.repeat != 0;
             return 1;
         case SDL_WINDOWEVENT:
-            if (event->window.event != SDL_WINDOWEVENT_FOCUS_LOST &&
-                event->window.event != SDL_WINDOWEVENT_SIZE_CHANGED &&
-                event->window.event != SDL_WINDOWEVENT_HIDDEN &&
-                event->window.event != SDL_WINDOWEVENT_MINIMIZED) return 0;
+            if (!kit_ui_window_event_invalidates_sdl(event)) return 0;
             out_event->type = KIT_UI_INTERACTION_CANCEL;
             return 1;
         case SDL_QUIT:

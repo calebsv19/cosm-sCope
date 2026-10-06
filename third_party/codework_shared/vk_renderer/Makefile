@@ -108,3 +108,15 @@ print-flags:
 .PHONY: clean
 clean:
 	rm -rf build
+
+.PHONY: test-frame-submission
+test-frame-submission:
+	@mkdir -p $(TESTDIR)
+	$(CC) $(CFLAGS) tests/test_frame_submission.c src/vk_renderer_frame_submission.c -o $(TESTDIR)/test_frame_submission
+	./$(TESTDIR)/test_frame_submission
+
+.PHONY: test-window-live
+test-window-live: runtime $(LIB)
+	@mkdir -p $(TESTDIR)
+	$(CC) $(CFLAGS) -I../kit/kit_ui/include -I../core/core_base/include tests/test_window_lifecycle.c ../kit/kit_ui/src/kit_ui_window_sdl.c ../kit/kit_ui/src/kit_ui_window_probe_sdl.c -L$(LIBDIR) -lvkrenderer $(LDFLAGS) -o $(TESTDIR)/test_window_lifecycle
+	$(VALIDATION_ENV) ./$(TESTDIR)/test_window_lifecycle
