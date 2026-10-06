@@ -8,6 +8,7 @@ int main(void){
  uint64_t generation=s.generation;assert(kit_ui_window_refresh_sdl(&s,w,&bits).code==CORE_OK && !bits && generation==s.generation);
  int x,y;assert(kit_ui_window_map_point_sdl(&s,1600,1200,400,300,&x,&y)&&x==800&&y==600);
  assert(kit_ui_window_map_point_sdl(&s,800,600,-4,602,&x,&y)&&x==-4&&y==602);
+ s.logical_width=2500;s.logical_height=720;assert(kit_ui_window_map_point_sdl(&s,4096,1440,1250,360,&x,&y)&&x==2048&&y==720);
  SDL_SetWindowSize(w,1024,768);assert(kit_ui_window_refresh_sdl(&s,w,&bits).code==CORE_OK && bits&KIT_UI_WINDOW_GEOMETRY);
  SDL_HideWindow(w);assert(kit_ui_window_refresh_sdl(&s,w,&bits).code==CORE_OK && !s.presentable && bits&KIT_UI_WINDOW_VISIBILITY);
  SDL_ShowWindow(w);assert(kit_ui_window_refresh_sdl(&s,w,&bits).code==CORE_OK && s.presentable);

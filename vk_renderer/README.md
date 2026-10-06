@@ -280,4 +280,4 @@ Feel free to extend the layer with your own draw helpers (`vk_renderer_draw_circ
 
 1.6.0 separates frame submission from command-pool allocation, resets fences only before submission, consumes suboptimal acquired images, and recovers high-level begin/end from out-of-date presentation. The context now borrows its SDL window for bounded recovery; downstream C struct consumers require a clean rebuild. Tests cover skipped acquisition, recording failure, retained textures and real macOS fullscreen/resize/hide/minimize/restore.
 
-See [shared window contract](../../docs/UI_WINDOW_LIFECYCLE_CONTRACT.md).
+See [shared window contract](../docs/UI_WINDOW_LIFECYCLE_CONTRACT.md).

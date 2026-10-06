@@ -49,7 +49,7 @@ int kit_ui_window_probe_tick_sdl(KitUiWindowProbe *p,SDL_Window *w,uint64_t fram
     fprintf(stdout,"WINDOW_LIFECYCLE program=%s stage=%s status=pass logical=%dx%d drawable=%dx%d center=%d,%d frames=%llu flags=0x%x\n",p->program,stages[p->phase],s.logical_width,s.logical_height,s.drawable_width,s.drawable_height,rx,ry,(unsigned long long)frames,s.flags);fflush(stdout);
     ++p->phase;p->captured=0;p->phase_ms=now;p->phase_frames=frames;
     switch(p->phase) {
-        case 1:SDL_SetWindowSize(w,960,720);break;
+        case 1:SDL_SetWindowSize(w,getenv("CODEWORK_WINDOW_PROOF_LARGE")?2500:960,720);break;
         case 2:if(SDL_SetWindowFullscreen(w,SDL_WINDOW_FULLSCREEN_DESKTOP)!=0)return p->status=-1;break;
         case 3:if(SDL_SetWindowFullscreen(w,0)!=0)return p->status=-1;break;
         case 4:SDL_HideWindow(w);break;
