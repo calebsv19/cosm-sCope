@@ -42,8 +42,8 @@ release-bundle-audit: release-build
 		out="$(RELEASE_AUDIT_DIR)/otool_$$(basename "$$dylib").txt"; \
 		sh tools/packaging/macos/developer-tool.sh otool -L "$$dylib" > "$$out"; \
 	done
-	@! rg -q '/opt/homebrew|/usr/local|/Users/' "$(RELEASE_AUDIT_DIR)"/otool_*.txt || (echo "Found non-portable dylib linkage"; exit 1)
-	@! rg -q '@rpath/' "$(RELEASE_AUDIT_DIR)"/otool_*.txt || (echo "Found unresolved @rpath dylib linkage"; exit 1)
+	@! rg -q '^[[:blank:]]+.*(/opt/homebrew|/usr/local|/Users/)' "$(RELEASE_AUDIT_DIR)"/otool_*.txt || (echo "Found non-portable dylib linkage"; exit 1)
+	@! rg -q '^[[:blank:]]+.*@rpath/' "$(RELEASE_AUDIT_DIR)"/otool_*.txt || (echo "Found unresolved @rpath dylib linkage"; exit 1)
 	@"$(PACKAGE_MACOS_DIR)/$(LAUNCHER_BIN)" --print-config > "$(RELEASE_AUDIT_DIR)/print_config.txt"
 	@rg -q '^DATALAB_RUNTIME_DIR=' "$(RELEASE_AUDIT_DIR)/print_config.txt" || (echo "Missing DATALAB_RUNTIME_DIR in launcher config"; exit 1)
 	@rg -q '^VK_ICD_FILENAMES=' "$(RELEASE_AUDIT_DIR)/print_config.txt" || (echo "Missing VK_ICD_FILENAMES in launcher config"; exit 1)
