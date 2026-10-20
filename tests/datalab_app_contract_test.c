@@ -1,3 +1,4 @@
+#include "datalab_test_temp.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -155,8 +156,7 @@ static int datalab_test_make_temp_dir(char *out_dir, size_t out_cap) {
     if (!out_dir || out_cap == 0u) {
         return 0;
     }
-    snprintf(template_path, sizeof(template_path), "/tmp/datalab_contract_XXXXXX");
-    made = mkdtemp(template_path);
+    made = datalab_test_temp_dir(template_path, sizeof(template_path), "datalab_contract");
     if (!made) {
         return 0;
     }
@@ -1400,11 +1400,13 @@ static int test_recipe_runtime_isolation_contract(void) {
     const char *source_root = getenv("DATALAB_TEST_SOURCE_ROOT");
     char cwd[PATH_MAX];
     struct stat source_info;
-    return datalab_test_assert(runtime_root &&
-                                   strncmp(runtime_root, "/private/tmp/datalab-app-contract.",
-                                           strlen("/private/tmp/datalab-app-contract.")) == 0,
+    char expected_prefix[PATH_MAX];
+    char resolved_runtime[PATH_MAX];
+    int prefix_length = snprintf(expected_prefix, sizeof(expected_prefix), "%s/datalab-app-contract.", datalab_test_temp_root());
+    return datalab_test_assert(prefix_length > 0 && (size_t)prefix_length < sizeof(expected_prefix) && runtime_root &&
+                                   strncmp(runtime_root, expected_prefix, (size_t)prefix_length) == 0,
                                "app contract must run from an explicit private temporary runtime") &&
-           datalab_test_assert(getcwd(cwd, sizeof(cwd)) && strcmp(cwd, runtime_root) == 0,
+           datalab_test_assert(realpath(runtime_root, resolved_runtime) && getcwd(cwd, sizeof(cwd)) && strcmp(cwd, resolved_runtime) == 0,
                                "app contract must never fall back to the source cwd") &&
            datalab_test_assert(source_root && stat(source_root, &source_info) == 0 && S_ISDIR(source_info.st_mode),
                                "app contract must retain an explicit source-root context");

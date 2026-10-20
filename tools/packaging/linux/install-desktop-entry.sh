@@ -11,16 +11,10 @@ ICON_FILE="$ICON_DIR/scope.svg"
 
 mkdir -p "$APP_DIR" "$ICON_DIR"
 cp "$PACKAGE_ROOT/share/icons/hicolor/scalable/apps/scope.svg" "$ICON_FILE"
-cat > "$DESKTOP_FILE" <<EOF
-[Desktop Entry]
-Type=Application
-Name=sCope
-Comment=Visual output workspace
-Exec=$PACKAGE_ROOT/bin/datalab-launcher
-Icon=$ICON_FILE
-Terminal=false
-Categories=Education;Science;DataVisualization;
-StartupNotify=true
-EOF
+# Direct output avoids global here-document scratch on macOS fixture runs.
+printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=sCope' \
+    'Comment=Visual output workspace' "Exec=$PACKAGE_ROOT/bin/datalab-launcher" \
+    "Icon=$ICON_FILE" 'Terminal=false' 'Categories=Education;Science;DataVisualization;' \
+    'StartupNotify=true' > "$DESKTOP_FILE"
 chmod 0644 "$DESKTOP_FILE" "$ICON_FILE"
 echo "$DESKTOP_FILE"

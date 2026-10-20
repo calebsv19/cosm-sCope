@@ -39,15 +39,11 @@ if [ -L "$RUNTIME_DIR/config/shared/shaders/vk_renderer" ] || [ ! -e "$RUNTIME_D
 fi
 MOLTENVK_DYLIB="$APP_CONTENTS_DIR/Frameworks/libMoltenVK.dylib"
 ICD_FILE="$RUNTIME_DIR/vk/MoltenVK_icd.json"
-cat >"$ICD_FILE" <<EOF
-{
-  "file_format_version": "1.0.0",
-  "ICD": {
-    "library_path": "$MOLTENVK_DYLIB",
-    "api_version": "1.3.0"
-  }
-}
-EOF
+# macOS /bin/sh may place here-document scratch in global /tmp.
+# Write directly so contained preparation needs only the selected runtime root.
+printf '%s\n' '{' '  "file_format_version": "1.0.0",' '  "ICD": {' \
+    "    \"library_path\": \"$MOLTENVK_DYLIB\"," \
+    '    "api_version": "1.3.0"' '  }' '}' >"$ICD_FILE"
 export DATALAB_RUNTIME_DIR="$RUNTIME_DIR"
 export DATALAB_INPUT_ROOT="${DATALAB_INPUT_ROOT:-$RUNTIME_DIR/data/import}"
 case "$DATALAB_INPUT_ROOT" in

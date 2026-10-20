@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
+# This fixture verifies XDG defaults independently of the caller runtime profile.
+unset DATALAB_RUNTIME_DIR DATALAB_INPUT_ROOT DATALAB_LOG_DIR DATALAB_CONFIG_DIR
+
 ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 FIXTURE="$(mktemp -d "${TMPDIR:-/tmp}/datalab-linux-launcher.XXXXXX")"
 cleanup() { rm -rf "$FIXTURE"; }

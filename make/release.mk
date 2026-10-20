@@ -1,4 +1,8 @@
 RELEASE_AUDIT_DIR ?= $(RELEASE_DIR)
+# Preparation may route diagnostics to its separate, owned log area. Keep the
+# job-specific leaf and create-only check even when the parent already exists.
+RELEASE_DIAGNOSTICS_PARENT ?= $(patsubst %/,%,$(dir $(RELEASE_ROOT)))
+RELEASE_DIAGNOSTICS_DIR = $(RELEASE_DIAGNOSTICS_PARENT)/$(notdir $(RELEASE_ROOT)).diagnostics
 
 release-contract:
 	@echo "PROGRAM_KEY=$(PROGRAM_KEY)"
@@ -32,11 +36,11 @@ release-bundle-audit: release-build
 	@test "$$(cat "$(RELEASE_AUDIT_DIR)/bundle_short_version.txt")" = "$(RELEASE_VERSION)" || (echo "Bundle short version mismatch"; exit 1)
 	@/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$(PACKAGE_CONTENTS_DIR)/Info.plist" > "$(RELEASE_AUDIT_DIR)/bundle_version.txt"
 	@test "$$(cat "$(RELEASE_AUDIT_DIR)/bundle_version.txt")" = "$(RELEASE_VERSION)" || (echo "Bundle version mismatch"; exit 1)
-	@otool -L "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" > "$(RELEASE_AUDIT_DIR)/otool_datalab_bin.txt"
+	@sh tools/packaging/macos/developer-tool.sh otool -L "$(PACKAGE_MACOS_DIR)/$(APP_BIN)" > "$(RELEASE_AUDIT_DIR)/otool_datalab_bin.txt"
 	@for dylib in "$(PACKAGE_FRAMEWORKS_DIR)"/*.dylib; do \
 		[ -f "$$dylib" ] || continue; \
 		out="$(RELEASE_AUDIT_DIR)/otool_$$(basename "$$dylib").txt"; \
-		otool -L "$$dylib" > "$$out"; \
+		sh tools/packaging/macos/developer-tool.sh otool -L "$$dylib" > "$$out"; \
 	done
 	@! rg -q '/opt/homebrew|/usr/local|/Users/' "$(RELEASE_AUDIT_DIR)"/otool_*.txt || (echo "Found non-portable dylib linkage"; exit 1)
 	@! rg -q '@rpath/' "$(RELEASE_AUDIT_DIR)"/otool_*.txt || (echo "Found unresolved @rpath dylib linkage"; exit 1)
@@ -192,9 +196,9 @@ release-output-root-contract:
 	@case "$(RELEASE_ROOT)" in *'//'*) echo "RELEASE_ROOT must not contain empty path segments"; exit 1;; esac
 
 release-output-root-conformance: release-output-root-contract
-	@test ! -e "$(RELEASE_ROOT)" || (echo "RELEASE_ROOT must be absent before package"; exit 1)
-	@test ! -e "$(RELEASE_ROOT).diagnostics" && test ! -L "$(RELEASE_ROOT).diagnostics" || (echo "Release diagnostics root must be absent before package"; exit 1)
-	@DATALAB_RUNTIME_DIR="$(abspath $(RELEASE_ROOT).diagnostics/runtime)" DATALAB_INPUT_ROOT="$(abspath $(RELEASE_ROOT).diagnostics/runtime)" $(MAKE) RELEASE_ROOT="$(RELEASE_ROOT)" RELEASE_AUDIT_DIR="$(RELEASE_ROOT).diagnostics" release-artifact
+	@test ! -e "$(RELEASE_ROOT)" && test ! -L "$(RELEASE_ROOT)" || (echo "RELEASE_ROOT must be absent before package"; exit 1)
+	@test ! -e "$(RELEASE_DIAGNOSTICS_DIR)" && test ! -L "$(RELEASE_DIAGNOSTICS_DIR)" || (echo "Release diagnostics root must be absent before package"; exit 1)
+	@DATALAB_RUNTIME_DIR="$(abspath $(RELEASE_DIAGNOSTICS_DIR)/runtime)" DATALAB_INPUT_ROOT="$(abspath $(RELEASE_DIAGNOSTICS_DIR)/runtime)" $(MAKE) RELEASE_ROOT="$(RELEASE_ROOT)" RELEASE_AUDIT_DIR="$(RELEASE_DIAGNOSTICS_DIR)" release-artifact
 	@test -f "$(RELEASE_APP_ZIP)" || (echo "Missing release artifact at selected root"; exit 1)
 	@test -f "$(RELEASE_APP_ZIP_SHA256)" || (echo "Missing release checksum at selected root"; exit 1)
 	@test -f "$(RELEASE_MANIFEST)" || (echo "Missing release manifest at selected root"; exit 1)

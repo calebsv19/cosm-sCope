@@ -1,3 +1,4 @@
+#include "datalab_test_temp.h"
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
@@ -230,10 +231,7 @@ typedef struct DrawingObjectChunkEntryV4Disk {
 } DrawingObjectChunkEntryV4Disk;
 
 static void make_test_temp_dir(char *out, size_t out_cap) {
-    int n = snprintf(out, out_cap, "/tmp/dl_pack_loader_XXXXXX");
-    assert(n > 0);
-    assert((size_t)n < out_cap);
-    assert(mkdtemp(out) != NULL);
+    assert(datalab_test_temp_dir(out, out_cap, "dl_pack_loader") != NULL);
 }
 
 static void make_test_fixture_path(char *out, size_t out_cap, const char *dir, const char *name) {

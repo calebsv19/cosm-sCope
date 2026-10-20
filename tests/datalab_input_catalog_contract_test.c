@@ -1,3 +1,5 @@
+#include "datalab_test_temp.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,14 +28,14 @@ static int write_fixture(const char *root, size_t count) {
 }
 
 static int test_incremental_directory_contract(void) {
-    char root[] = "/private/tmp/datalab-catalog.XXXXXX";
+    char root[PATH_MAX];
     DatalabInputCatalog catalog;
     char page[4][DATALAB_APP_PATH_CAP] = {{0}};
     char name[DATALAB_APP_PATH_CAP] = {0};
     CoreResult result;
     uint64_t restored = 0u;
     int ok = 1;
-    if (!mkdtemp(root) || !write_fixture(root, 257u)) return 0;
+    if (!datalab_test_temp_dir(root, sizeof(root), "datalab-catalog") || !write_fixture(root, 257u)) return 0;
     datalab_input_catalog_init(&catalog);
     result = datalab_input_catalog_begin_refresh(&catalog, root, DATALAB_INPUT_CATALOG_REFRESH_INITIAL);
     ok &= expect(result.code == CORE_OK && datalab_input_catalog_is_busy(&catalog), "scan must start asynchronously");
@@ -55,13 +57,13 @@ static int test_incremental_directory_contract(void) {
 }
 
 static int test_allocation_failure_contract(void) {
-    char root[] = "/private/tmp/datalab-catalog-oom.XXXXXX";
+    char root[PATH_MAX];
     char path[DATALAB_APP_PATH_CAP];
     DatalabInputCatalog catalog;
     CoreResult result;
     FILE *file = NULL;
     int ok = 1;
-    if (!mkdtemp(root)) return 0;
+    if (!datalab_test_temp_dir(root, sizeof(root), "datalab-catalog")) return 0;
     snprintf(path, sizeof(path), "%s/frame_0001.bmp", root);
     file = fopen(path, "wb");
     if (!file || fclose(file) != 0) return 0;

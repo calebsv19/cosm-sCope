@@ -50,7 +50,7 @@ $(TEST_BIN): tests/datalab_smoke_test.c src/data/dataset_builders.c
 	$(HOST_CC) $(HOST_CFLAGS) -o $@ tests/datalab_smoke_test.c src/data/dataset_builders.c \
 		$(CORE_DATA_DIR)/src/core_data.c $(CORE_BASE_DIR)/src/core_base.c -lm
 
-$(PACK_LOADER_TEST_BIN): tests/datalab_pack_loader_test.c src/data/pack_loader.c src/data/pack_loader_sketch.c
+$(PACK_LOADER_TEST_BIN): tests/datalab_pack_loader_test.c src/data/pack_loader.c src/data/pack_loader_sketch.c tests/datalab_test_temp.h
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(HOST_CFLAGS) -o $@ tests/datalab_pack_loader_test.c src/data/pack_loader.c src/data/pack_loader_sketch.c \
 		$(CORE_PACK_DIR)/src/core_pack.c $(CORE_IO_DIR)/src/core_io.c $(CORE_BASE_DIR)/src/core_base.c -lm
@@ -200,14 +200,14 @@ $(DEFAULT_PACK): $(DEFAULT_PACK_SRC)
 	cp $(DEFAULT_PACK_SRC) $@
 
 test-smoke: $(TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(TEST_BIN))"
 
 test-pack-loader: $(PACK_LOADER_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(PACK_LOADER_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(PACK_LOADER_TEST_BIN))"
 
 test-app-contract: $(APP_CONTRACT_TEST_BIN)
 	@set -eu; \
-		runtime_root="$$(mktemp -d /private/tmp/datalab-app-contract.XXXXXX)" || exit $$?; \
+		runtime_root="$$(mktemp -d "$${TMPDIR:-/tmp}/datalab-app-contract.XXXXXX")" || exit $$?; \
 		trap 'rm -rf "$$runtime_root"' EXIT; \
 		trap 'exit 1' HUP INT TERM; \
 		source_root="$(abspath $(CURDIR))"; \
@@ -220,7 +220,7 @@ test-app-contract: $(APP_CONTRACT_TEST_BIN)
 
 test-authoring-input-contract: $(AUTHORING_INPUT_TEST_BIN)
 	@set -eu; \
-		runtime_root="$$(mktemp -d /private/tmp/datalab-authoring-contract.XXXXXX)" || exit $$?; \
+		runtime_root="$$(mktemp -d "$${TMPDIR:-/tmp}/datalab-authoring-contract.XXXXXX")" || exit $$?; \
 		trap 'rm -rf "$$runtime_root"' EXIT; \
 		trap 'exit 1' HUP INT TERM; \
 		source_root="$(abspath $(CURDIR))"; \
@@ -232,56 +232,60 @@ test-authoring-input-contract: $(AUTHORING_INPUT_TEST_BIN)
 			env -u TARGET_CONTRACT_HELPER "$(abspath $(AUTHORING_INPUT_TEST_BIN))"
 
 test-raster-viewport-contract: $(RASTER_VIEWPORT_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(RASTER_VIEWPORT_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(RASTER_VIEWPORT_TEST_BIN))"
 
 test-loop-policy-contract: $(LOOP_POLICY_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(LOOP_POLICY_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(LOOP_POLICY_TEST_BIN))"
 
 test-panel-policy-contract: $(PANEL_POLICY_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(PANEL_POLICY_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(PANEL_POLICY_TEST_BIN))"
 
 test-profile-interaction-contract: $(PROFILE_INTERACTION_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(PROFILE_INTERACTION_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(PROFILE_INTERACTION_TEST_BIN))"
 
 test-datalab-folder-picker: $(DATALAB_FOLDER_PICKER_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(DATALAB_FOLDER_PICKER_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(DATALAB_FOLDER_PICKER_TEST_BIN))"
 
 test-image-residency-contract: $(IMAGE_RESIDENCY_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(IMAGE_RESIDENCY_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(IMAGE_RESIDENCY_TEST_BIN))"
 
 test-raster-generation-contract: $(RASTER_GENERATION_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(RASTER_GENERATION_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(RASTER_GENERATION_TEST_BIN))"
 
 test-render-perf-diag-contract: $(RENDER_PERF_DIAG_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(RENDER_PERF_DIAG_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(RENDER_PERF_DIAG_TEST_BIN))"
 
 test-native-image-policy-contract: $(NATIVE_IMAGE_POLICY_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(NATIVE_IMAGE_POLICY_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(NATIVE_IMAGE_POLICY_TEST_BIN))"
 
 test-image-overlay-identity-contract: $(IMAGE_OVERLAY_IDENTITY_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(IMAGE_OVERLAY_IDENTITY_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(IMAGE_OVERLAY_IDENTITY_TEST_BIN))"
 
 test-native-image-profile-wave-contract: $(NATIVE_IMAGE_PROFILE_WAVE_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(NATIVE_IMAGE_PROFILE_WAVE_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(NATIVE_IMAGE_PROFILE_WAVE_TEST_BIN))"
 
 test-viewer-session-prefs-contract: $(VIEWER_SESSION_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(VIEWER_SESSION_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(VIEWER_SESSION_TEST_BIN))"
 
 test-async-decode-contract: $(ASYNC_DECODE_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(ASYNC_DECODE_TEST_BIN)
+	@set -eu; \
+		runtime_root="$$(mktemp -d "$${TMPDIR:-/tmp}/datalab-async-runtime.XXXXXX")"; \
+		trap 'rm -rf "$$runtime_root"' EXIT; \
+		cd "$$runtime_root"; \
+		env -u TARGET_CONTRACT_HELPER "$(abspath $(ASYNC_DECODE_TEST_BIN))"
 
 test-thumbnail-decode-contract: $(THUMBNAIL_DECODE_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(THUMBNAIL_DECODE_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(THUMBNAIL_DECODE_TEST_BIN))"
 
 test-input-catalog-contract: $(INPUT_CATALOG_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(INPUT_CATALOG_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(INPUT_CATALOG_TEST_BIN))"
 
 test-focus-window-contract: $(FOCUS_WINDOW_TEST_BIN)
-	env -u TARGET_CONTRACT_HELPER ./$(FOCUS_WINDOW_TEST_BIN)
+	env -u TARGET_CONTRACT_HELPER "$(abspath $(FOCUS_WINDOW_TEST_BIN))"
 
 test-w5-acceptance: $(TARGET)
 	@set -eu; \
-		output_root="$$(mktemp -d /private/tmp/datalab-w5-source.XXXXXX)"; \
+		output_root="$$(mktemp -d "$${TMPDIR:-/tmp}/datalab-w5-source.XXXXXX")"; \
 		rmdir "$$output_root"; \
 		trap 'rm -rf "$$output_root"' EXIT; \
 		env -u TARGET_CONTRACT_HELPER "$(TARGET)" --w5-acceptance "$$output_root"; \
@@ -313,7 +317,11 @@ run-headless: $(TARGET) $(DEFAULT_PACK)
 	env -u TARGET_CONTRACT_HELPER "$(TARGET)" --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
 
 run-headless-smoke: all test-stable $(DEFAULT_PACK)
-	env -u TARGET_CONTRACT_HELPER "$(TARGET)" --pack "$(if $(PACK),$(PACK),$(DEFAULT_PACK))" --no-gui
+	@set -eu; \
+		runtime_root="$$(mktemp -d "$${TMPDIR:-/tmp}/datalab-headless-runtime.XXXXXX")"; \
+		trap 'rm -rf "$$runtime_root"' EXIT; \
+		cd "$$runtime_root"; \
+		env -u TARGET_CONTRACT_HELPER "$(abspath $(TARGET))" --pack "$(abspath $(if $(PACK),$(PACK),$(DEFAULT_PACK)))" --no-gui
 
 visual-harness: $(TARGET)
 	@echo "visual harness build gate ready: $(TARGET)"
@@ -354,7 +362,7 @@ package-desktop-vulkan-self-test: package-desktop-smoke vulkan-rollout-contract
 ui-interaction-self-test: $(TARGET)
 	@mkdir -p "$(TEST_BUILD_DIR)"
 	$(HOST_CC) $(HOST_CFLAGS) tests/datalab_ui_interaction_test.c $(filter-out $(PROGRAM_OBJ_DIR)/main.o,$(OBJS)) $(CORE_OBJS) $(KIT_GRAPH_TS_LIB) $(KIT_WORKSPACE_AUTHORING_LIB) $(KIT_RENDER_LIB) $(LDFLAGS) $(LIBS) -o $(TEST_BUILD_DIR)/datalab_ui_interaction_test
-	@task_runtime=$$(mktemp -d /private/tmp/datalab-ui-interaction.XXXXXX); cd "$$task_runtime" && DYLD_LIBRARY_PATH=/opt/homebrew/lib "$(abspath $(TEST_BUILD_DIR))/datalab_ui_interaction_test"; task_status=$$?; rm -rf "$$task_runtime"; exit $$task_status
+	@task_runtime=$$(mktemp -d "$${TMPDIR:-/tmp}/datalab-ui-interaction.XXXXXX"); cd "$$task_runtime" && DYLD_LIBRARY_PATH=/opt/homebrew/lib "$(abspath $(TEST_BUILD_DIR))/datalab_ui_interaction_test"; task_status=$$?; rm -rf "$$task_runtime"; exit $$task_status
 
 .PHONY: ui-text-focus-self-test
 ui-text-focus-self-test: ui-interaction-self-test

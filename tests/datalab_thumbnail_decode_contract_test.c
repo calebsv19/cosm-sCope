@@ -1,3 +1,5 @@
+#include "datalab_test_temp.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,11 +43,11 @@ static DatalabThumbnailDecodeCompletion *wait_for(DatalabThumbnailDecode *decode
 }
 
 int main(void) {
-    char root_template[] = "/private/tmp/datalab-thumbnail-decode.XXXXXX";
+    char root_template[PATH_MAX];
     char first_path[DATALAB_APP_PATH_CAP];
     char second_path[DATALAB_APP_PATH_CAP];
     char third_path[DATALAB_APP_PATH_CAP];
-    char *root = mkdtemp(root_template);
+    char *root = datalab_test_temp_dir(root_template, sizeof(root_template), "datalab-thumbnail-decode");
     DatalabThumbnailDecode *decode = NULL;
     DatalabThumbnailDecodeCompletion *completion = NULL;
     DatalabThumbnailDecodeStats stats;

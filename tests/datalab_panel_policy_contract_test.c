@@ -1,3 +1,5 @@
+#include "datalab_test_temp.h"
+#include <limits.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,10 +44,10 @@ static int test_retained_catalog_seeds_empty_session_cache(void) {
     DatalabAppState state;
     DatalabInputCatalog catalog;
     CoreResult refresh_result;
-    char root_template[] = "/private/tmp/datalab-panel-cache.XXXXXX";
+    char root_template[PATH_MAX];
     char first_path[DATALAB_APP_PATH_CAP];
     char active_path[DATALAB_APP_PATH_CAP];
-    char *root = mkdtemp(root_template);
+    char *root = datalab_test_temp_dir(root_template, sizeof(root_template), "datalab-panel-cache");
     int ok = 0;
 
     if (!root ||

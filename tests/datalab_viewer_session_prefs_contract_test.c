@@ -1,3 +1,5 @@
+#include "datalab_test_temp.h"
+#include <limits.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,9 +15,9 @@ static int assert_true(int condition, const char *message) {
 }
 
 static int enter_temp_root(char *out_previous_cwd, size_t previous_cap) {
-    char root[] = "/tmp/datalab-viewer-session-XXXXXX";
+    char root[PATH_MAX];
     if (!out_previous_cwd || previous_cap == 0u || !getcwd(out_previous_cwd, previous_cap)) return 0;
-    return mkdtemp(root) != NULL && chdir(root) == 0;
+    return datalab_test_temp_dir(root, sizeof(root), "datalab-viewer-session") != NULL && chdir(root) == 0;
 }
 
 static int test_atomic_round_trip(void) {

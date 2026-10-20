@@ -1,3 +1,5 @@
+#include "datalab_test_temp.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,13 +67,13 @@ static int wait_for_failure(DatalabAppRuntime *runtime, DatalabAppState *state) 
 }
 
 int main(void) {
-    char root_template[] = "/private/tmp/datalab-async-contract.XXXXXX";
+    char root_template[PATH_MAX];
     char first_path[DATALAB_APP_PATH_CAP];
     char second_path[DATALAB_APP_PATH_CAP];
     char third_path[DATALAB_APP_PATH_CAP];
     char fourth_path[DATALAB_APP_PATH_CAP];
     char corrupt_path[DATALAB_APP_PATH_CAP];
-    char *root = mkdtemp(root_template);
+    char *root = datalab_test_temp_dir(root_template, sizeof(root_template), "datalab-async-contract");
     DatalabAppRuntime runtime;
     DatalabAppState state;
     CoreResult load_result;

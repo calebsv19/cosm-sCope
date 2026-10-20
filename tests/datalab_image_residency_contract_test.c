@@ -1,3 +1,5 @@
+#include "datalab_test_temp.h"
+#include <limits.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,7 +58,7 @@ int main(void) {
     uint8_t *rgba = NULL;
     uint32_t thumbnail_width = 0u;
     uint32_t thumbnail_height = 0u;
-    char directory[] = "/private/tmp/datalab-thumbnail-residency.XXXXXX";
+    char directory[PATH_MAX];
 
     if (!require(datalab_image_rgba_bytes(3840u, 2160u) == 33177600u, "4K RGBA byte math must be exact") ||
         !require(datalab_library_preview_thumbnail_dimensions(4096u, 2048u, &thumbnail_width, &thumbnail_height) &&
@@ -65,7 +67,7 @@ int main(void) {
         !require(!datalab_library_preview_debounce_ready(100u, 139u) &&
                      datalab_library_preview_debounce_ready(100u, 140u),
                  "thumbnail selection must use a responsive 40ms debounce") ||
-        !require(mkdtemp(directory) != NULL, "thumbnail fixture directory creation failed")) return 1;
+        !require(datalab_test_temp_dir(directory, sizeof(directory), "datalab-thumbnail-residency") != NULL, "thumbnail fixture directory creation failed")) return 1;
     for (int i = 0; i < THUMBNAIL_FIXTURE_COUNT; ++i) {
         if (!require(make_identity(directory, i, &identities[i]), "thumbnail identity creation failed")) {
             remove_identities(directory);
