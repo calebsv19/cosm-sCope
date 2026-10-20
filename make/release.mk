@@ -150,12 +150,9 @@ release-verify-notarized: release-staple
 	@xcrun stapler validate "$(PACKAGE_APP_DIR)"
 	@echo "release-verify-notarized passed."
 
-release-artifact:
-	@if [ "$(RELEASE_CODESIGN_IDENTITY)" = "-" ]; then \
-		$(MAKE) BUILD_TOOLCHAIN="$(BUILD_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" release-verify-signed; \
-	else \
-		$(MAKE) BUILD_TOOLCHAIN="$(BUILD_TOOLCHAIN)" PACKAGE_TOOLCHAIN="$(PACKAGE_TOOLCHAIN)" TARGET_OS="$(TARGET_OS)" TARGET_ARCH="$(TARGET_ARCH)" TARGET_VARIANT="$(TARGET_VARIANT)" release-verify-notarized; \
-	fi
+# Keep the prerequisite in this Make graph so an authenticated continuation's
+# -o release-staple skips completed signing/notary work in the same invocation.
+release-artifact: $(if $(filter -,$(RELEASE_CODESIGN_IDENTITY)),release-verify-signed,release-verify-notarized)
 	@mkdir -p "$(RELEASE_DIR)"
 	@rm -f "$(RELEASE_APP_ZIP)" "$(RELEASE_APP_ZIP_SHA256)" "$(RELEASE_MANIFEST)"
 	@/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$(PACKAGE_APP_DIR)" "$(RELEASE_APP_ZIP)"
